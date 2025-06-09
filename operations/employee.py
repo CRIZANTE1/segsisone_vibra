@@ -18,7 +18,8 @@ gdrive_uploader = GoogleDriveUploader()
 
 # Cache para carregar dados das planilhas
 @st.cache_data(ttl=300)  # Cache por 5 minutos
-def load_sheet_data(sheet_ops, sheet_name):
+def load_sheet_data(sheet_name):
+    sheet_ops = SheetOperations()
     return sheet_ops.carregar_dados_aba(sheet_name)
 
 class EmployeeManager:
@@ -92,10 +93,10 @@ class EmployeeManager:
 
     def load_data(self):
         # Carrega os dados das diferentes abas usando cache
-        companies_data = load_sheet_data(self.sheet_ops, EMPLOYEE_SHEET_NAME)
-        employees_data = load_sheet_data(self.sheet_ops, EMPLOYEE_DATA_SHEET_NAME)
-        aso_data = load_sheet_data(self.sheet_ops, ASO_SHEET_NAME)
-        training_data = load_sheet_data(self.sheet_ops, TRAINING_SHEET_NAME)
+        companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
+        employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
+        aso_data = load_sheet_data(ASO_SHEET_NAME)
+        training_data = load_sheet_data(TRAINING_SHEET_NAME)
         
         # Define as colunas padrão para cada DataFrame
         company_columns = ['id', 'nome', 'cnpj']
@@ -568,3 +569,4 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None 
+
