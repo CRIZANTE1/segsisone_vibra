@@ -1,22 +1,18 @@
-import os
-from dotenv import load_dotenv
 import google.generativeai as genai
+from google.generativeai.types import content_types
 from AI.api_load import load_api
 import time
-import tempfile
 import numpy as np
 import streamlit as st
 import re
-import os
 import pandas as pd
-import logging
+
 
 
 class PDFQA:
     def __init__(self):
         load_api()  # Carrega a API
         self.model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
-        self.embedding_model = 'models/embedding-001'
 
     
 
@@ -28,18 +24,37 @@ class PDFQA:
         return text.strip()
 
     #----------------- Função para fazer perguntas ao modelo Gemini----------------------
-    def ask_gemini(self, context, question):
+    def ask_gemini(self, pdf_files, question):
         try:
             st.info("Enviando pergunta para o modelo Gemini...")
-            response = self.model.generate_content(f"""
-            Contexto: {context}
-
-            Pergunta: {question}
-
-            Por favor, forneça uma resposta detalhada e precisa.
-            """)
+            
+            # Preparar os inputs para o modelo
+            inputs = []
+            
+            # Adicionar os PDFs como FileData
+            for pdf_file in pdf_files:
+                if hasattr(pdf_file, 'read'):  # Se for um objeto de arquivo (como UploadedFile)
+                    pdf_bytes = pdf_file.read()
+                    pdf_file.seek(0)  # Resetar o ponteiro do arquivo para o início
+                else:  # Se for um caminho de arquivo
+                    with open(pdf_file, 'rb') as f:
+                        pdf_bytes = f.read()
+                
+                inputs.append(
+                    content_types.FileData(
+                        mime_type="application/pdf",
+                        data=pdf_bytes
+                    )
+                )
+            
+            # Adicionar a pergunta
+            inputs.append(question)
+            
+            # Gerar resposta usando o modelo multimodal
+            response = self.model.generate_content(inputs)
             st.success("Resposta recebida do modelo Gemini.")
             return response.text
+            
         except Exception as e:
             st.error(f"Erro ao obter resposta do modelo Gemini: {str(e)}")
             return None
@@ -51,7 +66,7 @@ class PDFQA:
         try:
 
             with st.spinner("Gerando resposta com o modelo Gemini..."):
-                answer = self.ask_gemini("Baseado nos arquivos fornecidos", question)
+                answer = self.ask_gemini(pdf_files, question)
                 st.info("Resposta gerada com sucesso.")
             st.success("Resposta gerada com sucesso.")
 
@@ -63,6 +78,8 @@ class PDFQA:
             st.error(f"Erro inesperado ao processar a pergunta: {str(e)}")
             st.exception(e)
             return f"Ocorreu um erro ao processar a pergunta: {str(e)}", 0
+
+
 
 
 
