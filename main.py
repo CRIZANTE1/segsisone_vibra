@@ -33,9 +33,6 @@ def main():
         st.session_state.user = st.session_state.user if 'user' in st.session_state else None
         show_user_header()
         show_logout_button()
-        
-        # Adiciona navegação por abas para as diferentes páginas
-        tab_empresas, tab_aso, tab_treinamentos = st.tabs(["Empresas", "ASO", "Treinamentos"])
 
         with tab_empresas:
             front_page()
