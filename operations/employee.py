@@ -109,7 +109,6 @@ class EmployeeManager:
             for col in employee_columns:
                 if col not in self.employees_df.columns:
                     self.employees_df[col] = ''
-            st.write("Colunas disponíveis no DataFrame de funcionários:", list(self.employees_df.columns))
         else:
             self.employees_df = pd.DataFrame(columns=employee_columns)
             st.warning("Nenhum funcionário encontrado na planilha.")
