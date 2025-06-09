@@ -90,8 +90,7 @@ class EmployeeManager:
         aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
         training_columns = [
             'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-            'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
-            'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
+            'arquivo_id', 'tipo_treinamento', 'carga_horaria'
         ]
         
         # Converte os dados para DataFrames com as colunas corretas
@@ -145,8 +144,7 @@ class EmployeeManager:
                 ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo'],
                 TRAINING_SHEET_NAME: [
                     'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-                    'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
-                    'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
+                    'arquivo_id', 'tipo_treinamento', 'carga_horaria'
                 ]
             }
             
@@ -183,12 +181,7 @@ class EmployeeManager:
                 "Qual é o módulo ou tipo específico do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
                 "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
                 "Este é um treinamento inicial ou uma reciclagem? Responda apenas 'inicial' ou 'reciclagem'.",
-                "Qual é a carga horária total do treinamento em horas? Responda apenas o número.",
-                "Qual é o nome do instrutor?",
-                "Qual é o registro do instrutor?",
-                "Qual é o CNPJ da empresa que ministrou o treinamento?",
-                "Quais foram os tópicos abordados no treinamento?",
-                "Há alguma observação importante no certificado?"
+                "Qual é a carga horária total do treinamento em horas? Responda apenas o número."
             ]
 
             results = {}
@@ -224,12 +217,7 @@ class EmployeeManager:
                 'data': data,
                 'vencimento': vencimento,
                 'tipo_treinamento': tipo_treinamento,
-                'carga_horaria': carga_horaria,
-                'instrutor': results[questions[5]],
-                'registro_instrutor': results[questions[6]],
-                'cnpj_empresa': results[questions[7]],
-                'topicos': results[questions[8]],
-                'observacoes': results[questions[9]]
+                'carga_horaria': carga_horaria
             }
         except Exception as e:
             st.error(f"Erro ao analisar o PDF: {str(e)}")
@@ -318,8 +306,7 @@ class EmployeeManager:
             return None
 
     def add_training(self, id, contratado, data, vencimento, norma, modulo, status, anexo,
-                    tipo_treinamento, carga_horaria, instrutor, registro_instrutor,
-                    cnpj_empresa, topicos, observacoes):
+                    tipo_treinamento, carga_horaria):
         """
         Adiciona um novo treinamento para um funcionário.
         """
@@ -334,12 +321,7 @@ class EmployeeManager:
             status,
             anexo,  # ID do arquivo no Google Drive
             tipo_treinamento,
-            carga_horaria,
-            instrutor,
-            registro_instrutor,
-            cnpj_empresa,
-            topicos,
-            observacoes
+            carga_horaria
         ]
         
         try:
