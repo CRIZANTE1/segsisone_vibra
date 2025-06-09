@@ -3,8 +3,9 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import streamlit as st
-from gdrive.config import get_credentials_dict, GDRIVE_FOLDER_ID, GDRIVE_SHEETS_ID, LIFTING_SHEET_NAME, CRANE_SHEET_NAME
+from gdrive.config import get_credentials_dict, GDRIVE_FOLDER_ID, GDRIVE_SHEETS_ID
 import tempfile # Importar o módulo tempfile
+from google.auth.transport.requests import Request
 
 class GoogleDriveUploader:
     def __init__(self):
@@ -25,8 +26,9 @@ class GoogleDriveUploader:
                 credentials_dict,
                 scopes=self.SCOPES
             )
-            self.drive_service = build('drive', 'v3', credentials=self.credentials)
-            self.sheets_service = build('sheets', 'v4', credentials=self.credentials)
+            # Desabilita o cache de arquivos
+            self.drive_service = build('drive', 'v3', credentials=self.credentials, cache_discovery=False)
+            self.sheets_service = build('sheets', 'v4', credentials=self.credentials, cache_discovery=False)
         except Exception as e:
             st.error(f"Erro ao inicializar serviços do Google: {str(e)}")
             raise
@@ -146,3 +148,4 @@ class GoogleDriveUploader:
         except Exception as e:
             st.error(f"Erro ao ler dados da planilha '{sheet_name}': {str(e)}")
             raise
+
