@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime
+from operations.employee import EmployeeManager
 from gdrive.gdrive_upload import GoogleDriveUploader
-from .employee import EmployeeManager
 import pandas as pd
 
 # Inicializa o uploader do Google Drive globalmente
@@ -41,8 +41,11 @@ def mostrar_info_normas():
 def front_page():
     st.title("Gestão de Documentação de Contratada")
     
-    # Inicializa o gerenciador de funcionários
-    employee_manager = EmployeeManager()
+    # Usa a instância do EmployeeManager da sessão
+    if 'employee_manager' not in st.session_state:
+        st.session_state.employee_manager = EmployeeManager()
+    
+    employee_manager = st.session_state.employee_manager
     
     # Seleção da empresa
     if not employee_manager.companies_df.empty:
@@ -299,8 +302,11 @@ def front_page():
 def mostrar_aso():
     st.header("Gestão de ASO")
     
-    # Inicializa o gerenciador de funcionários
-    employee_manager = EmployeeManager()
+    # Usa a instância do EmployeeManager da sessão
+    if 'employee_manager' not in st.session_state:
+        st.session_state.employee_manager = EmployeeManager()
+    
+    employee_manager = st.session_state.employee_manager
     
     # Lista as empresas disponíveis
     if not employee_manager.companies_df.empty:
@@ -375,8 +381,11 @@ def mostrar_aso():
 def mostrar_treinamentos():
     st.header("Gestão de Treinamentos")
     
-    # Inicializa o gerenciador de funcionários
-    employee_manager = EmployeeManager()
+    # Usa a instância do EmployeeManager da sessão
+    if 'employee_manager' not in st.session_state:
+        st.session_state.employee_manager = EmployeeManager()
+    
+    employee_manager = st.session_state.employee_manager
     
     # Mostra informações sobre as normas
     mostrar_info_normas()
@@ -500,5 +509,8 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+   
+   
+
    
    
