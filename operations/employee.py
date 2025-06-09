@@ -86,8 +86,11 @@ class EmployeeManager:
             
         if employees_data:
             self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
+            # Log para debug
+            st.write("Colunas disponíveis no DataFrame de funcionários:", list(self.employees_df.columns))
         else:
             self.employees_df = pd.DataFrame(columns=['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'])
+            st.warning("Nenhum funcionário encontrado na planilha.")
             
         if aso_data:
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
@@ -191,16 +194,27 @@ class EmployeeManager:
         if empresa_id not in self.companies_df['id'].values:
             return None, "Empresa não encontrada"
         
-        # Prepara os dados do novo funcionário
-        new_data = [nome, empresa_id, cargo, data_admissao.strftime("%d/%m/%Y")]
-        
         try:
+            # Prepara os dados do novo funcionário com os nomes corretos das colunas
+            new_data = {
+                'nome': nome,
+                'empresa_id': empresa_id,
+                'cargo': cargo,
+                'data_admissao': data_admissao.strftime("%d/%m/%Y")
+            }
+            
             # Adiciona o funcionário na planilha
-            self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
+            self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, list(new_data.values()))
+            
             # Recarrega os dados
             self.load_data()
+            
             # Retorna o ID gerado
-            return self.employees_df.iloc[-1]['id'], "Funcionário cadastrado com sucesso"
+            if not self.employees_df.empty:
+                return self.employees_df.iloc[-1]['id'], "Funcionário cadastrado com sucesso"
+            else:
+                return None, "Erro ao cadastrar funcionário: Dados não foram carregados corretamente"
+                
         except Exception as e:
             return None, f"Erro ao cadastrar funcionário: {str(e)}"
     
@@ -290,6 +304,15 @@ class EmployeeManager:
         return None
     
     def get_employees_by_company(self, company_id):
+        # Verifica se o DataFrame está vazio
+        if self.employees_df.empty:
+            return pd.DataFrame()
+        
+        # Verifica se a coluna existe
+        if 'empresa_id' not in self.employees_df.columns:
+            st.error("Erro: A coluna 'empresa_id' não foi encontrada nos dados dos funcionários.")
+            return pd.DataFrame()
+        
         return self.employees_df[self.employees_df['empresa_id'] == company_id]
     
     def get_employee_docs(self, employee_id):
