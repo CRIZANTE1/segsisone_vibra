@@ -1,8 +1,11 @@
 import streamlit as st
 from datetime import datetime
-from gdrive.gdrive_upload import GoogleDriveUploader, upload_file_to_folder
+from gdrive.gdrive_upload import GoogleDriveUploader
 from .employee import EmployeeManager
 import pandas as pd
+
+# Inicializa o uploader do Google Drive globalmente
+gdrive_uploader = GoogleDriveUploader()
 
 def mostrar_info_normas():
     with st.expander("Informações sobre Normas Regulamentadoras"):
@@ -159,7 +162,7 @@ def front_page():
                                 
                                 if st.form_submit_button("Adicionar ASO"):
                                     if arquivo:
-                                        arquivo_id = upload_file_to_folder(arquivo, f"ASO_{selected_employee}_{data_aso}")
+                                        arquivo_id = gdrive_uploader.upload_file(arquivo, f"ASO_{selected_employee}_{data_aso}")
                                         employee_manager.add_aso(
                                             selected_employee,
                                             data_aso,
@@ -257,40 +260,25 @@ def front_page():
                                     status = st.selectbox("Status", ["Válido", "Vencido", "A vencer"])
                                 
                                 if st.form_submit_button("Adicionar Treinamento"):
-                                    if arquivo and norma:
-                                        # Validação para todas as NRs
-                                        valido, mensagem = employee_manager.validar_treinamento(
-                                            norma, modulo, tipo_treinamento, carga_horaria)
-                                        if not valido:
-                                            st.error(mensagem)
-                                            st.stop()
-                                        
-                                        arquivo_id = upload_file_to_folder(arquivo, f"TREIN_{selected_employee}_{norma}_{data}")
-                                        contratado = employee_manager.get_employee_name(selected_employee)
-                                        
-                                        # Preparar dados adicionais para a planilha
-                                        dados_treinamento = {
-                                            'id': selected_employee,
-                                            'contratado': contratado,
-                                            'data': data,
-                                            'vencimento': vencimento,
-                                            'norma': norma,
-                                            'modulo': modulo,
-                                            'status': status,
-                                            'anexo': arquivo_id,
-                                            'tipo_treinamento': tipo_treinamento,
-                                            'carga_horaria': carga_horaria,
-                                            'instrutor': instrutor,
-                                            'registro_instrutor': registro,
-                                            'cnpj_empresa': cnpj_empresa,
-                                            'topicos': topicos,
-                                            'observacoes': observacoes
-                                        }
-                                        
-                                        training_id = employee_manager.add_training(**dados_treinamento)
-                                        if training_id:
-                                            st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
-                                            st.rerun()
+                                    if arquivo:
+                                        arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREIN_{selected_employee}_{norma}_{data}")
+                                        employee_manager.add_training(
+                                            selected_employee,
+                                            norma,
+                                            data,
+                                            vencimento,
+                                            status,
+                                            arquivo_id,
+                                            tipo_treinamento,
+                                            carga_horaria,
+                                            instrutor,
+                                            registro,
+                                            cnpj_empresa,
+                                            topicos,
+                                            observacoes
+                                        )
+                                        st.success("Treinamento adicionado com sucesso!")
+                                        st.rerun()
                                     else:
                                         st.error("Por favor, preencha todos os campos obrigatórios")
                 else:
