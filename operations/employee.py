@@ -152,16 +152,38 @@ class EmployeeManager:
             for sheet_name, columns in sheets_structure.items():
                 data = self.sheet_ops.carregar_dados_aba(sheet_name)
                 if not data:
-                    # Se a aba não existe ou está vazia, cria com as colunas corretas
+                    # Se a aba não existe, cria com as colunas corretas
                     self.sheet_ops.criar_aba(sheet_name, columns)
                     st.success(f"Aba {sheet_name} inicializada com sucesso!")
                 else:
-                    # Verifica se todas as colunas necessárias existem
+                    # Verifica se todas as colunas necessárias existem e se não há colunas extras
                     existing_columns = data[0] if data else []
                     missing_columns = [col for col in columns if col not in existing_columns]
-                    if missing_columns:
-                        st.warning(f"Colunas faltando na aba {sheet_name}: {missing_columns}")
-                        # Aqui você pode implementar a lógica para adicionar as colunas faltantes
+                    extra_columns = [col for col in existing_columns if col and col not in columns]
+                    
+                    if missing_columns or extra_columns:
+                        st.warning(f"Recriando a aba {sheet_name} para corrigir a estrutura...")
+                        
+                        # Backup dos dados existentes se houver
+                        existing_data = []
+                        if len(data) > 1:  # Se há dados além do cabeçalho
+                            df = pd.DataFrame(data[1:], columns=existing_columns)
+                            # Mantém apenas as colunas que existem na nova estrutura
+                            common_columns = [col for col in columns if col in existing_columns]
+                            if common_columns:
+                                existing_data = df[common_columns].values.tolist()
+                        
+                        # Recria a aba com a estrutura correta
+                        if self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns):
+                            # Restaura os dados se houver
+                            if existing_data:
+                                aba = self.sheet_ops.credentials.open_by_url(
+                                    self.sheet_ops.my_archive_google_sheets
+                                ).worksheet_by_title(sheet_name)
+                                aba.append_table(existing_data)
+                            st.success(f"Aba {sheet_name} recriada com sucesso!")
+                        else:
+                            st.error(f"Erro ao recriar a aba {sheet_name}")
             
             return True
         except Exception as e:
