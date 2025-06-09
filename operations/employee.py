@@ -9,11 +9,9 @@ import os
 from gdrive.config import (
     ASO_SHEET_NAME,
     EMPLOYEE_SHEET_NAME,
-    EMPLOYEE_DATA_SHEET_NAME
+    EMPLOYEE_DATA_SHEET_NAME,
+    TRAINING_SHEET_NAME
 )
-
-# Constante para a aba de treinamentos
-TRAINING_SHEET_NAME = "treinamento"
 
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
@@ -78,6 +76,7 @@ class EmployeeManager:
         companies_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_SHEET_NAME)
         employees_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_DATA_SHEET_NAME)
         aso_data = self.sheet_ops.carregar_dados_aba(ASO_SHEET_NAME)
+        training_data = self.sheet_ops.carregar_dados_aba(TRAINING_SHEET_NAME)
         
         # Converte os dados para DataFrames
         if companies_data:
@@ -94,6 +93,15 @@ class EmployeeManager:
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
         else:
             self.aso_df = pd.DataFrame(columns=['id', 'data_aso', 'vencimento', 'aso', 'riscos', 'cargo', 'autorizacoes'])
+            
+        if training_data:
+            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
+        else:
+            self.training_df = pd.DataFrame(columns=[
+                'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+                'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
+                'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
+            ])
 
     def analyze_training_pdf(self, pdf_file):
         try:
