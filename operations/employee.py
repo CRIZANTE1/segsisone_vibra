@@ -6,6 +6,7 @@ from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
 import tempfile
 import os
+from gdrive.config import LIFTING_SHEET_NAME, CRANE_SHEET_NAME, EMPLOYEE_SHEET_NAME
 
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
@@ -67,10 +68,10 @@ class EmployeeManager:
 
     def load_data(self):
         # Carrega os dados das diferentes abas
-        companies_data = self.sheet_ops.carregar_dados_aba('empresas')
+        companies_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_SHEET_NAME)
         employees_data = self.sheet_ops.carregar_dados_aba('funcionarios')
-        aso_data = self.sheet_ops.carregar_dados_aba('aso')
-        training_data = self.sheet_ops.carregar_dados_aba('treinamentos')
+        aso_data = self.sheet_ops.carregar_dados_aba(LIFTING_SHEET_NAME)
+        training_data = self.sheet_ops.carregar_dados_aba(CRANE_SHEET_NAME)
         
         # Converte os dados para DataFrames
         if companies_data:
@@ -168,7 +169,7 @@ class EmployeeManager:
         
         try:
             # Adiciona a empresa na planilha
-            self.sheet_ops.adc_dados_aba('empresas', new_data)
+            self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
             # Recarrega os dados
             self.load_data()
             # Retorna o ID gerado
@@ -218,7 +219,7 @@ class EmployeeManager:
         
         try:
             # Adiciona o ASO na planilha
-            aso_id = self.sheet_ops.adc_dados_aba('asos', new_data)
+            aso_id = self.sheet_ops.adc_dados_aba(LIFTING_SHEET_NAME, new_data)
             if aso_id:
                 st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                 return aso_id
@@ -256,7 +257,7 @@ class EmployeeManager:
         
         try:
             # Adiciona o treinamento na planilha
-            training_id = self.sheet_ops.adc_dados_aba('treinamentos', new_data)
+            training_id = self.sheet_ops.adc_dados_aba(CRANE_SHEET_NAME, new_data)
             if training_id:
                 st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
                 return training_id
@@ -409,7 +410,7 @@ class EmployeeManager:
         Recupera um documento (ASO ou treinamento) pelo ID.
         
         Args:
-            aba_name: Nome da aba ('asos' ou 'treinamentos')
+            aba_name: Nome da aba (LIFTING_SHEET_NAME ou CRANE_SHEET_NAME)
             doc_id: ID do documento
             
         Returns:
@@ -423,7 +424,7 @@ class EmployeeManager:
             # Procura o documento pelo ID
             for row in data[1:]:  # Pula o cabeçalho
                 if row[0] == str(doc_id):
-                    if aba_name == 'asos':
+                    if aba_name == LIFTING_SHEET_NAME:
                         return {
                             'id': row[0],
                             'funcionario_id': row[1],
