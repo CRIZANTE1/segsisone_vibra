@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import random
 from gdrive.connection import connect_sheet
+from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
 
 
 class SheetOperations:
@@ -180,13 +181,13 @@ class SheetOperations:
     
     def carregar_dados_funcionarios(self):
         """
-        Carrega os dados dos funcionários da aba 'funcionarios' do Google Sheets.
+        Carrega os dados dos funcionários da aba definida em EMPLOYEE_DATA_SHEET_NAME do Google Sheets.
         
         Returns:
             list: Lista com os dados dos funcionários, onde o primeiro item são os cabeçalhos
                  e os demais são os dados de cada funcionário.
         """
-        return self.carregar_dados_aba('funcionarios')
+        return self.carregar_dados_aba(EMPLOYEE_DATA_SHEET_NAME)
 
     def adc_dados(self, new_data):
         if not self.credentials or not self.my_archive_google_sheets:
@@ -324,3 +325,40 @@ class SheetOperations:
             logging.error(f"Erro ao remover usuário: {e}", exc_info=True)
             st.error(f"Erro ao remover usuário: {e}")
             
+    def criar_aba(self, aba_name, columns):
+        """
+        Cria uma nova aba na planilha com as colunas especificadas.
+        
+        Args:
+            aba_name (str): Nome da aba a ser criada
+            columns (list): Lista com os nomes das colunas
+            
+        Returns:
+            bool: True se a aba foi criada com sucesso, False caso contrário
+        """
+        if not self.credentials or not self.my_archive_google_sheets:
+            return False
+        try:
+            logging.info(f"Tentando criar aba '{aba_name}' com colunas: {columns}")
+            archive = self.credentials.open_by_url(self.my_archive_google_sheets)
+            
+            # Verifica se a aba já existe
+            if aba_name in [sheet.title for sheet in archive.worksheets()]:
+                logging.warning(f"A aba '{aba_name}' já existe.")
+                return True
+            
+            # Cria a nova aba
+            aba = archive.add_worksheet(aba_name, rows=1, cols=len(columns))
+            
+            # Adiciona os cabeçalhos
+            aba.update_row(1, columns)
+            
+            logging.info(f"Aba '{aba_name}' criada com sucesso.")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Erro ao criar aba '{aba_name}': {e}", exc_info=True)
+            st.error(f"Erro ao criar aba: {e}")
+            return False
+            
+
