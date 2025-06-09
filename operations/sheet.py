@@ -361,4 +361,42 @@ class SheetOperations:
             st.error(f"Erro ao criar aba: {e}")
             return False
             
+    def limpar_e_recriar_aba(self, aba_name, columns):
+        """
+        Limpa e recria uma aba com as colunas corretas.
+        
+        Args:
+            aba_name (str): Nome da aba a ser recriada
+            columns (list): Lista com os nomes das colunas
+            
+        Returns:
+            bool: True se a aba foi recriada com sucesso, False caso contrário
+        """
+        if not self.credentials or not self.my_archive_google_sheets:
+            return False
+        try:
+            logging.info(f"Tentando recriar aba '{aba_name}' com colunas: {columns}")
+            archive = self.credentials.open_by_url(self.my_archive_google_sheets)
+            
+            # Remove a aba existente se ela existir
+            if aba_name in [sheet.title for sheet in archive.worksheets()]:
+                aba_antiga = archive.worksheet_by_title(aba_name)
+                archive.del_worksheet(aba_antiga)
+            
+            # Cria a nova aba
+            aba = archive.add_worksheet(aba_name, rows=1, cols=len(columns))
+            
+            # Adiciona os cabeçalhos
+            aba.update_row(1, columns)
+            
+            logging.info(f"Aba '{aba_name}' recriada com sucesso.")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Erro ao recriar aba '{aba_name}': {e}", exc_info=True)
+            st.error(f"Erro ao recriar aba: {e}")
+            return False
+            
+
+            
 
