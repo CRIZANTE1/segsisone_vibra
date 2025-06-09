@@ -20,6 +20,12 @@ class EmployeeManager:
     def __init__(self):
         # Inicializa o gerenciador de planilhas e carrega os dados
         self.sheet_ops = SheetOperations()
+        
+        # Inicializa as abas se necessário
+        if not self.initialize_sheets():
+            st.error("Erro ao inicializar as abas da planilha. Algumas funcionalidades podem não funcionar corretamente.")
+        
+        # Carrega os dados
         self.load_data()
         self.pdf_analyzer = PDFQA()
         
@@ -78,33 +84,91 @@ class EmployeeManager:
         aso_data = self.sheet_ops.carregar_dados_aba(ASO_SHEET_NAME)
         training_data = self.sheet_ops.carregar_dados_aba(TRAINING_SHEET_NAME)
         
-        # Converte os dados para DataFrames
-        if companies_data:
+        # Define as colunas padrão para cada DataFrame
+        company_columns = ['id', 'nome', 'cnpj']
+        employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
+        aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
+        training_columns = [
+            'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+            'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
+            'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
+        ]
+        
+        # Converte os dados para DataFrames com as colunas corretas
+        if companies_data and len(companies_data) > 0:
             self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
+            # Garante que todas as colunas necessárias existam
+            for col in company_columns:
+                if col not in self.companies_df.columns:
+                    self.companies_df[col] = ''
         else:
-            self.companies_df = pd.DataFrame(columns=['id', 'nome', 'cnpj'])
+            self.companies_df = pd.DataFrame(columns=company_columns)
             
-        if employees_data:
+        if employees_data and len(employees_data) > 0:
             self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
-            # Log para debug
+            # Garante que todas as colunas necessárias existam
+            for col in employee_columns:
+                if col not in self.employees_df.columns:
+                    self.employees_df[col] = ''
             st.write("Colunas disponíveis no DataFrame de funcionários:", list(self.employees_df.columns))
         else:
-            self.employees_df = pd.DataFrame(columns=['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'])
+            self.employees_df = pd.DataFrame(columns=employee_columns)
             st.warning("Nenhum funcionário encontrado na planilha.")
             
-        if aso_data:
+        if aso_data and len(aso_data) > 0:
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
+            # Garante que todas as colunas necessárias existam
+            for col in aso_columns:
+                if col not in self.aso_df.columns:
+                    self.aso_df[col] = ''
         else:
-            self.aso_df = pd.DataFrame(columns=['id', 'data_aso', 'vencimento', 'aso', 'riscos', 'cargo', 'autorizacoes'])
+            self.aso_df = pd.DataFrame(columns=aso_columns)
             
-        if training_data:
+        if training_data and len(training_data) > 0:
             self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
+            # Garante que todas as colunas necessárias existam
+            for col in training_columns:
+                if col not in self.training_df.columns:
+                    self.training_df[col] = ''
         else:
-            self.training_df = pd.DataFrame(columns=[
-                'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-                'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
-                'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
-            ])
+            self.training_df = pd.DataFrame(columns=training_columns)
+
+    def initialize_sheets(self):
+        """
+        Inicializa as abas da planilha com as colunas corretas se elas não existirem.
+        """
+        try:
+            # Define as colunas para cada aba
+            sheets_structure = {
+                EMPLOYEE_SHEET_NAME: ['id', 'nome', 'cnpj'],
+                EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'],
+                ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo'],
+                TRAINING_SHEET_NAME: [
+                    'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+                    'arquivo_id', 'tipo_treinamento', 'carga_horaria', 'instrutor',
+                    'registro_instrutor', 'cnpj_empresa', 'topicos', 'observacoes'
+                ]
+            }
+            
+            # Inicializa cada aba
+            for sheet_name, columns in sheets_structure.items():
+                data = self.sheet_ops.carregar_dados_aba(sheet_name)
+                if not data:
+                    # Se a aba não existe ou está vazia, cria com as colunas corretas
+                    self.sheet_ops.criar_aba(sheet_name, columns)
+                    st.success(f"Aba {sheet_name} inicializada com sucesso!")
+                else:
+                    # Verifica se todas as colunas necessárias existem
+                    existing_columns = data[0] if data else []
+                    missing_columns = [col for col in columns if col not in existing_columns]
+                    if missing_columns:
+                        st.warning(f"Colunas faltando na aba {sheet_name}: {missing_columns}")
+                        # Aqui você pode implementar a lógica para adicionar as colunas faltantes
+            
+            return True
+        except Exception as e:
+            st.error(f"Erro ao inicializar as abas: {str(e)}")
+            return False
 
     def analyze_training_pdf(self, pdf_file):
         try:
