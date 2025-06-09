@@ -1,11 +1,14 @@
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta
-from gdrive.gdrive_upload import upload_file_to_folder
+from gdrive.gdrive_upload import GoogleDriveUploader
 from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
 import tempfile
 import os
+
+# Inicializa o uploader do Google Drive globalmente
+gdrive_uploader = GoogleDriveUploader()
 
 class EmployeeManager:
     def __init__(self):
