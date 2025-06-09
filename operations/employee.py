@@ -16,6 +16,11 @@ from gdrive.config import (
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
 
+# Cache para carregar dados das planilhas
+@st.cache_data(ttl=300)  # Cache por 5 minutos
+def load_sheet_data(sheet_ops, sheet_name):
+    return sheet_ops.carregar_dados_aba(sheet_name)
+
 class EmployeeManager:
     def __init__(self):
         # Inicializa o gerenciador de planilhas e carrega os dados
@@ -27,7 +32,9 @@ class EmployeeManager:
         
         # Carrega os dados
         self.load_data()
-        self.pdf_analyzer = PDFQA()
+        
+        # Inicializa o analisador de PDF apenas quando necessário
+        self._pdf_analyzer = None
         
         # Configuração dos módulos da NR-20
         self.nr20_config = {
@@ -77,12 +84,18 @@ class EmployeeManager:
             }
         }
 
+    @property
+    def pdf_analyzer(self):
+        if self._pdf_analyzer is None:
+            self._pdf_analyzer = PDFQA()
+        return self._pdf_analyzer
+
     def load_data(self):
-        # Carrega os dados das diferentes abas
-        companies_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_SHEET_NAME)
-        employees_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_DATA_SHEET_NAME)
-        aso_data = self.sheet_ops.carregar_dados_aba(ASO_SHEET_NAME)
-        training_data = self.sheet_ops.carregar_dados_aba(TRAINING_SHEET_NAME)
+        # Carrega os dados das diferentes abas usando cache
+        companies_data = load_sheet_data(self.sheet_ops, EMPLOYEE_SHEET_NAME)
+        employees_data = load_sheet_data(self.sheet_ops, EMPLOYEE_DATA_SHEET_NAME)
+        aso_data = load_sheet_data(self.sheet_ops, ASO_SHEET_NAME)
+        training_data = load_sheet_data(self.sheet_ops, TRAINING_SHEET_NAME)
         
         # Define as colunas padrão para cada DataFrame
         company_columns = ['id', 'nome', 'cnpj']
