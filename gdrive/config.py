@@ -13,6 +13,7 @@ GDRIVE_SHEETS_ID = "1Sw5EfdPIgAsPddCoHY-bO-91JyWAZpK4xW7FjZIz4Vw"
 ASO_SHEET_NAME = "asos"  # Aba para ASOs
 EMPLOYEE_SHEET_NAME = "empresas"  # Aba para empresas
 EMPLOYEE_DATA_SHEET_NAME = "funcionarios"  # Aba para funcionários
+CRANE_SHEET_NAME = "treinamentos"  # Aba para treinamentos
 
 def get_credentials_dict():
     """Retorna as credenciais do serviço do Google, seja do arquivo local ou do Streamlit Cloud."""
