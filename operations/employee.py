@@ -518,26 +518,55 @@ class EmployeeManager:
         
         return aso_docs, training_docs
 
-    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='inicial'):
+    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo, tipo_treinamento):
         """
-        Calcula a data de vencimento do treinamento com base na norma.
+        Calcula a data de vencimento do treinamento com base na norma e tipo.
         
         Args:
-            data_realizacao (datetime.date): Data de realização do treinamento
-            norma (str): Norma do treinamento (ex: NR-35, NR-10)
-            modulo (str, optional): Módulo do treinamento (necessário para NR-20)
-            tipo_treinamento (str): 'inicial' ou 'reciclagem'
+            data_realizacao (datetime): Data de realização do treinamento
+            norma (str): Norma do treinamento
+            modulo (str): Módulo do treinamento
+            tipo_treinamento (str): Tipo do treinamento (inicial/reciclagem)
             
         Returns:
-            datetime.date: Data de vencimento do treinamento
+            datetime: Data de vencimento do treinamento
         """
-        if norma == "NR-20" and modulo in self.nr20_config:
-            anos = self.nr20_config[modulo]['reciclagem_anos']
-            return data_realizacao + timedelta(days=anos * 365)
-        elif norma in self.nr_config:
-            anos = self.nr_config[norma]['reciclagem_anos']
-            return data_realizacao + timedelta(days=anos * 365)
+        if not data_realizacao:
+            return None
             
+        # Define os anos de validade para cada norma
+        anos = 0
+        
+        if norma == "NR-20":
+            if tipo_treinamento == "inicial":
+                if modulo == "Básico":
+                    anos = 3
+                elif modulo == "Intermediário":
+                    anos = 3
+                elif modulo == "Avançado I":
+                    anos = 3
+                elif modulo == "Avançado II":
+                    anos = 3
+            else:  # reciclagem
+                if modulo == "Básico":
+                    anos = 3
+                elif modulo == "Intermediário":
+                    anos = 3
+                elif modulo == "Avançado I":
+                    anos = 3
+                elif modulo == "Avançado II":
+                    anos = 3
+        elif norma == "NR-35":
+            anos = 2
+        elif norma == "NR-10":
+            anos = 2
+        elif norma == "NR-18":
+            anos = 2
+        elif norma == "NR-34":
+            anos = 2
+            
+        if anos > 0:
+            return data_realizacao + timedelta(days=anos * 365)
         return None
 
     def verificar_carga_horaria(self, norma, modulo=None, tipo_treinamento='inicial'):
@@ -681,6 +710,7 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
 
 
