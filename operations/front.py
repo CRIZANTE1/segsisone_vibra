@@ -211,11 +211,6 @@ def front_page():
                                         index=0 if treinamento_info['tipo_treinamento'] == 'inicial' else 1
                                     )
                                     carga_horaria = st.number_input("Carga Horária (horas)", value=treinamento_info['carga_horaria'] if treinamento_info['carga_horaria'] else 0)
-                                    instrutor = st.text_input("Instrutor", value=treinamento_info['instrutor'])
-                                    registro_instrutor = st.text_input("Registro do Instrutor", value=treinamento_info['registro_instrutor'])
-                                    cnpj_empresa = st.text_input("CNPJ da Empresa", value=treinamento_info['cnpj_empresa'])
-                                    topicos = st.text_area("Tópicos Abordados", value=treinamento_info['topicos'])
-                                    observacoes = st.text_area("Observações", value=treinamento_info['observacoes'])
                                     
                                     # Calcula o vencimento automaticamente
                                     vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
@@ -241,11 +236,6 @@ def front_page():
                                 
                                 tipo_treinamento = st.selectbox("Tipo de Treinamento", ["inicial", "reciclagem"])
                                 carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
-                                instrutor = st.text_input("Instrutor")
-                                registro_instrutor = st.text_input("Registro do Instrutor")
-                                cnpj_empresa = st.text_input("CNPJ da Empresa")
-                                topicos = st.text_area("Tópicos Abordados")
-                                observacoes = st.text_area("Observações")
                                 
                                 # Calcula o vencimento automaticamente
                                 vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
@@ -270,12 +260,7 @@ def front_page():
                                         "Válido",
                                         arquivo_id,
                                         tipo_treinamento,
-                                        carga_horaria,
-                                        instrutor,
-                                        registro_instrutor,
-                                        cnpj_empresa,
-                                        topicos,
-                                        observacoes
+                                        carga_horaria
                                     )
                                     st.success("Treinamento adicionado com sucesso!")
                                     st.rerun()
@@ -435,11 +420,6 @@ def mostrar_treinamentos():
                                     index=0 if treinamento_info['tipo_treinamento'] == 'inicial' else 1
                                 )
                                 carga_horaria = st.number_input("Carga Horária (horas)", value=treinamento_info['carga_horaria'] if treinamento_info['carga_horaria'] else 0)
-                                instrutor = st.text_input("Instrutor", value=treinamento_info['instrutor'])
-                                registro_instrutor = st.text_input("Registro do Instrutor", value=treinamento_info['registro_instrutor'])
-                                cnpj_empresa = st.text_input("CNPJ da Empresa", value=treinamento_info['cnpj_empresa'])
-                                topicos = st.text_area("Tópicos Abordados", value=treinamento_info['topicos'])
-                                observacoes = st.text_area("Observações", value=treinamento_info['observacoes'])
                                 
                                 # Calcula o vencimento automaticamente
                                 vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
@@ -465,11 +445,6 @@ def mostrar_treinamentos():
                             
                             tipo_treinamento = st.selectbox("Tipo de Treinamento", ["inicial", "reciclagem"])
                             carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
-                            instrutor = st.text_input("Instrutor")
-                            registro_instrutor = st.text_input("Registro do Instrutor")
-                            cnpj_empresa = st.text_input("CNPJ da Empresa")
-                            topicos = st.text_area("Tópicos Abordados")
-                            observacoes = st.text_area("Observações")
                             
                             # Calcula o vencimento automaticamente
                             vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
@@ -494,12 +469,7 @@ def mostrar_treinamentos():
                                     "Válido",
                                     arquivo_id,
                                     tipo_treinamento,
-                                    carga_horaria,
-                                    instrutor,
-                                    registro_instrutor,
-                                    cnpj_empresa,
-                                    topicos,
-                                    observacoes
+                                    carga_horaria
                                 )
                                 st.success("Treinamento adicionado com sucesso!")
                                 st.rerun()
@@ -509,6 +479,7 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
    
    
 
