@@ -16,8 +16,8 @@ from gdrive.config import (
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
 
-
-@st.cache_data(ttl=30)
+# Cache para carregar dados das planilhas
+@st.cache_data(ttl=300)  # Cache por 5 minutos
 def load_sheet_data(sheet_name):
     sheet_ops = SheetOperations()
     return sheet_ops.carregar_dados_aba(sheet_name)
@@ -286,6 +286,9 @@ class EmployeeManager:
             cargo: Cargo do funcionário
             data_admissao: Data de admissão
             status: Status do funcionário (Ativo/Inativo)
+            
+        Returns:
+            tuple: (employee_id, message) - ID do funcionário e mensagem de sucesso/erro
         """
         # Prepara os dados do novo funcionário
         new_data = [
@@ -305,13 +308,13 @@ class EmployeeManager:
                 # Recarrega os dados após adicionar
                 self.load_data()
                 st.success(f"Funcionário adicionado com sucesso! ID: {employee_id}")
-                return employee_id
+                return employee_id, "Funcionário adicionado com sucesso"
             else:
                 st.error("Erro ao adicionar funcionário na planilha")
-                return None
+                return None, "Erro ao adicionar funcionário na planilha"
         except Exception as e:
             st.error(f"Erro ao adicionar funcionário: {str(e)}")
-            return None
+            return None, f"Erro ao adicionar funcionário: {str(e)}"
     
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
         """
