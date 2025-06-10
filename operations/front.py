@@ -285,9 +285,10 @@ def front_page():
                                 carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
                                 
                                 # Calcula o vencimento automaticamente
-                                vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
-                                if vencimento:
-                                    st.info(f"Data de vencimento calculada: {vencimento.strftime('%d/%m/%Y')}")
+                                if data:
+                                    vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
+                                    if vencimento:
+                                        st.info(f"Data de vencimento calculada: {vencimento.strftime('%d/%m/%Y')}")
                                 
                                 # Valida a carga horária
                                 valido, mensagem = employee_manager.validar_treinamento(norma, modulo, tipo_treinamento, carga_horaria)
@@ -295,7 +296,11 @@ def front_page():
                                     st.warning(mensagem)
                             
                             if st.form_submit_button("Adicionar Treinamento"):
-                                if arquivo:
+                                if not data:
+                                    st.error("Por favor, selecione a data do treinamento")
+                                elif not arquivo:
+                                    st.error("Por favor, faça o upload do certificado do treinamento")
+                                else:
                                     arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
                                     employee_id, message = employee_manager.add_training(
                                         selected_employee,
@@ -318,8 +323,6 @@ def front_page():
                                         st.rerun()
                                     else:
                                         st.error(message)
-                                else:
-                                    st.error("Por favor, faça o upload do certificado do treinamento")
                 else:
                     st.warning("É necessário cadastrar funcionários primeiro")
     else:
@@ -337,6 +340,11 @@ def front_page():
                     st.rerun()
                 else:
                     st.error(message)
+
+   
+
+   
+
 
    
 
