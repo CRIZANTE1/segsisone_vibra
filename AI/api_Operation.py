@@ -14,11 +14,11 @@ class PDFQA:
         load_api()  # Carrega a API
         self.model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
 
-    
-
 
     #-----------------Função para limpar o texto-------------------------
     def clean_text(self, text):
+        if text is None:
+            return ""
         text = re.sub(r'\s+', ' ', text)
         text = re.sub(r'[^\w\s,.!?\'\"-]', '', text)
         return text.strip()
@@ -31,7 +31,7 @@ class PDFQA:
             # Preparar os inputs para o modelo
             inputs = []
             
-            # Adicionar os PDFs como FileData
+            # Adicionar os PDFs
             for pdf_file in pdf_files:
                 if hasattr(pdf_file, 'read'):  # Se for um objeto de arquivo (como UploadedFile)
                     pdf_bytes = pdf_file.read()
@@ -40,15 +40,15 @@ class PDFQA:
                     with open(pdf_file, 'rb') as f:
                         pdf_bytes = f.read()
                 
-                inputs.append(
-                    content_types.FileData(
-                        mime_type="application/pdf",
-                        data=pdf_bytes
-                    )
-                )
+                # Criar parte do conteúdo com o PDF
+                part = {
+                    "mime_type": "application/pdf",
+                    "data": pdf_bytes
+                }
+                inputs.append(part)
             
-            # Adicionar a pergunta
-            inputs.append(question)
+            # Adicionar a pergunta como texto
+            inputs.append({"text": question})
             
             # Gerar resposta usando o modelo multimodal
             response = self.model.generate_content(inputs)
@@ -64,20 +64,24 @@ class PDFQA:
         start_time = time.time()
 
         try:
-
             with st.spinner("Gerando resposta com o modelo Gemini..."):
                 answer = self.ask_gemini(pdf_files, question)
-                st.info("Resposta gerada com sucesso.")
-            st.success("Resposta gerada com sucesso.")
-
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-
-            return answer, elapsed_time
+                if answer:
+                    st.info("Resposta gerada com sucesso.")
+                    return answer, time.time() - start_time
+                else:
+                    st.error("Não foi possível obter uma resposta do modelo.")
+                    return None, 0
         except Exception as e:
             st.error(f"Erro inesperado ao processar a pergunta: {str(e)}")
             st.exception(e)
-            return f"Ocorreu um erro ao processar a pergunta: {str(e)}", 0
+            return None, 0
+
+
+
+
+
+   
 
 
 
