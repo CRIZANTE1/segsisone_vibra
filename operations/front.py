@@ -256,7 +256,6 @@ def front_page():
                                     arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
                                     employee_manager.add_training(
                                         selected_employee,
-                                        employees[employees['id'] == selected_employee]['nome'].iloc[0],
                                         data,
                                         vencimento,
                                         norma,
@@ -465,7 +464,6 @@ def mostrar_treinamentos():
                                 arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
                                 employee_manager.add_training(
                                     selected_employee,
-                                    employees[employees['id'] == selected_employee]['nome'].iloc[0],
                                     data,
                                     vencimento,
                                     norma,
