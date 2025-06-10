@@ -453,15 +453,20 @@ class EmployeeManager:
             ]
 
             # Adicionar à planilha
-            if self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, training_data):
+            try:
+                archive = self.sheet_ops.credentials.open_by_url(self.sheet_ops.my_archive_google_sheets)
+                aba = archive.worksheet_by_title(TRAINING_SHEET_NAME)
+                aba.append_table(values=[training_data])
+                
                 # Atualizar o DataFrame local
                 self.training_df = pd.concat([
                     self.training_df,
                     pd.DataFrame([training_data], columns=self.training_df.columns)
                 ])
                 return employee_id, "Treinamento adicionado com sucesso!"
-            else:
-                return None, "Erro ao adicionar treinamento na planilha."
+            except Exception as e:
+                st.error(f"Erro ao adicionar treinamento na planilha: {str(e)}")
+                return None, f"Erro ao adicionar treinamento na planilha: {str(e)}"
 
         except Exception as e:
             st.error(f"Erro ao adicionar treinamento: {str(e)}")
@@ -676,6 +681,8 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
 
 
 
