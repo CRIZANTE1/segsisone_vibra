@@ -327,6 +327,33 @@ class EmployeeManager:
             st.error(f"Erro ao adicionar funcionário: {str(e)}")
             return None, f"Erro ao adicionar funcionário: {str(e)}"
     
+    def clear_fields(self):
+        """
+        Limpa os campos após adicionar um treinamento ou ASO.
+        """
+        if 'data_aso' in st.session_state:
+            st.session_state.data_aso = None
+        if 'vencimento_aso' in st.session_state:
+            st.session_state.vencimento_aso = None
+        if 'riscos' in st.session_state:
+            st.session_state.riscos = ""
+        if 'cargo_aso' in st.session_state:
+            st.session_state.cargo_aso = ""
+        if 'data_treinamento' in st.session_state:
+            st.session_state.data_treinamento = None
+        if 'vencimento_treinamento' in st.session_state:
+            st.session_state.vencimento_treinamento = None
+        if 'norma' in st.session_state:
+            st.session_state.norma = ""
+        if 'modulo' in st.session_state:
+            st.session_state.modulo = ""
+        if 'status' in st.session_state:
+            st.session_state.status = ""
+        if 'tipo_treinamento' in st.session_state:
+            st.session_state.tipo_treinamento = ""
+        if 'carga_horaria' in st.session_state:
+            st.session_state.carga_horaria = None
+
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
         """
         Adiciona um novo ASO para um funcionário.
@@ -355,6 +382,8 @@ class EmployeeManager:
             if aso_id:
                 # Recarrega os dados após adicionar
                 self.load_data()
+                # Limpa os campos após adicionar com sucesso
+                self.clear_fields()
                 st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                 return aso_id
             else:
@@ -388,6 +417,8 @@ class EmployeeManager:
             if training_id:
                 # Recarrega os dados após adicionar
                 self.load_data()
+                # Limpa os campos após adicionar com sucesso
+                self.clear_fields()
                 st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
                 return training_id
             else:
