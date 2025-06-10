@@ -300,6 +300,8 @@ class EmployeeManager:
             # Adiciona o funcionário na planilha
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
             if employee_id:
+                # Limpa o cache antes de recarregar os dados
+                st.cache_data.clear()
                 # Recarrega os dados após adicionar
                 self.load_data()
                 st.success(f"Funcionário adicionado com sucesso! ID: {employee_id}")
@@ -574,5 +576,4 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
