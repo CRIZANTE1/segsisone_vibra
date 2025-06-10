@@ -33,25 +33,12 @@ def main():
         st.session_state.user = st.session_state.user if 'user' in st.session_state else None
         show_user_header()
         show_logout_button()
-
-
- # Adiciona navegação por abas para as diferentes páginas
-        tab_empresas, tab_aso, tab_treinamentos = st.tabs(["Empresas", "ASO", "Treinamentos"])
-
-        with tab_empresas:
-            front_page()
         
-        with tab_aso:
-            st.header("Gestão de ASO")
-            # Aqui será implementada a gestão de ASO
-        
-        with tab_treinamentos:
-            st.header("Gestão de Treinamentos")
-            # Aqui será implementada a gestão de treinamentos
+        # Chama a página principal que já contém as abas
+        front_page()
 
 if __name__ == "__main__":
     main()
     st.caption('Copyright 2024, Cristian Ferreira Carlos, Todos os direitos reservados.')
     st.caption('https://www.linkedin.com/in/cristian-ferreira-carlos-256b19161/')
-
 
