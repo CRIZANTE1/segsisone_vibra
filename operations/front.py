@@ -253,20 +253,23 @@ def front_page():
                             
                             if st.form_submit_button("Adicionar Treinamento"):
                                 if arquivo:
-                                    arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                    employee_manager.add_training(
-                                        selected_employee,
-                                        data,
-                                        vencimento,
-                                        norma,
-                                        modulo,
-                                        "Válido",
-                                        arquivo_id,
-                                        tipo_treinamento,
-                                        carga_horaria
-                                    )
-                                    st.success("Treinamento adicionado com sucesso!")
-                                    st.rerun()
+                                    if vencimento is None:
+                                        st.error("Não foi possível calcular a data de vencimento. Por favor, verifique os dados do treinamento.")
+                                    else:
+                                        arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
+                                        employee_manager.add_training(
+                                            selected_employee,
+                                            data,
+                                            vencimento,
+                                            norma,
+                                            modulo,
+                                            "Válido",
+                                            arquivo_id,
+                                            tipo_treinamento,
+                                            carga_horaria
+                                        )
+                                        st.success("Treinamento adicionado com sucesso!")
+                                        st.rerun()
                                 else:
                                     st.error("Por favor, faça o upload do certificado do treinamento")
                 else:
@@ -459,24 +462,27 @@ def mostrar_treinamentos():
                             if not valido:
                                 st.warning(mensagem)
                         
-                        if st.form_submit_button("Adicionar Treinamento"):
-                            if arquivo:
-                                arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                employee_manager.add_training(
-                                    selected_employee,
-                                    data,
-                                    vencimento,
-                                    norma,
-                                    modulo,
-                                    "Válido",
-                                    arquivo_id,
-                                    tipo_treinamento,
-                                    carga_horaria
-                                )
-                                st.success("Treinamento adicionado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.error("Por favor, faça o upload do certificado do treinamento")
+                            if st.form_submit_button("Adicionar Treinamento"):
+                                if arquivo:
+                                    if vencimento is None:
+                                        st.error("Não foi possível calcular a data de vencimento. Por favor, verifique os dados do treinamento.")
+                                    else:
+                                        arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
+                                        employee_manager.add_training(
+                                            selected_employee,
+                                            data,
+                                            vencimento,
+                                            norma,
+                                            modulo,
+                                            "Válido",
+                                            arquivo_id,
+                                            tipo_treinamento,
+                                            carga_horaria
+                                        )
+                                        st.success("Treinamento adicionado com sucesso!")
+                                        st.rerun()
+                                else:
+                                    st.error("Por favor, faça o upload do certificado do treinamento")
             else:
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
