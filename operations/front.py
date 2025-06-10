@@ -73,7 +73,8 @@ def front_page():
                     for _, employee in employees.iterrows():
                         aso_docs, _ = employee_manager.get_employee_docs(employee['id'])
                         if not aso_docs.empty:
-                            aso_docs['funcionario'] = employee['nome']
+                            aso_docs = aso_docs.copy()  # Criar uma cópia explícita
+                            aso_docs.loc[:, 'funcionario'] = employee['nome']
                             asos = pd.concat([asos, aso_docs])
                     
                     if not asos.empty:
@@ -90,7 +91,8 @@ def front_page():
                     for _, employee in employees.iterrows():
                         _, training_docs = employee_manager.get_employee_docs(employee['id'])
                         if not training_docs.empty:
-                            training_docs['funcionario'] = employee['nome']
+                            training_docs = training_docs.copy()  # Criar uma cópia explícita
+                            training_docs.loc[:, 'funcionario'] = employee['nome']
                             treinamentos = pd.concat([treinamentos, training_docs])
                     
                     if not treinamentos.empty:
@@ -481,5 +483,7 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
 
    
