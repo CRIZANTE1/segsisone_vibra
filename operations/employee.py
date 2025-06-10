@@ -276,34 +276,40 @@ class EmployeeManager:
         except Exception as e:
             return None, f"Erro ao cadastrar empresa: {str(e)}"
     
-    def add_employee(self, nome, empresa_id, cargo, data_admissao):
-        # Verifica se a empresa existe
-        if empresa_id not in self.companies_df['id'].values:
-            return None, "Empresa não encontrada"
+    def add_employee(self, nome, cpf, cargo, data_admissao, status="Ativo"):
+        """
+        Adiciona um novo funcionário.
+        
+        Args:
+            nome: Nome do funcionário
+            cpf: CPF do funcionário
+            cargo: Cargo do funcionário
+            data_admissao: Data de admissão
+            status: Status do funcionário (Ativo/Inativo)
+        """
+        # Prepara os dados do novo funcionário
+        new_data = [
+            nome,
+            cpf,
+            cargo,
+            data_admissao.strftime("%d/%m/%Y"),
+            status
+        ]
         
         try:
-            # Prepara os dados do novo funcionário com os nomes corretos das colunas
-            new_data = [
-                nome,
-                empresa_id,
-                cargo,
-                data_admissao.strftime("%d/%m/%Y")
-            ]
-            
             # Adiciona o funcionário na planilha
-            self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
-            
-            # Recarrega os dados
-            self.load_data()
-            
-            # Retorna o ID gerado
-            if not self.employees_df.empty:
-                return self.employees_df.iloc[-1]['id'], "Funcionário cadastrado com sucesso"
+            employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
+            if employee_id:
+                # Recarrega os dados após adicionar
+                self.load_data()
+                st.success(f"Funcionário adicionado com sucesso! ID: {employee_id}")
+                return employee_id
             else:
-                return None, "Erro ao cadastrar funcionário: Dados não foram carregados corretamente"
-                
+                st.error("Erro ao adicionar funcionário na planilha")
+                return None
         except Exception as e:
-            return None, f"Erro ao cadastrar funcionário: {str(e)}"
+            st.error(f"Erro ao adicionar funcionário: {str(e)}")
+            return None
     
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
         """
@@ -568,4 +574,5 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
