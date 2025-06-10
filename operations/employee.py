@@ -558,15 +558,11 @@ class EmployeeManager:
                             'status': row[6],
                             'arquivo_id': row[7],
                             'tipo_treinamento': row[8],
-                            'carga_horaria': row[9],
-                            'instrutor': row[10],
-                            'registro_instrutor': row[11],
-                            'cnpj_empresa': row[12],
-                            'topicos': row[13],
-                            'observacoes': row[14]
+                            'carga_horaria': row[9]
                         }
             return None
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
-            return None 
+            return None
+
 
