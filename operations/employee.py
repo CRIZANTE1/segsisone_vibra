@@ -12,6 +12,7 @@ from gdrive.config import (
     EMPLOYEE_DATA_SHEET_NAME,
     TRAINING_SHEET_NAME
 )
+import random
 
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
@@ -108,7 +109,7 @@ class EmployeeManager:
         employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
         aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
         training_columns = [
-            'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+            'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
             'arquivo_id', 'tipo_treinamento', 'carga_horaria'
         ]
         
@@ -162,7 +163,7 @@ class EmployeeManager:
                 EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'],
                 ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo'],
                 TRAINING_SHEET_NAME: [
-                    'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+                    'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
                     'arquivo_id', 'tipo_treinamento', 'carga_horaria'
                 ]
             }
@@ -218,12 +219,12 @@ class EmployeeManager:
 
             # Perguntas detalhadas para extrair informações do PDF
             questions = [
-                "Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.",
-                "Qual é o tipo específico do treinamento? apenas o número da NR.",
+                "Qual é a norma regulamentadora (NR) deste treinamento? Procure por campos como 'NR', 'Norma Regulamentadora' ou similar. Responda apenas o número da NR.",
+                "Qual é o tipo específico do treinamento? Procure por campos como 'Tipo', 'Modalidade' ou similar. Responda apenas o número da NR.",
                 "Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
-                "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
-                "Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
-                "Qual é a carga horária total do treinamento em horas? Responda apenas o número, sem texto adicional. Por exemplo, se for 8 horas, responda apenas '8'."
+                "Qual é a data de realização do treinamento? Procure por campos como 'Data do Curso', 'Data de Realização' ou similar. Responda apenas a data no formato DD/MM/AAAA.",
+                "Este documento é um certificado de reciclagem? Procure por palavras como 'reciclagem', 'reciclagem' ou similar. Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
+                "Qual é a carga horária total do treinamento em horas? Procure por campos como 'Carga Horária', 'Duração' ou similar. Responda apenas o número, sem texto adicional. Por exemplo, se for 8 horas, responda apenas '8'."
             ]
 
             results = {}
@@ -244,7 +245,7 @@ class EmployeeManager:
             modulo = results[questions[1]]
             
             # Processar o tipo de treinamento
-            tipo_treinamento = results[questions[3]].lower()
+            tipo_treinamento = results[questions[4]].lower()
             if 'sim' in tipo_treinamento:
                 tipo_treinamento = 'reciclagem'
             else:
@@ -253,12 +254,12 @@ class EmployeeManager:
             # Processar a carga horária
             try:
                 # Remove qualquer texto não numérico e converte para inteiro
-                carga_horaria_str = ''.join(filter(str.isdigit, results[questions[4]]))
+                carga_horaria_str = ''.join(filter(str.isdigit, results[questions[5]]))
                 if carga_horaria_str:
                     carga_horaria = int(carga_horaria_str)
                 else:
                     # Se não encontrou números, tenta extrair do texto
-                    carga_horaria_text = results[questions[4]].lower()
+                    carga_horaria_text = results[questions[5]].lower()
                     if 'hora' in carga_horaria_text:
                         # Procura por números antes da palavra "hora"
                         import re
@@ -411,40 +412,60 @@ class EmployeeManager:
             st.error(f"Erro ao adicionar ASO: {str(e)}")
             return None
 
-    def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
-                    tipo_treinamento, carga_horaria):
+    def add_training(self, employee_id, data, norma, modulo, tipo_treinamento, carga_horaria, arquivo_id=None):
         """
-        Adiciona um novo treinamento para um funcionário.
-        """
-        # Prepara os dados do novo treinamento
-        new_data = [
-            id,                    # funcionario_id
-            data.strftime("%d/%m/%Y"),
-            vencimento.strftime("%d/%m/%Y"),
-            norma,
-            modulo,
-            status,
-            anexo,               # arquivo_id
-            tipo_treinamento,
-            carga_horaria
-        ]
+        Adiciona um treinamento para um funcionário.
         
+        Args:
+            employee_id: ID do funcionário
+            data: Data do treinamento
+            norma: Norma do treinamento
+            modulo: Módulo do treinamento
+            tipo_treinamento: Tipo do treinamento (inicial ou reciclagem)
+            carga_horaria: Carga horária do treinamento
+            arquivo_id: ID do arquivo no Google Drive (opcional)
+            
+        Returns:
+            tuple: (id, message) - ID do treinamento e mensagem de sucesso/erro
+        """
         try:
-            # Adiciona o treinamento na planilha
-            training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
-            if training_id:
-                # Recarrega os dados após adicionar
-                self.load_data()
-                # Limpa os campos após adicionar com sucesso
-                self.clear_fields()
-                st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
-                return training_id
+            # Validar o treinamento
+            valido, mensagem = self.validar_treinamento(norma, modulo, tipo_treinamento, carga_horaria)
+            if not valido:
+                return None, mensagem
+
+            # Calcular o vencimento
+            vencimento = self.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
+            if not vencimento:
+                return None, "Não foi possível calcular a data de vencimento do treinamento."
+
+            # Preparar os dados
+            training_data = [
+                employee_id,
+                data.strftime("%d/%m/%Y"),
+                vencimento.strftime("%d/%m/%Y"),
+                norma,
+                modulo,
+                "Válido" if vencimento > date.today() else "Vencido",
+                arquivo_id if arquivo_id else "",
+                tipo_treinamento,
+                str(carga_horaria)
+            ]
+
+            # Adicionar à planilha
+            if self.sheet_ops.adicionar_dados_aba(TRAINING_SHEET_NAME, training_data):
+                # Atualizar o DataFrame local
+                self.training_df = pd.concat([
+                    self.training_df,
+                    pd.DataFrame([training_data], columns=self.training_df.columns)
+                ])
+                return employee_id, "Treinamento adicionado com sucesso!"
             else:
-                st.error("Erro ao adicionar treinamento na planilha")
-                return None
+                return None, "Erro ao adicionar treinamento na planilha."
+
         except Exception as e:
             st.error(f"Erro ao adicionar treinamento: {str(e)}")
-            return None
+            return None, f"Erro ao adicionar treinamento: {str(e)}"
 
     def get_company_name(self, company_id):
         company = self.companies_df[self.companies_df['id'] == company_id]
@@ -655,5 +676,8 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
+
 
 
