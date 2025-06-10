@@ -275,7 +275,7 @@ def front_page():
                             if st.form_submit_button("Adicionar Treinamento"):
                                 if arquivo:
                                     arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                    training_id, message = employee_manager.add_training(
+                                    employee_id, message = employee_manager.add_training(
                                         selected_employee,
                                         data,
                                         norma,
@@ -284,7 +284,7 @@ def front_page():
                                         carga_horaria,
                                         arquivo_id
                                     )
-                                    if training_id:
+                                    if employee_id:
                                         st.success(message)
                                         # Limpar os campos após adicionar com sucesso
                                         employee_manager.clear_fields()
@@ -510,7 +510,7 @@ def mostrar_treinamentos():
                             if st.form_submit_button("Adicionar Treinamento"):
                                 if arquivo:
                                     arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                    training_id, message = employee_manager.add_training(
+                                    employee_id, message = employee_manager.add_training(
                                         selected_employee,
                                         data,
                                         norma,
@@ -519,7 +519,7 @@ def mostrar_treinamentos():
                                         carga_horaria,
                                         arquivo_id
                                     )
-                                    if training_id:
+                                    if employee_id:
                                         st.success(message)
                                         # Limpar os campos após adicionar com sucesso
                                         employee_manager.clear_fields()
