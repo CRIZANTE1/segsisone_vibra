@@ -40,10 +40,10 @@ def mostrar_info_normas():
 
 def front_page():
     # Inicializa as variáveis de sessão
-    if 'treinamento_upload' not in st.session_state:
-        st.session_state.treinamento_upload = None
-    if 'treinamento_manual' not in st.session_state:
-        st.session_state.treinamento_manual = False
+    if 'treinamento_upload_main' not in st.session_state:
+        st.session_state.treinamento_upload_main = None
+    if 'treinamento_manual_main' not in st.session_state:
+        st.session_state.treinamento_manual_main = False
     if 'last_analyzed_file' not in st.session_state:
         st.session_state.last_analyzed_file = None
     if 'treinamento_info' not in st.session_state:
@@ -222,17 +222,17 @@ def front_page():
                         "Selecione um funcionário",
                         employees['id'].tolist(),
                         format_func=lambda x: f"{employees[employees['id'] == x]['nome'].iloc[0]}",
-                        key="treinamento_employee"
+                        key="treinamento_employee_main"
                     )
                     
                     if selected_employee:
-                        with st.form("adicionar_treinamento"):
-                            arquivo = st.file_uploader("Upload do Certificado (PDF)", type=['pdf'], key="treinamento_upload")
+                        with st.form("adicionar_treinamento_main"):
+                            arquivo = st.file_uploader("Upload do Certificado (PDF)", type=['pdf'], key="treinamento_upload_main")
                             
                             col1, col2 = st.columns(2)
                             
                             with col1:
-                                manual_input = st.checkbox("Inserir dados manualmente", key="treinamento_manual")
+                                manual_input = st.checkbox("Inserir dados manualmente", key="treinamento_manual_main")
                             
                             if arquivo and not manual_input:
                                 # Verifica se já analisou este arquivo
@@ -245,7 +245,11 @@ def front_page():
                                     treinamento_info = st.session_state.treinamento_info
                                     
                                 if treinamento_info:
-                                    data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
+                                    data = st.date_input(
+                                        "Data do Treinamento",
+                                        value=treinamento_info['data'] if treinamento_info['data'] else None,
+                                        format="DD/MM/YYYY"
+                                    )
                                     norma = st.text_input("Norma", value=treinamento_info['norma'])
                                     modulo = st.text_input("Módulo", value=treinamento_info['modulo'])
                                     tipo_treinamento = st.selectbox(
@@ -269,7 +273,7 @@ def front_page():
                                     manual_input = True
                             
                             if manual_input:
-                                data = st.date_input("Data do Treinamento")
+                                data = st.date_input("Data do Treinamento", format="DD/MM/YYYY")
                                 norma = st.selectbox("Norma", ["NR-20", "NR-35", "NR-10", "NR-18", "NR-34"])
                                 
                                 if norma == "NR-20":
@@ -307,8 +311,8 @@ def front_page():
                                         # Limpar os campos após adicionar com sucesso
                                         employee_manager.clear_fields()
                                         # Limpar o arquivo e as variáveis de sessão
-                                        st.session_state.treinamento_upload = None
-                                        st.session_state.treinamento_manual = False
+                                        st.session_state.treinamento_upload_main = None
+                                        st.session_state.treinamento_manual_main = False
                                         st.session_state.last_analyzed_file = None
                                         st.session_state.treinamento_info = None
                                         st.rerun()
@@ -480,7 +484,11 @@ def mostrar_treinamentos():
                                 treinamento_info = st.session_state.treinamento_info
                                 
                             if treinamento_info:
-                                data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
+                                data = st.date_input(
+                                    "Data do Treinamento",
+                                    value=treinamento_info['data'] if treinamento_info['data'] else None,
+                                    format="DD/MM/YYYY"
+                                )
                                 norma = st.text_input("Norma", value=treinamento_info['norma'])
                                 modulo = st.text_input("Módulo", value=treinamento_info['modulo'])
                                 tipo_treinamento = st.selectbox(
@@ -504,7 +512,7 @@ def mostrar_treinamentos():
                                 manual_input = True
                         
                         if manual_input:
-                            data = st.date_input("Data do Treinamento")
+                            data = st.date_input("Data do Treinamento", format="DD/MM/YYYY")
                             norma = st.selectbox("Norma", ["NR-20", "NR-35", "NR-10", "NR-18", "NR-34"])
                             
                             if norma == "NR-20":
