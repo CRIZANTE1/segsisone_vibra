@@ -331,6 +331,8 @@ class EmployeeManager:
             # Adiciona o ASO na planilha
             aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
             if aso_id:
+                # Recarrega os dados após adicionar
+                self.load_data()
                 st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                 return aso_id
             else:
@@ -363,6 +365,8 @@ class EmployeeManager:
             # Adiciona o treinamento na planilha
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
+                # Recarrega os dados após adicionar
+                self.load_data()
                 st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
                 return training_id
             else:
@@ -564,5 +568,4 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
