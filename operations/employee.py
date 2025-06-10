@@ -351,21 +351,20 @@ class EmployeeManager:
             st.error(f"Erro ao adicionar ASO: {str(e)}")
             return None
 
-    def add_training(self, id, contratado, data, vencimento, norma, modulo, status, anexo,
+    def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
                     tipo_treinamento, carga_horaria):
         """
         Adiciona um novo treinamento para um funcionário.
         """
         # Prepara os dados do novo treinamento
         new_data = [
-            id,
-            contratado,
+            id,                    # funcionario_id
             data.strftime("%d/%m/%Y"),
             vencimento.strftime("%d/%m/%Y"),
             norma,
             modulo,
             status,
-            anexo,  # ID do arquivo no Google Drive
+            anexo,               # arquivo_id
             tipo_treinamento,
             carga_horaria
         ]
@@ -577,3 +576,4 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
