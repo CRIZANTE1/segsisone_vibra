@@ -107,13 +107,14 @@ def front_page():
                 with st.expander("Cadastrar Novo Funcionário"):
                     with st.form("cadastro_funcionario"):
                         nome = st.text_input("Nome do Funcionário")
+                        cpf = st.text_input("CPF")
                         cargo = st.text_input("Cargo")
                         data_admissao = st.date_input("Data de Admissão")
                         
                         submitted = st.form_submit_button("Cadastrar")
-                        if submitted and nome and cargo:
+                        if submitted and nome and cpf and cargo:
                             employee_id, message = employee_manager.add_employee(
-                                nome, selected_company, cargo, data_admissao
+                                nome, cpf, cargo, data_admissao
                             )
                             if employee_id:
                                 st.success(message)
@@ -480,7 +481,6 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
-   
    
 
    
