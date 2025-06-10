@@ -12,7 +12,7 @@ import pandas as pd
 class PDFQA:
     def __init__(self):
         load_api()  # Carrega a API
-        self.model = genai.GenerativeModel('gemini-2.5-pro-preview-06-05')
+        self.model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
 
 
     #-----------------Função para limpar o texto-------------------------
