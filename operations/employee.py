@@ -283,15 +283,15 @@ class EmployeeManager:
         
         try:
             # Prepara os dados do novo funcionário com os nomes corretos das colunas
-            new_data = {
-                'nome': nome,
-                'empresa_id': empresa_id,
-                'cargo': cargo,
-                'data_admissao': data_admissao.strftime("%d/%m/%Y")
-            }
+            new_data = [
+                nome,
+                empresa_id,
+                cargo,
+                data_admissao.strftime("%d/%m/%Y")
+            ]
             
             # Adiciona o funcionário na planilha
-            self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, list(new_data.values()))
+            self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             
             # Recarrega os dados
             self.load_data()
@@ -564,4 +564,5 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
