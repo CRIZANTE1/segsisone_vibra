@@ -16,8 +16,8 @@ from gdrive.config import (
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
 
-# Cache para carregar dados das planilhas
-@st.cache_data(ttl=300)  # Cache por 5 minutos
+
+
 def load_sheet_data(sheet_name):
     sheet_ops = SheetOperations()
     return sheet_ops.carregar_dados_aba(sheet_name)
