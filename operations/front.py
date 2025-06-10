@@ -39,6 +39,24 @@ def mostrar_info_normas():
         """)
 
 def front_page():
+    # Inicializa as variáveis de sessão
+    if 'treinamento_upload' not in st.session_state:
+        st.session_state.treinamento_upload = None
+    if 'treinamento_manual' not in st.session_state:
+        st.session_state.treinamento_manual = False
+    if 'last_analyzed_file' not in st.session_state:
+        st.session_state.last_analyzed_file = None
+    if 'treinamento_info' not in st.session_state:
+        st.session_state.treinamento_info = None
+    if 'aso_upload' not in st.session_state:
+        st.session_state.aso_upload = None
+    if 'aso_manual' not in st.session_state:
+        st.session_state.aso_manual = False
+    if 'last_analyzed_aso_file' not in st.session_state:
+        st.session_state.last_analyzed_aso_file = None
+    if 'aso_info' not in st.session_state:
+        st.session_state.aso_info = None
+
     st.title("Gestão de Documentação de Contratada")
     
     # Usa a instância do EmployeeManager da sessão
@@ -537,6 +555,8 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
 
    
 
