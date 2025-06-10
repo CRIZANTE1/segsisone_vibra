@@ -300,8 +300,8 @@ class EmployeeManager:
         ]
         
         try:
-            # Adiciona o funcionário na planilha
-            employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
+            # Adiciona o funcionário na planilha usando a aba correta de funcionários
+            employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             if employee_id:
                 # Limpa o cache antes de recarregar os dados
                 st.cache_data.clear()
