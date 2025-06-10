@@ -453,7 +453,7 @@ class EmployeeManager:
             ]
 
             # Adicionar à planilha
-            if self.sheet_ops.adicionar_dados_aba(TRAINING_SHEET_NAME, training_data):
+            if self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, training_data):
                 # Atualizar o DataFrame local
                 self.training_df = pd.concat([
                     self.training_df,
@@ -676,6 +676,7 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
 
 
