@@ -218,9 +218,10 @@ class EmployeeManager:
             # Perguntas detalhadas para extrair informações do PDF
             questions = [
                 "Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.",
+                "Qual é o tipo específico do treinamento? apenas o número da NR.",
                 "Qual é o módulo ou tipo específico do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
                 "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
-                "Este é um treinamento inicial ou uma reciclagem? Responda apenas 'inicial' ou 'reciclagem'.",
+                "Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
                 "Qual é a carga horária total do treinamento em horas? Responda apenas o número."
             ]
 
@@ -240,7 +241,14 @@ class EmployeeManager:
 
             norma = f"NR-{results[questions[0]]}" if results[questions[0]].isdigit() else results[questions[0]]
             modulo = results[questions[1]]
-            tipo_treinamento = results[questions[3].lower()]
+            
+            # Processar o tipo de treinamento
+            tipo_treinamento = results[questions[3]].lower()
+            if 'sim' in tipo_treinamento:
+                tipo_treinamento = 'reciclagem'
+            else:
+                tipo_treinamento = 'inicial'  # Assume inicial como padrão
+            
             try:
                 carga_horaria = int(''.join(filter(str.isdigit, results[questions[4]])))
             except:
