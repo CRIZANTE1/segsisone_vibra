@@ -219,7 +219,7 @@ class EmployeeManager:
             questions = [
                 "Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.",
                 "Qual é o tipo específico do treinamento? apenas o número da NR.",
-                "Qual é o módulo ou tipo específico do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
+                "Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
                 "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
                 "Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
                 "Qual é a carga horária total do treinamento em horas? Responda apenas o número."
