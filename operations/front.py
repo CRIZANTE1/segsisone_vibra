@@ -145,8 +145,14 @@ def front_page():
                                 manual_input = st.checkbox("Inserir dados manualmente")
                             
                             if arquivo and not manual_input:
-                                with st.spinner("Analisando o PDF do ASO..."):
-                                    aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                                # Verifica se já analisou este arquivo
+                                if 'last_analyzed_aso_file' not in st.session_state or st.session_state.last_analyzed_aso_file != arquivo.name:
+                                    with st.spinner("Analisando o PDF do ASO..."):
+                                        aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                                        st.session_state.last_analyzed_aso_file = arquivo.name
+                                        st.session_state.aso_info = aso_info
+                                else:
+                                    aso_info = st.session_state.aso_info
                                     
                                 if aso_info:
                                     data_aso = st.date_input("Data do ASO", value=aso_info['data_aso'] if aso_info['data_aso'] else datetime.now())
@@ -175,6 +181,13 @@ def front_page():
                                         cargo_aso
                                     )
                                     st.success("ASO adicionado com sucesso!")
+                                    # Limpar os campos após adicionar com sucesso
+                                    employee_manager.clear_fields()
+                                    # Limpar o arquivo e as variáveis de sessão
+                                    st.session_state.aso_upload = None
+                                    st.session_state.aso_manual = False
+                                    st.session_state.last_analyzed_aso_file = None
+                                    st.session_state.aso_info = None
                                     st.rerun()
                                 else:
                                     st.error("Por favor, faça o upload do arquivo do ASO")
@@ -204,8 +217,14 @@ def front_page():
                                 manual_input = st.checkbox("Inserir dados manualmente", key="treinamento_manual")
                             
                             if arquivo and not manual_input:
-                                with st.spinner("Analisando o PDF do treinamento..."):
-                                    treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                                # Verifica se já analisou este arquivo
+                                if 'last_analyzed_file' not in st.session_state or st.session_state.last_analyzed_file != arquivo.name:
+                                    with st.spinner("Analisando o PDF do treinamento..."):
+                                        treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                                        st.session_state.last_analyzed_file = arquivo.name
+                                        st.session_state.treinamento_info = treinamento_info
+                                else:
+                                    treinamento_info = st.session_state.treinamento_info
                                     
                                 if treinamento_info:
                                     data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
@@ -256,19 +275,27 @@ def front_page():
                             if st.form_submit_button("Adicionar Treinamento"):
                                 if arquivo:
                                     arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                    employee_manager.add_training(
+                                    training_id, message = employee_manager.add_training(
                                         selected_employee,
                                         data,
-                                        vencimento,
                                         norma,
                                         modulo,
-                                        "Válido",
-                                        arquivo_id,
                                         tipo_treinamento,
-                                        carga_horaria
+                                        carga_horaria,
+                                        arquivo_id
                                     )
-                                    st.success("Treinamento adicionado com sucesso!")
-                                    st.rerun()
+                                    if training_id:
+                                        st.success(message)
+                                        # Limpar os campos após adicionar com sucesso
+                                        employee_manager.clear_fields()
+                                        # Limpar o arquivo e as variáveis de sessão
+                                        st.session_state.treinamento_upload = None
+                                        st.session_state.treinamento_manual = False
+                                        st.session_state.last_analyzed_file = None
+                                        st.session_state.treinamento_info = None
+                                        st.rerun()
+                                    else:
+                                        st.error(message)
                                 else:
                                     st.error("Por favor, faça o upload do certificado do treinamento")
                 else:
@@ -330,8 +357,14 @@ def mostrar_aso():
                             manual_input = st.checkbox("Inserir dados manualmente", key="aso_manual")
                         
                         if arquivo and not manual_input:
-                            with st.spinner("Analisando o PDF do ASO..."):
-                                aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                            # Verifica se já analisou este arquivo
+                            if 'last_analyzed_aso_file' not in st.session_state or st.session_state.last_analyzed_aso_file != arquivo.name:
+                                with st.spinner("Analisando o PDF do ASO..."):
+                                    aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                                    st.session_state.last_analyzed_aso_file = arquivo.name
+                                    st.session_state.aso_info = aso_info
+                            else:
+                                aso_info = st.session_state.aso_info
                                 
                             if aso_info:
                                 data_aso = st.date_input("Data do ASO", value=aso_info['data_aso'] if aso_info['data_aso'] else datetime.now())
@@ -360,6 +393,13 @@ def mostrar_aso():
                                     cargo_aso
                                 )
                                 st.success("ASO adicionado com sucesso!")
+                                # Limpar os campos após adicionar com sucesso
+                                employee_manager.clear_fields()
+                                # Limpar o arquivo e as variáveis de sessão
+                                st.session_state.aso_upload = None
+                                st.session_state.aso_manual = False
+                                st.session_state.last_analyzed_aso_file = None
+                                st.session_state.aso_info = None
                                 st.rerun()
                             else:
                                 st.error("Por favor, faça o upload do arquivo do ASO")
@@ -412,8 +452,14 @@ def mostrar_treinamentos():
                             manual_input = st.checkbox("Inserir dados manualmente", key="treinamento_manual_main")
                         
                         if arquivo and not manual_input:
-                            with st.spinner("Analisando o PDF do treinamento..."):
-                                treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                            # Verifica se já analisou este arquivo
+                            if 'last_analyzed_file' not in st.session_state or st.session_state.last_analyzed_file != arquivo.name:
+                                with st.spinner("Analisando o PDF do treinamento..."):
+                                    treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                                    st.session_state.last_analyzed_file = arquivo.name
+                                    st.session_state.treinamento_info = treinamento_info
+                            else:
+                                treinamento_info = st.session_state.treinamento_info
                                 
                             if treinamento_info:
                                 data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
@@ -461,28 +507,40 @@ def mostrar_treinamentos():
                             if not valido:
                                 st.warning(mensagem)
                         
-                        if st.form_submit_button("Adicionar Treinamento"):
-                            if arquivo:
-                                arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                employee_manager.add_training(
-                                    selected_employee,
-                                    data,
-                                    vencimento,
-                                    norma,
-                                    modulo,
-                                    "Válido",
-                                    arquivo_id,
-                                    tipo_treinamento,
-                                    carga_horaria
-                                )
-                                st.success("Treinamento adicionado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.error("Por favor, faça o upload do certificado do treinamento")
+                            if st.form_submit_button("Adicionar Treinamento"):
+                                if arquivo:
+                                    arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
+                                    training_id, message = employee_manager.add_training(
+                                        selected_employee,
+                                        data,
+                                        norma,
+                                        modulo,
+                                        tipo_treinamento,
+                                        carga_horaria,
+                                        arquivo_id
+                                    )
+                                    if training_id:
+                                        st.success(message)
+                                        # Limpar os campos após adicionar com sucesso
+                                        employee_manager.clear_fields()
+                                        # Limpar o arquivo e as variáveis de sessão
+                                        st.session_state.treinamento_upload_main = None
+                                        st.session_state.treinamento_manual_main = False
+                                        st.session_state.last_analyzed_file = None
+                                        st.session_state.treinamento_info = None
+                                        st.rerun()
+                                    else:
+                                        st.error(message)
+                                else:
+                                    st.error("Por favor, faça o upload do certificado do treinamento")
             else:
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
+
+   
 
    
 
