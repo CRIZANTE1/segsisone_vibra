@@ -17,7 +17,7 @@ from gdrive.config import (
 gdrive_uploader = GoogleDriveUploader()
 
 
-
+@st.cache_data(ttl=30)
 def load_sheet_data(sheet_name):
     sheet_ops = SheetOperations()
     return sheet_ops.carregar_dados_aba(sheet_name)
