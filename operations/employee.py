@@ -78,6 +78,11 @@ class EmployeeManager:
                 'reciclagem_horas': 8,
                 'reciclagem_anos': 1
             },
+            'NR-12': {
+                'inicial_horas': 8,
+                'reciclagem_horas': 8,
+                'reciclagem_anos': 2
+            },
             'NR-34': {
                 'inicial_horas': 8,
                 'reciclagem_horas': 8,
@@ -576,4 +581,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
 
