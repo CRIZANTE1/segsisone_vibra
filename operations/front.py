@@ -113,7 +113,10 @@ def front_page():
                         submitted = st.form_submit_button("Cadastrar")
                         if submitted and nome and cargo:
                             employee_id, message = employee_manager.add_employee(
-                                nome, cargo, data_admissao, selected_company
+                                nome=nome,
+                                cargo=cargo,
+                                data_admissao=data_admissao,
+                                empresa_id=selected_company
                             )
                             if employee_id:
                                 st.success(message)
@@ -480,7 +483,4 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
-   
-
-   
    
