@@ -349,8 +349,8 @@ class EmployeeManager:
         new_data = [
             id,
             contratado,
-            data.strftime("%d/%m/%Y") if isinstance(data, datetime) else data,
-            vencimento.strftime("%d/%m/%Y") if isinstance(vencimento, datetime) else vencimento,
+            data.strftime("%d/%m/%Y"),
+            vencimento.strftime("%d/%m/%Y"),
             norma,
             modulo,
             status,
@@ -397,8 +397,8 @@ class EmployeeManager:
         return self.employees_df[self.employees_df['empresa_id'] == company_id]
     
     def get_employee_docs(self, employee_id):
-        aso_docs = self.aso_df[self.aso_df['id'] == employee_id]
-        training_docs = self.training_df[self.training_df['id'] == employee_id]
+        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id]
+        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id]
         return aso_docs, training_docs
 
     def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='inicial'):
@@ -564,5 +564,4 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
