@@ -16,13 +16,7 @@ class PDFQA:
 
 
     #-----------------Função para limpar o texto-------------------------
-    def clean_text(self, text):
-        if text is None:
-            return ""
-        text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[^\w\s,.!?\'\"-]', '', text)
-        return text.strip()
-
+   
     #----------------- Função para fazer perguntas ao modelo Gemini----------------------
     def ask_gemini(self, pdf_files, question):
         try:
