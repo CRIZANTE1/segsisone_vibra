@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from gdrive.gdrive_upload import GoogleDriveUploader
 from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
@@ -283,21 +283,21 @@ class EmployeeManager:
         Args:
             nome: Nome do funcionário
             cargo: Cargo do funcionário
-            data_admissao: Data de admissão
+            data_admissao: Data de admissão (datetime.date)
             empresa_id: ID da empresa
             
         Returns:
             tuple: (employee_id, message) - ID do funcionário e mensagem de sucesso/erro
         """
-        # Prepara os dados do novo funcionário
-        new_data = [
-            nome,
-            empresa_id,
-            cargo,
-            data_admissao.strftime("%d/%m/%Y")
-        ]
-        
         try:
+            # Prepara os dados do novo funcionário na ordem correta da planilha
+            new_data = [
+                nome,  # nome
+                empresa_id,  # empresa_id
+                cargo,  # cargo
+                data_admissao.strftime("%d/%m/%Y") if isinstance(data_admissao, (datetime, date)) else data_admissao  # data_admissao
+            ]
+            
             # Adiciona o funcionário na planilha usando a aba correta de funcionários
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             if employee_id:
@@ -577,5 +577,3 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
-
