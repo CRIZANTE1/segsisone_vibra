@@ -426,7 +426,7 @@ class EmployeeManager:
             arquivo_id: ID do arquivo no Google Drive (opcional)
             
         Returns:
-            tuple: (id, message) - ID do treinamento e mensagem de sucesso/erro
+            tuple: (employee_id, message) - ID do funcionário e mensagem de sucesso/erro
         """
         try:
             # Validar o treinamento
@@ -676,8 +676,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
-
 
 
 
