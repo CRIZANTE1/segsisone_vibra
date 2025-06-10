@@ -276,16 +276,15 @@ class EmployeeManager:
         except Exception as e:
             return None, f"Erro ao cadastrar empresa: {str(e)}"
     
-    def add_employee(self, nome, cpf, cargo, data_admissao, status="Ativo"):
+    def add_employee(self, nome, cargo, data_admissao, empresa_id):
         """
         Adiciona um novo funcionário.
         
         Args:
             nome: Nome do funcionário
-            cpf: CPF do funcionário
             cargo: Cargo do funcionário
             data_admissao: Data de admissão
-            status: Status do funcionário (Ativo/Inativo)
+            empresa_id: ID da empresa
             
         Returns:
             tuple: (employee_id, message) - ID do funcionário e mensagem de sucesso/erro
@@ -293,10 +292,9 @@ class EmployeeManager:
         # Prepara os dados do novo funcionário
         new_data = [
             nome,
-            cpf,
+            empresa_id,
             cargo,
-            data_admissao.strftime("%d/%m/%Y"),
-            status
+            data_admissao.strftime("%d/%m/%Y")
         ]
         
         try:
@@ -579,4 +577,5 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
