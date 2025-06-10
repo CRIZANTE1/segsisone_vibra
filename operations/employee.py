@@ -149,6 +149,7 @@ class EmployeeManager:
                     self.training_df[col] = ''
         else:
             self.training_df = pd.DataFrame(columns=training_columns)
+            st.warning("Nenhum treinamento encontrado na planilha.")
 
     def initialize_sheets(self):
         """
@@ -222,7 +223,7 @@ class EmployeeManager:
                 "Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
                 "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
                 "Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
-                "Qual é a carga horária total do treinamento em horas? Responda apenas o número."
+                "Qual é a carga horária total do treinamento em horas? Responda apenas o número, sem texto adicional. Por exemplo, se for 8 horas, responda apenas '8'."
             ]
 
             results = {}
@@ -249,8 +250,25 @@ class EmployeeManager:
             else:
                 tipo_treinamento = 'inicial'  # Assume inicial como padrão
             
+            # Processar a carga horária
             try:
-                carga_horaria = int(''.join(filter(str.isdigit, results[questions[4]])))
+                # Remove qualquer texto não numérico e converte para inteiro
+                carga_horaria_str = ''.join(filter(str.isdigit, results[questions[4]]))
+                if carga_horaria_str:
+                    carga_horaria = int(carga_horaria_str)
+                else:
+                    # Se não encontrou números, tenta extrair do texto
+                    carga_horaria_text = results[questions[4]].lower()
+                    if 'hora' in carga_horaria_text:
+                        # Procura por números antes da palavra "hora"
+                        import re
+                        match = re.search(r'(\d+)\s*hora', carga_horaria_text)
+                        if match:
+                            carga_horaria = int(match.group(1))
+                        else:
+                            carga_horaria = None
+                    else:
+                        carga_horaria = None
             except:
                 carga_horaria = None
 
@@ -453,8 +471,25 @@ class EmployeeManager:
         return self.employees_df[self.employees_df['empresa_id'] == company_id]
     
     def get_employee_docs(self, employee_id):
-        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id]
-        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id]
+        """
+        Obtém os documentos (ASO e treinamentos) de um funcionário.
+        
+        Args:
+            employee_id: ID do funcionário
+            
+        Returns:
+            tuple: (aso_docs, training_docs) - DataFrames com os documentos
+        """
+        # Recarrega os dados antes de buscar os documentos
+        self.load_data()
+        
+        # Filtra os documentos do funcionário
+        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id].copy()
+        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id].copy()
+        
+        # Log para debug
+        st.write(f"Treinamentos encontrados para o funcionário {employee_id}: {len(training_docs)} registros")
+        
         return aso_docs, training_docs
 
     def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='inicial'):
@@ -620,6 +655,5 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
 
