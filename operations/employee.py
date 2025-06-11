@@ -215,58 +215,73 @@ class EmployeeManager:
                 temp_file.write(pdf_file.getvalue())
                 temp_path = temp_file.name
 
-            # Perguntas detalhadas para extrair informações do PDF
-            questions = [
-                "Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.",
-                "Qual é o tipo específico do treinamento? apenas o número da NR.",
-                "Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.",
-                "Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.",
-                "Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.",
-                "Qual é a carga horária total do treinamento em horas? Responda apenas o número."
-            ]
+            # Todas as perguntas em uma única string
+            combined_question = """
+            Por favor, analise o documento e responda as seguintes perguntas:
+            1. Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.
+            2. Qual é o tipo específico do treinamento? apenas o número da NR.
+            3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.
+            4. Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.
+            5. Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.
+            6. Qual é a carga horária total do treinamento em horas? Responda apenas o número.
+            
+            Responda cada pergunta em uma nova linha, numerada de 1 a 6.
+            """
 
-            results = {}
-            for question in questions:
-                answer, _ = self.pdf_analyzer.answer_question([temp_path], question)
-                results[question] = answer.strip()
-
+            # Fazer uma única requisição com todas as perguntas
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
+            
             # Limpar o arquivo temporário
             os.unlink(temp_path)
 
             # Processar as respostas
-            try:
-                data = datetime.strptime(results[questions[2]], "%d/%m/%Y").date()
-            except:
-                data = None
+            if answer:
+                # Dividir as respostas em linhas e extrair as informações
+                lines = answer.strip().split('\n')
+                results = {}
+                for line in lines:
+                    if line.strip():
+                        try:
+                            num, value = line.split('.', 1)
+                            results[int(num)] = value.strip()
+                        except:
+                            continue
 
-            norma = f"NR-{results[questions[0]]}" if results[questions[0]].isdigit() else results[questions[0]]
-            modulo = results[questions[1]]
-            
-            # Processar o tipo de treinamento
-            tipo_treinamento = results[questions[3]].lower()
-            if 'sim' in tipo_treinamento:
-                tipo_treinamento = 'reciclagem'
-            else:
-                tipo_treinamento = 'inicial'  # Assume inicial como padrão
-            
-            try:
-                carga_horaria = int(''.join(filter(str.isdigit, results[questions[4]])))
-            except:
-                carga_horaria = None
+                try:
+                    data = datetime.strptime(results[4], "%d/%m/%Y").date()
+                except:
+                    data = None
 
-            # Calcula o vencimento automaticamente
-            vencimento = None
-            if data:
-                vencimento = self.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
+                norma = f"NR-{results[1]}" if results[1].isdigit() else results[1]
+                modulo = results[3]
+                
+                # Processar o tipo de treinamento
+                tipo_treinamento = results[5].lower()
+                if 'sim' in tipo_treinamento:
+                    tipo_treinamento = 'reciclagem'
+                else:
+                    tipo_treinamento = 'inicial'  # Assume inicial como padrão
+                
+                try:
+                    carga_horaria = int(''.join(filter(str.isdigit, results[6])))
+                except:
+                    carga_horaria = None
 
-            return {
-                'norma': norma,
-                'modulo': modulo,
-                'data': data,
-                'vencimento': vencimento,
-                'tipo_treinamento': tipo_treinamento,
-                'carga_horaria': carga_horaria
-            }
+                # Calcula o vencimento automaticamente
+                vencimento = None
+                if data:
+                    vencimento = self.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
+
+                return {
+                    'norma': norma,
+                    'modulo': modulo,
+                    'data': data,
+                    'vencimento': vencimento,
+                    'tipo_treinamento': tipo_treinamento,
+                    'carga_horaria': carga_horaria
+                }
+            return None
+
         except Exception as e:
             st.error(f"Erro ao analisar o PDF: {str(e)}")
             return None
@@ -486,58 +501,63 @@ class EmployeeManager:
         return True, ""
 
     def analyze_aso_pdf(self, pdf_file):
-        """
-        Analisa um PDF de ASO para extrair informações relevantes.
-        
-        Args:
-            pdf_file: Arquivo PDF do ASO
-            
-        Returns:
-            dict: Dicionário com as informações extraídas do ASO
-        """
         try:
             # Salvar o arquivo temporariamente
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue())
                 temp_path = temp_file.name
 
-            # Perguntas específicas para extrair informações do ASO
-            questions = [
-                "Qual é a data de realização do ASO? Responda apenas a data no formato DD/MM/AAAA.",
-                "Qual é a data de vencimento do ASO? Responda apenas a data no formato DD/MM/AAAA.",
-                "Quais são os riscos ocupacionais identificados? Liste apenas os riscos.",
-                "Qual é o cargo do funcionário conforme consta no ASO? Responda apenas o cargo."
-            ]
+            # Todas as perguntas em uma única string
+            combined_question = """
+            Por favor, analise o documento e responda as seguintes perguntas:
+            1. Qual é a data de realização do ASO? Responda apenas a data no formato DD/MM/AAAA.
+            2. Qual é a data de vencimento do ASO? Responda apenas a data no formato DD/MM/AAAA.
+            3. Quais são os riscos ocupacionais identificados? Liste apenas os riscos.
+            4. Qual é o cargo do funcionário conforme consta no ASO? Responda apenas o cargo.
+            
+            Responda cada pergunta em uma nova linha, numerada de 1 a 4.
+            """
 
-            results = {}
-            for question in questions:
-                answer, _ = self.pdf_analyzer.answer_question([temp_path], question)
-                results[question] = answer.strip()
-
+            # Fazer uma única requisição com todas as perguntas
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
+            
             # Limpar o arquivo temporário
             os.unlink(temp_path)
 
             # Processar as respostas
-            try:
-                data_aso = datetime.strptime(results[questions[0]], "%d/%m/%Y").date()
-            except:
-                data_aso = None
+            if answer:
+                # Dividir as respostas em linhas e extrair as informações
+                lines = answer.strip().split('\n')
+                results = {}
+                for line in lines:
+                    if line.strip():
+                        try:
+                            num, value = line.split('.', 1)
+                            results[int(num)] = value.strip()
+                        except:
+                            continue
 
-            try:
-                vencimento = datetime.strptime(results[questions[1]], "%d/%m/%Y").date()
-            except:
-                vencimento = None
+                try:
+                    data_aso = datetime.strptime(results[1], "%d/%m/%Y").date()
+                except:
+                    data_aso = None
 
-            # Se não encontrou a data de vencimento, calcula como 1 ano após a data do ASO
-            if data_aso and not vencimento:
-                vencimento = data_aso + timedelta(days=365)
+                try:
+                    vencimento = datetime.strptime(results[2], "%d/%m/%Y").date()
+                except:
+                    vencimento = None
 
-            return {
-                'data_aso': data_aso,
-                'vencimento': vencimento,
-                'riscos': results[questions[2]],
-                'cargo': results[questions[3]]
-            }
+                # Se não encontrou a data de vencimento, calcula como 1 ano após a data do ASO
+                if data_aso and not vencimento:
+                    vencimento = data_aso + timedelta(days=365)
+
+                return {
+                    'data_aso': data_aso,
+                    'vencimento': vencimento,
+                    'riscos': results[3],
+                    'cargo': results[4]
+                }
+            return None
 
         except Exception as e:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
@@ -589,6 +609,12 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
+
+
+
+
 
 
 
