@@ -265,7 +265,11 @@ def front_page():
                             st.write("**Módulo:**")
                             st.write(treinamento_info['modulo'])
                             st.write("**Tipo:**")
-                            tipo_treinamento = treinamento_info.get('tipo_treinamento', 'inicial')
+                            tipo_treinamento = st.selectbox(
+                                "Tipo de Treinamento",
+                                ["formação", "reciclagem"],
+                                index=0 if treinamento_info['tipo_treinamento'] == 'formação' else 1
+                            )
                             st.write(tipo_treinamento)
                             st.write("**Carga Horária:**")
                             st.write(f"{treinamento_info['carga_horaria']} horas")
@@ -482,8 +486,8 @@ def mostrar_treinamentos():
                                 modulo = st.text_input("Módulo", value=treinamento_info['modulo'])
                                 tipo_treinamento = st.selectbox(
                                     "Tipo de Treinamento",
-                                    ["inicial", "reciclagem"],
-                                    index=0 if treinamento_info['tipo_treinamento'] == 'inicial' else 1
+                                    ["formação", "reciclagem"],
+                                    index=0 if treinamento_info['tipo_treinamento'] == 'formação' else 1
                                 )
                                 carga_horaria = st.number_input("Carga Horária (horas)", value=treinamento_info['carga_horaria'] if treinamento_info['carga_horaria'] else 0)
                                 
@@ -496,6 +500,43 @@ def mostrar_treinamentos():
                                 valido, mensagem = employee_manager.validar_treinamento(norma, modulo, tipo_treinamento, carga_horaria)
                                 if not valido:
                                     st.warning(mensagem)
+                                
+                                # Botão para confirmar e salvar
+                                if st.form_submit_button("Adicionar Treinamento"):
+                                    try:
+                                        # Upload do arquivo com ID do empregado e empresa
+                                        arquivo_id = gdrive_uploader.upload_file(
+                                            arquivo, 
+                                            f"TREINAMENTO_EMP_{selected_employee}_COMP_{selected_company}_{norma}_{modulo if modulo else 'N/A'}"
+                                        )
+                                        
+                                        if arquivo_id:
+                                            # Adicionar treinamento
+                                            training_id = employee_manager.add_training(
+                                                id=selected_employee,
+                                                data=data,
+                                                vencimento=vencimento,
+                                                norma=norma,
+                                                modulo=modulo,
+                                                status="Válido",
+                                                anexo=arquivo_id,
+                                                tipo_treinamento=tipo_treinamento,
+                                                carga_horaria=carga_horaria
+                                            )
+                                            
+                                            if training_id:
+                                                st.success(f"Treinamento registrado com sucesso! ID: {training_id}")
+                                                # Limpar o cache para atualizar os dados
+                                                st.cache_data.clear()
+                                                # Recarregar os dados
+                                                employee_manager.load_data()
+                                                st.rerun()
+                                            else:
+                                                st.error("Erro ao registrar treinamento")
+                                        else:
+                                            st.error("Erro ao fazer upload do arquivo")
+                                    except Exception as e:
+                                        st.error(f"Erro ao processar o treinamento: {str(e)}")
                             else:
                                 st.error("Não foi possível extrair informações do PDF. Por favor, insira os dados manualmente.")
                                 manual_input = True
@@ -509,7 +550,7 @@ def mostrar_treinamentos():
                             else:
                                 modulo = "N/A"
                             
-                            tipo_treinamento = st.selectbox("Tipo de Treinamento", ["inicial", "reciclagem"])
+                            tipo_treinamento = st.selectbox("Tipo de Treinamento", ["formação", "reciclagem"])
                             carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
                             
                             # Calcula o vencimento automaticamente
@@ -527,20 +568,39 @@ def mostrar_treinamentos():
                                     if vencimento is None:
                                         st.error("Não foi possível calcular a data de vencimento. Por favor, verifique os dados do treinamento.")
                                     else:
-                                        arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                        employee_manager.add_training(
-                                            selected_employee,
-                                            data,
-                                            vencimento,
-                                            norma,
-                                            modulo,
-                                            "Válido",
-                                            arquivo_id,
-                                            tipo_treinamento,
-                                            carga_horaria
-                                        )
-                                        st.success("Treinamento adicionado com sucesso!")
-                                        st.rerun()
+                                        try:
+                                            arquivo_id = gdrive_uploader.upload_file(
+                                                arquivo, 
+                                                f"TREINAMENTO_EMP_{selected_employee}_COMP_{selected_company}_{norma}_{modulo if modulo else 'N/A'}"
+                                            )
+                                            
+                                            if arquivo_id:
+                                                # Adicionar treinamento
+                                                training_id = employee_manager.add_training(
+                                                    id=selected_employee,
+                                                    data=data,
+                                                    vencimento=vencimento,
+                                                    norma=norma,
+                                                    modulo=modulo,
+                                                    status="Válido",
+                                                    anexo=arquivo_id,
+                                                    tipo_treinamento=tipo_treinamento,
+                                                    carga_horaria=carga_horaria
+                                                )
+                                                
+                                                if training_id:
+                                                    st.success(f"Treinamento registrado com sucesso! ID: {training_id}")
+                                                    # Limpar o cache para atualizar os dados
+                                                    st.cache_data.clear()
+                                                    # Recarregar os dados
+                                                    employee_manager.load_data()
+                                                    st.rerun()
+                                                else:
+                                                    st.error("Erro ao registrar treinamento")
+                                            else:
+                                                st.error("Erro ao fazer upload do arquivo")
+                                        except Exception as e:
+                                            st.error(f"Erro ao processar o treinamento: {str(e)}")
                                 else:
                                     st.error("Por favor, faça o upload do certificado do treinamento")
             else:
@@ -549,6 +609,12 @@ def mostrar_treinamentos():
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
    
+
+   
+
+
+   
+
 
    
    
