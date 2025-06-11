@@ -265,12 +265,7 @@ def front_page():
                             st.write("**Módulo:**")
                             st.write(treinamento_info['modulo'])
                             st.write("**Tipo:**")
-                            tipo_treinamento = st.selectbox(
-                                "Tipo de Treinamento",
-                                ["formação", "reciclagem"],
-                                index=0 if treinamento_info['tipo_treinamento'] == 'formação' else 1
-                            )
-                            st.write(tipo_treinamento)
+                            st.write(treinamento_info['tipo_treinamento'])
                             st.write("**Carga Horária:**")
                             st.write(f"{treinamento_info['carga_horaria']} horas")
                             
@@ -286,7 +281,7 @@ def front_page():
                                     data,
                                     treinamento_info['norma'],
                                     treinamento_info['modulo'],
-                                    tipo_treinamento
+                                    treinamento_info['tipo_treinamento']
                                 )
                                 
                                 if vencimento:
@@ -320,7 +315,7 @@ def front_page():
                                             modulo=treinamento_info['modulo'],
                                             status="Válido",
                                             anexo=arquivo_id,
-                                            tipo_treinamento=tipo_treinamento,
+                                            tipo_treinamento=treinamento_info['tipo_treinamento'],
                                             carga_horaria=treinamento_info['carga_horaria']
                                         )
                                         
@@ -484,11 +479,7 @@ def mostrar_treinamentos():
                                 data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
                                 norma = st.text_input("Norma", value=treinamento_info['norma'])
                                 modulo = st.text_input("Módulo", value=treinamento_info['modulo'])
-                                tipo_treinamento = st.selectbox(
-                                    "Tipo de Treinamento",
-                                    ["formação", "reciclagem"],
-                                    index=0 if treinamento_info['tipo_treinamento'] == 'formação' else 1
-                                )
+                                tipo_treinamento = treinamento_info['tipo_treinamento']
                                 carga_horaria = st.number_input("Carga Horária (horas)", value=treinamento_info['carga_horaria'] if treinamento_info['carga_horaria'] else 0)
                                 
                                 # Calcula o vencimento automaticamente
@@ -550,7 +541,7 @@ def mostrar_treinamentos():
                             else:
                                 modulo = "N/A"
                             
-                            tipo_treinamento = st.selectbox("Tipo de Treinamento", ["formação", "reciclagem"])
+                            tipo_treinamento = "formação"  # Valor padrão para entrada manual
                             carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
                             
                             # Calcula o vencimento automaticamente
@@ -612,8 +603,6 @@ def mostrar_treinamentos():
 
    
 
-
-   
 
 
    
