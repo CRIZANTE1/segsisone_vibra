@@ -93,7 +93,7 @@ def front_page():
                             "cargo": "Cargo",
                             "arquivo_id": st.column_config.LinkColumn(
                                 label="Anexo",
-                                url="https://drive.google.com/file/d/{}/view",
+                                url="arquivo_id",
                                 display_text="Abrir PDF"
                             )
                         },
@@ -127,11 +127,9 @@ def front_page():
                             "tipo_treinamento": "Tipo",
                             "carga_horaria": st.column_config.NumberColumn("Carga Horária", format="%d horas"),
                             "arquivo_id": st.column_config.LinkColumn(
-                                "Anexo",
-                                display_text="Abrir PDF",
-                                link_target="_blank",
-                                help="Clique para abrir o PDF no Google Drive",
-                                format_link=lambda x: f"https://drive.google.com/file/d/{x}/view" if pd.notna(x) else None
+                                label="Anexo",
+                                url="arquivo_id",
+                                display_text="Abrir PDF"
                             )
                         },
                         hide_index=True,
@@ -511,15 +509,6 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
-
-   
-
-   
-
-
-   
-
-   
 
    
 
