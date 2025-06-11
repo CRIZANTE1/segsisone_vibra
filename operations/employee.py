@@ -190,15 +190,16 @@ class EmployeeManager:
                 data = self.sheet_ops.carregar_dados_aba(sheet_name)
                 if not data:
                     # Se a aba não existe, cria com as colunas corretas
-                    self.sheet_ops.criar_aba(sheet_name, columns)
+                    if not self.sheet_ops.criar_aba(sheet_name, columns):
+                        st.error(f"Erro ao criar aba {sheet_name}")
+                        return False
                     st.success(f"Aba {sheet_name} inicializada com sucesso!")
                 else:
-                    # Verifica se todas as colunas necessárias existem e se não há colunas extras
+                    # Verifica se todas as colunas necessárias existem
                     existing_columns = data[0] if data else []
                     missing_columns = [col for col in columns if col not in existing_columns]
-                    extra_columns = [col for col in existing_columns if col and col not in columns]
                     
-                    if missing_columns or extra_columns:
+                    if missing_columns:
                         st.warning(f"Recriando a aba {sheet_name} para corrigir a estrutura...")
                         
                         # Backup dos dados existentes se houver
@@ -221,6 +222,7 @@ class EmployeeManager:
                             st.success(f"Aba {sheet_name} recriada com sucesso!")
                         else:
                             st.error(f"Erro ao recriar a aba {sheet_name}")
+                            return False
             
             return True
         except Exception as e:
@@ -287,11 +289,13 @@ class EmployeeManager:
                 modulo = results.get(3, "")
 
                 # Processar o tipo de treinamento
-                tipo_treinamento = "inicial"  # valor padrão
+                tipo_treinamento = "formação"  # valor padrão
                 if 5 in results:
                     tipo_treinamento = results[5].lower()
                     if 'sim' in tipo_treinamento:
                         tipo_treinamento = 'reciclagem'
+                    else:
+                        tipo_treinamento = 'formação'  # Garante que será formação se não for explicitamente reciclagem
 
                 # Extrair a carga horária
                 carga_horaria = 0
@@ -484,17 +488,17 @@ class EmployeeManager:
             # Limpa o cache antes de adicionar os dados
             st.cache_data.clear()
             
-            # Prepara os dados do novo treinamento
+            # Prepara os dados do novo treinamento na ordem correta das colunas
             new_data = [
-                id,                    # funcionario_id
+                str(id),                    # funcionario_id
                 data.strftime("%d/%m/%Y") if data else None,  # data
                 vencimento.strftime("%d/%m/%Y") if vencimento else None,  # vencimento
                 norma_padronizada,     # norma
-                modulo if modulo else "",  # modulo
-                status if status else "Válido",  # status
-                anexo if anexo else "",  # arquivo_id
-                tipo_treinamento if tipo_treinamento else "inicial",  # tipo_treinamento
-                carga_horaria if carga_horaria else 0  # carga_horaria
+                str(modulo) if modulo else "",  # modulo
+                str(status) if status else "Válido",  # status
+                str(anexo) if anexo else "",  # arquivo_id
+                str(tipo_treinamento) if tipo_treinamento else "formação",  # tipo_treinamento
+                str(carga_horaria) if carga_horaria else "0"  # carga_horaria
             ]
             
             # Adiciona o treinamento na planilha
@@ -540,7 +544,7 @@ class EmployeeManager:
         training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id]
         return aso_docs, training_docs
 
-    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='inicial'):
+    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='formação'):
         """
         Calcula a data de vencimento do treinamento com base na norma.
         
@@ -548,7 +552,7 @@ class EmployeeManager:
             data_realizacao (datetime.date): Data de realização do treinamento
             norma (str): Norma do treinamento (ex: NR-35, NR-10)
             modulo (str, optional): Módulo do treinamento (necessário para NR-20)
-            tipo_treinamento (str): 'inicial' ou 'reciclagem'
+            tipo_treinamento (str): 'formação' ou 'reciclagem'
             
         Returns:
             datetime.date: Data de vencimento do treinamento
@@ -576,25 +580,25 @@ class EmployeeManager:
             st.error(f"Erro ao calcular vencimento do treinamento: {str(e)}")
             return None
 
-    def verificar_carga_horaria(self, norma, modulo=None, tipo_treinamento='inicial'):
+    def verificar_carga_horaria(self, norma, modulo=None, tipo_treinamento='formação'):
         """
         Verifica a carga horária mínima necessária para o treinamento.
         
         Args:
             norma (str): Norma do treinamento (ex: NR-35, NR-10)
             modulo (str, optional): Módulo do treinamento (necessário para NR-20)
-            tipo_treinamento (str): 'inicial' ou 'reciclagem'
+            tipo_treinamento (str): 'formação' ou 'reciclagem'
             
         Returns:
             int: Carga horária mínima em horas
         """
         if norma == "NR-20" and modulo in self.nr20_config:
-            if tipo_treinamento == 'inicial':
+            if tipo_treinamento == 'formação':
                 return self.nr20_config[modulo]['inicial_horas']
             else:  # reciclagem
                 return self.nr20_config[modulo]['reciclagem_horas']
         elif norma in self.nr_config:
-            if tipo_treinamento == 'inicial':
+            if tipo_treinamento == 'formação':
                 return self.nr_config[norma]['inicial_horas']
             else:  # reciclagem
                 return self.nr_config[norma]['reciclagem_horas']
@@ -731,6 +735,7 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
 
 
