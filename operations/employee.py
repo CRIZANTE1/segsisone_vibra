@@ -83,6 +83,11 @@ class EmployeeManager:
                 'reciclagem_horas': 3,
                 'reciclagem_anos': 3
             },
+            'NR-6': {
+                'inicial_horas': 3,
+                'reciclagem_horas': 3,
+                'reciclagem_anos': 3
+            },
             'NR-12': {
                 'inicial_horas': 8,
                 'reciclagem_horas': 8,
@@ -445,14 +450,14 @@ class EmployeeManager:
             # Prepara os dados do novo treinamento
             new_data = [
                 id,                    # funcionario_id
-                data.strftime("%d/%m/%Y") if data else None,
-                vencimento.strftime("%d/%m/%Y") if vencimento else None,
-                norma_padronizada,
-                modulo,
-                status,
-                anexo,               # arquivo_id
-                tipo_treinamento,
-                carga_horaria
+                data.strftime("%d/%m/%Y") if data else None,  # data
+                vencimento.strftime("%d/%m/%Y") if vencimento else None,  # vencimento
+                norma_padronizada,     # norma
+                modulo if modulo else "",  # modulo
+                status if status else "Válido",  # status
+                anexo if anexo else "",  # arquivo_id
+                tipo_treinamento if tipo_treinamento else "inicial",  # tipo_treinamento
+                carga_horaria if carga_horaria else 0  # carga_horaria
             ]
             
             # Adiciona o treinamento na planilha
@@ -675,7 +680,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
 
 
