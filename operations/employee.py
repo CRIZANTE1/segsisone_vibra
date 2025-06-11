@@ -241,9 +241,9 @@ class EmployeeManager:
             Por favor, analise o documento e responda as seguintes perguntas:
             1. Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.
             2. Qual é o tipo específico do treinamento? apenas o número da NR.
-            3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II.
+            3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II. Se não for especificado, será 'Não se aplica'.
             4. Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.
-            5. Este documento é um certificado de reciclagem? Responda apenas 'sim' ou 'não'. Se for 'sim', é reciclagem. Se for 'não', é treinamento inicial.
+            5. Este documento é um certificado de reciclagem? Caso não for mencionado será formação.
             6. Qual é a carga horária total do treinamento em horas? Responda apenas o número.
             
             Responda cada pergunta em uma nova linha, numerada de 1 a 6.
@@ -735,6 +735,7 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
 
 
 
