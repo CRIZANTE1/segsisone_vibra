@@ -14,6 +14,7 @@ ASO_SHEET_NAME = "asos"  # Aba para ASOs
 EMPLOYEE_SHEET_NAME = "empresas"  # Aba para empresas
 EMPLOYEE_DATA_SHEET_NAME = "funcionarios"  # Aba para funcionários
 TRAINING_SHEET_NAME = "treinamento"  # Aba para treinamentos
+ADM_SHEET_NAME = "ADM"  # Aba para administradores
 
 def get_credentials_dict():
     """Retorna as credenciais do serviço do Google, seja do arquivo local ou do Streamlit Cloud."""
@@ -45,5 +46,4 @@ def get_credentials_dict():
         except Exception as e:
             st.error(f"Erro ao carregar credenciais do arquivo local: {str(e)}")
             raise e
-
 
