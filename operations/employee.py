@@ -393,25 +393,40 @@ class EmployeeManager:
             st.error(f"Erro ao adicionar ASO: {str(e)}")
             return None
 
+    def _padronizar_norma(self, norma):
+        """
+        Padroniza o formato da norma (ex: NR-6 -> NR-06)
+        """
+        if norma:
+            # Remove espaços e converte para maiúsculas
+            norma = norma.strip().upper()
+            # Adiciona zero se necessário (NR-6 -> NR-06)
+            if norma.startswith("NR-") and len(norma) == 4:
+                norma = norma.replace("NR-", "NR-0")
+        return norma
+
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
                     tipo_treinamento, carga_horaria):
         """
         Adiciona um novo treinamento para um funcionário.
         """
-        # Prepara os dados do novo treinamento
-        new_data = [
-            id,                    # funcionario_id
-            data.strftime("%d/%m/%Y"),
-            vencimento.strftime("%d/%m/%Y"),
-            norma,
-            modulo,
-            status,
-            anexo,               # arquivo_id
-            tipo_treinamento,
-            carga_horaria
-        ]
-        
         try:
+            # Padroniza o formato da norma
+            norma = self._padronizar_norma(norma)
+            
+            # Prepara os dados do novo treinamento
+            new_data = [
+                id,                    # funcionario_id
+                data.strftime("%d/%m/%Y") if data else None,
+                vencimento.strftime("%d/%m/%Y") if vencimento else None,
+                norma,
+                modulo,
+                status,
+                anexo,               # arquivo_id
+                tipo_treinamento,
+                carga_horaria
+            ]
+            
             # Adiciona o treinamento na planilha
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
