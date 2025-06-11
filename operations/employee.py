@@ -397,29 +397,33 @@ class EmployeeManager:
         """
         Padroniza o formato da norma (ex: NR-6 -> NR-06)
         """
-        if norma is None:
+        try:
+            if norma is None or str(norma).strip() == "":
+                return None
+                
+            # Converte para string se não for
+            norma = str(norma)
+            
+            # Remove espaços extras e converte para maiúsculas
+            norma = ' '.join(norma.split()).upper()
+            
+            # Remove espaços antes e depois
+            norma = norma.strip()
+            
+            # Adiciona zero se necessário (NR-6 -> NR-06)
+            if norma.startswith("NR-") and len(norma) == 4:
+                norma = norma.replace("NR-", "NR-0")
+            # Se tiver espaço entre NR e o número (ex: "NR 6")
+            elif norma.startswith("NR ") and len(norma) == 4:
+                norma = norma.replace("NR ", "NR-0")
+            # Se tiver espaço entre NR e o número (ex: "NR 06")
+            elif norma.startswith("NR ") and len(norma) == 5:
+                norma = norma.replace("NR ", "NR-")
+                
+            return norma
+        except Exception as e:
+            st.error(f"Erro ao padronizar norma: {str(e)}")
             return None
-            
-        # Converte para string se não for
-        norma = str(norma)
-        
-        # Remove espaços extras e converte para maiúsculas
-        norma = ' '.join(norma.split()).upper()
-        
-        # Remove espaços antes e depois
-        norma = norma.strip()
-        
-        # Adiciona zero se necessário (NR-6 -> NR-06)
-        if norma.startswith("NR-") and len(norma) == 4:
-            norma = norma.replace("NR-", "NR-0")
-        # Se tiver espaço entre NR e o número (ex: "NR 6")
-        elif norma.startswith("NR ") and len(norma) == 4:
-            norma = norma.replace("NR ", "NR-0")
-        # Se tiver espaço entre NR e o número (ex: "NR 06")
-        elif norma.startswith("NR ") and len(norma) == 5:
-            norma = norma.replace("NR ", "NR-")
-            
-        return norma
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
                     tipo_treinamento, carga_horaria):
@@ -428,19 +432,22 @@ class EmployeeManager:
         """
         try:
             # Verifica se a norma foi fornecida
-            if norma is None:
+            if norma is None or str(norma).strip() == "":
                 st.error("A norma do treinamento é obrigatória")
                 return None
                 
             # Padroniza o formato da norma
-            norma = self._padronizar_norma(norma)
+            norma_padronizada = self._padronizar_norma(norma)
+            if norma_padronizada is None:
+                st.error("Erro ao padronizar a norma do treinamento")
+                return None
             
             # Prepara os dados do novo treinamento
             new_data = [
                 id,                    # funcionario_id
                 data.strftime("%d/%m/%Y") if data else None,
                 vencimento.strftime("%d/%m/%Y") if vencimento else None,
-                norma,
+                norma_padronizada,
                 modulo,
                 status,
                 anexo,               # arquivo_id
@@ -668,10 +675,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
-
-
-
 
 
 
