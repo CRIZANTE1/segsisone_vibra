@@ -82,6 +82,10 @@ def front_page():
                         asos = pd.concat([asos, aso_docs])
                 
                 if not asos.empty:
+                    # Converter colunas de data para datetime
+                    asos['data_aso'] = pd.to_datetime(asos['data_aso'])
+                    asos['vencimento'] = pd.to_datetime(asos['vencimento'])
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         asos,
@@ -114,6 +118,10 @@ def front_page():
                         treinamentos = pd.concat([treinamentos, training_docs])
                 
                 if not treinamentos.empty:
+                    # Converter colunas de data para datetime
+                    treinamentos['data'] = pd.to_datetime(treinamentos['data'])
+                    treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'])
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         treinamentos,
@@ -514,10 +522,6 @@ def mostrar_treinamentos():
 
    
 
-
-   
-
-   
    
 
    
