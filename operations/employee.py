@@ -107,57 +107,66 @@ class EmployeeManager:
         return self._pdf_analyzer
 
     def load_data(self):
-        # Carrega os dados das diferentes abas usando cache
-        companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
-        employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
-        aso_data = load_sheet_data(ASO_SHEET_NAME)
-        training_data = load_sheet_data(TRAINING_SHEET_NAME)
-        
-        # Define as colunas padrão para cada DataFrame
-        company_columns = ['id', 'nome', 'cnpj']
-        employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
-        aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
-        training_columns = [
-            'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-            'arquivo_id', 'tipo_treinamento', 'carga_horaria'
-        ]
-        
-        # Converte os dados para DataFrames com as colunas corretas
-        if companies_data and len(companies_data) > 0:
-            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
-            # Garante que todas as colunas necessárias existam
-            for col in company_columns:
-                if col not in self.companies_df.columns:
-                    self.companies_df[col] = ''
-        else:
+        try:
+            # Carrega os dados das diferentes abas usando cache
+            companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
+            employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
+            aso_data = load_sheet_data(ASO_SHEET_NAME)
+            training_data = load_sheet_data(TRAINING_SHEET_NAME)
+            
+            # Define as colunas padrão para cada DataFrame
+            company_columns = ['id', 'nome', 'cnpj']
+            employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
+            aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
+            training_columns = [
+                'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
+                'arquivo_id', 'tipo_treinamento', 'carga_horaria'
+            ]
+            
+            # Converte os dados para DataFrames com as colunas corretas
+            if companies_data and len(companies_data) > 0:
+                self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
+                # Garante que todas as colunas necessárias existam
+                for col in company_columns:
+                    if col not in self.companies_df.columns:
+                        self.companies_df[col] = ''
+            else:
+                self.companies_df = pd.DataFrame(columns=company_columns)
+            
+            if employees_data and len(employees_data) > 0:
+                self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
+                # Garante que todas as colunas necessárias existam
+                for col in employee_columns:
+                    if col not in self.employees_df.columns:
+                        self.employees_df[col] = ''
+            else:
+                self.employees_df = pd.DataFrame(columns=employee_columns)
+                st.warning("Nenhum funcionário encontrado na planilha.")
+            
+            if aso_data and len(aso_data) > 0:
+                self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
+                # Garante que todas as colunas necessárias existam
+                for col in aso_columns:
+                    if col not in self.aso_df.columns:
+                        self.aso_df[col] = ''
+            else:
+                self.aso_df = pd.DataFrame(columns=aso_columns)
+            
+            if training_data and len(training_data) > 0:
+                self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
+                # Garante que todas as colunas necessárias existam
+                for col in training_columns:
+                    if col not in self.training_df.columns:
+                        self.training_df[col] = ''
+            else:
+                self.training_df = pd.DataFrame(columns=training_columns)
+
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {str(e)}")
+            # Em caso de erro, inicializa com DataFrames vazios
             self.companies_df = pd.DataFrame(columns=company_columns)
-            
-        if employees_data and len(employees_data) > 0:
-            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
-            # Garante que todas as colunas necessárias existam
-            for col in employee_columns:
-                if col not in self.employees_df.columns:
-                    self.employees_df[col] = ''
-        else:
             self.employees_df = pd.DataFrame(columns=employee_columns)
-            st.warning("Nenhum funcionário encontrado na planilha.")
-            
-        if aso_data and len(aso_data) > 0:
-            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
-            # Garante que todas as colunas necessárias existam
-            for col in aso_columns:
-                if col not in self.aso_df.columns:
-                    self.aso_df[col] = ''
-        else:
             self.aso_df = pd.DataFrame(columns=aso_columns)
-            
-        if training_data and len(training_data) > 0:
-            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
-            # Garante que todas as colunas necessárias existam
-            for col in training_columns:
-                if col not in self.training_df.columns:
-                    self.training_df[col] = ''
-        else:
             self.training_df = pd.DataFrame(columns=training_columns)
 
     def initialize_sheets(self):
@@ -449,11 +458,6 @@ class EmployeeManager:
         Adiciona um novo treinamento para um funcionário.
         """
         try:
-            # Verifica se o ID do funcionário foi fornecido
-            if id is None:
-                st.error("ID do funcionário é obrigatório")
-                return None
-
             # Verifica se a data foi fornecida
             if data is None:
                 st.error("Data do treinamento é obrigatória")
@@ -476,6 +480,9 @@ class EmployeeManager:
                 if vencimento is None:
                     st.error("Não foi possível calcular a data de vencimento do treinamento")
                     return None
+
+            # Limpa o cache antes de adicionar os dados
+            st.cache_data.clear()
             
             # Prepara os dados do novo treinamento
             new_data = [
@@ -724,7 +731,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
 
 
