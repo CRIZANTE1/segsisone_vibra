@@ -85,7 +85,7 @@ def front_page():
                     # Converter datas
                     try:
                         # Converter data de ASOs
-                        asos['data'] = pd.to_datetime(asos['data'], format='%d/%m/%Y', errors='coerce')
+                        asos['data_aso'] = pd.to_datetime(asos['data_aso'], format='%d/%m/%Y', errors='coerce')
                         asos['vencimento'] = pd.to_datetime(asos['vencimento'], format='%d/%m/%Y', errors='coerce')
                     except Exception as e:
                         st.error(f"Erro ao converter datas: {str(e)}")
@@ -101,7 +101,7 @@ def front_page():
                         column_config={
                             "id": st.column_config.NumberColumn("ID", width=50),
                             "funcionario_nome": "Funcionário",
-                            "data": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
+                            "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "riscos": "Riscos",
                             "cargo": "Cargo",
@@ -131,7 +131,7 @@ def front_page():
                     # Converter datas
                     try:
                         # Converter data de treinamentos
-                        treinamentos['data'] = pd.to_datetime(treinamentos['data'], format='%d/%m/%Y', errors='coerce')
+                        treinamentos['data_treinamento'] = pd.to_datetime(treinamentos['data_treinamento'], format='%d/%m/%Y', errors='coerce')
                         treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'], format='%d/%m/%Y', errors='coerce')
                     except Exception as e:
                         st.error(f"Erro ao converter datas: {str(e)}")
@@ -147,7 +147,7 @@ def front_page():
                         column_config={
                             "id": st.column_config.NumberColumn("ID", width=50),
                             "funcionario_nome": "Funcionário",
-                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            "data_treinamento": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "norma": "Norma",
                             "modulo": "Módulo",
@@ -547,6 +547,11 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
+
+   
+
 
    
    
