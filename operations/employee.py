@@ -397,12 +397,28 @@ class EmployeeManager:
         """
         Padroniza o formato da norma (ex: NR-6 -> NR-06)
         """
-        if norma:
-            # Remove espaços e converte para maiúsculas
-            norma = norma.strip().upper()
-            # Adiciona zero se necessário (NR-6 -> NR-06)
-            if norma.startswith("NR-") and len(norma) == 4:
-                norma = norma.replace("NR-", "NR-0")
+        if norma is None:
+            return None
+            
+        # Converte para string se não for
+        norma = str(norma)
+        
+        # Remove espaços extras e converte para maiúsculas
+        norma = ' '.join(norma.split()).upper()
+        
+        # Remove espaços antes e depois
+        norma = norma.strip()
+        
+        # Adiciona zero se necessário (NR-6 -> NR-06)
+        if norma.startswith("NR-") and len(norma) == 4:
+            norma = norma.replace("NR-", "NR-0")
+        # Se tiver espaço entre NR e o número (ex: "NR 6")
+        elif norma.startswith("NR ") and len(norma) == 4:
+            norma = norma.replace("NR ", "NR-0")
+        # Se tiver espaço entre NR e o número (ex: "NR 06")
+        elif norma.startswith("NR ") and len(norma) == 5:
+            norma = norma.replace("NR ", "NR-")
+            
         return norma
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
@@ -411,6 +427,11 @@ class EmployeeManager:
         Adiciona um novo treinamento para um funcionário.
         """
         try:
+            # Verifica se a norma foi fornecida
+            if norma is None:
+                st.error("A norma do treinamento é obrigatória")
+                return None
+                
             # Padroniza o formato da norma
             norma = self._padronizar_norma(norma)
             
@@ -647,6 +668,8 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
 
 
 
