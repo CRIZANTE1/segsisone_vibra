@@ -17,7 +17,7 @@ from gdrive.config import (
 gdrive_uploader = GoogleDriveUploader()
 
 # Cache para carregar dados das planilhas
-@st.cache_data(ttl=300)  # Cache por 5 minutos
+@st.cache_data(ttl=30) 
 def load_sheet_data(sheet_name):
     sheet_ops = SheetOperations()
     return sheet_ops.carregar_dados_aba(sheet_name)
@@ -232,7 +232,10 @@ class EmployeeManager:
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             
             # Limpar o arquivo temporário
-            os.unlink(temp_path)
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                st.warning(f"Erro ao remover arquivo temporário: {str(e)}")
 
             # Processar as respostas
             if answer:
@@ -284,6 +287,12 @@ class EmployeeManager:
 
         except Exception as e:
             st.error(f"Erro ao analisar o PDF: {str(e)}")
+            # Garantir que o arquivo temporário seja removido mesmo em caso de erro
+            try:
+                if 'temp_path' in locals():
+                    os.unlink(temp_path)
+            except:
+                pass
             return None
 
     def add_company(self, nome, cnpj):
@@ -522,7 +531,10 @@ class EmployeeManager:
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             
             # Limpar o arquivo temporário
-            os.unlink(temp_path)
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                st.warning(f"Erro ao remover arquivo temporário: {str(e)}")
 
             # Processar as respostas
             if answer:
@@ -561,6 +573,12 @@ class EmployeeManager:
 
         except Exception as e:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
+            # Garantir que o arquivo temporário seja removido mesmo em caso de erro
+            try:
+                if 'temp_path' in locals():
+                    os.unlink(temp_path)
+            except:
+                pass
             return None
 
     def get_document_by_id(self, aba_name, doc_id):
