@@ -434,6 +434,16 @@ class EmployeeManager:
         Adiciona um novo treinamento para um funcionário.
         """
         try:
+            # Verifica se o ID do funcionário foi fornecido
+            if id is None:
+                st.error("ID do funcionário é obrigatório")
+                return None
+
+            # Verifica se a data foi fornecida
+            if data is None:
+                st.error("Data do treinamento é obrigatória")
+                return None
+
             # Verifica se a norma foi fornecida
             if norma is None or str(norma).strip() == "":
                 st.error("A norma do treinamento é obrigatória")
@@ -446,7 +456,7 @@ class EmployeeManager:
                 return None
 
             # Calcula o vencimento se não foi fornecido
-            if vencimento is None and data is not None:
+            if vencimento is None:
                 vencimento = self.calcular_vencimento_treinamento(data, norma_padronizada, modulo, tipo_treinamento)
                 if vencimento is None:
                     st.error("Não foi possível calcular a data de vencimento do treinamento")
@@ -699,7 +709,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
 
 
 
