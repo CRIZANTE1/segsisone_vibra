@@ -115,154 +115,124 @@ def front_page():
                 if not employees.empty:
                     # Seleção do funcionário
                     selected_employee = st.selectbox(
-                        "Selecione um funcionário",
+                        "Selecione o funcionário",
                         employees['id'].tolist(),
-                        format_func=lambda x: f"{employees[employees['id'] == x]['nome'].iloc[0]}"
+                        format_func=lambda x: employees[employees['id'] == x]['nome'].iloc[0]
                     )
                     
-                    if selected_employee:
-                        with st.form("adicionar_aso"):
-                            arquivo = st.file_uploader("Upload do ASO (PDF)", type=['pdf'])
-                            
-                            col1, col2 = st.columns(2)
-                            
-                            with col1:
-                                manual_input = st.checkbox("Inserir dados manualmente")
-                            
-                            if arquivo and not manual_input:
-                                with st.spinner("Analisando o PDF do ASO..."):
-                                    aso_info = employee_manager.analyze_aso_pdf(arquivo)
-                                    
-                                if aso_info:
-                                    data_aso = st.date_input("Data do ASO", value=aso_info['data_aso'] if aso_info['data_aso'] else datetime.now())
-                                    vencimento = st.date_input("Data de Vencimento", value=aso_info['vencimento'] if aso_info['vencimento'] else None)
-                                    riscos = st.text_area("Riscos", value=aso_info['riscos'])
-                                    cargo_aso = st.text_input("Cargo (conforme ASO)", value=aso_info['cargo'])
-                                else:
-                                    st.error("Não foi possível extrair informações do PDF. Por favor, insira os dados manualmente.")
-                                    manual_input = True
-                            
-                            if manual_input:
-                                data_aso = st.date_input("Data do ASO")
-                                vencimento = st.date_input("Data de Vencimento")
-                                riscos = st.text_area("Riscos", help="Liste os riscos ocupacionais identificados")
-                                cargo_aso = st.text_input("Cargo (conforme ASO)")
-                            
-                            if st.form_submit_button("Adicionar ASO"):
-                                if arquivo:
-                                    arquivo_id = gdrive_uploader.upload_file(arquivo, f"ASO_{selected_employee}_{data_aso}")
-                                    employee_manager.add_aso(
+                    # Formulário para adicionar ASO
+                    with st.form("form_aso"):
+                        data_aso = st.date_input("Data do ASO")
+                        vencimento = st.date_input("Data de Vencimento")
+                        cargo = st.text_input("Cargo")
+                        riscos = st.text_area("Riscos Ocupacionais")
+                        arquivo = st.file_uploader("Arquivo do ASO", type=['pdf'])
+                        
+                        submitted = st.form_submit_button("Adicionar ASO")
+                        if submitted:
+                            if arquivo:
+                                # Upload do arquivo
+                                gdrive_uploader = GoogleDriveUploader()
+                                arquivo_id = gdrive_uploader.upload_file(arquivo, "ASO")
+                                
+                                if arquivo_id:
+                                    # Adicionar ASO
+                                    aso_id = employee_manager.add_aso(
                                         selected_employee,
                                         data_aso,
                                         vencimento,
                                         arquivo_id,
                                         riscos,
-                                        cargo_aso
+                                        cargo
                                     )
-                                    st.success("ASO adicionado com sucesso!")
-                                    st.rerun()
+                                    
+                                    if aso_id:
+                                        st.success("ASO adicionado com sucesso!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Erro ao adicionar ASO")
                                 else:
-                                    st.error("Por favor, faça o upload do arquivo do ASO")
+                                    st.error("Erro ao fazer upload do arquivo")
+                            else:
+                                st.error("Por favor, selecione um arquivo PDF")
                 else:
-                    st.warning("É necessário cadastrar funcionários primeiro")
+                    st.info("Nenhum funcionário cadastrado para esta empresa")
 
             with tab_treinamento:
                 if check_admin_permission():  # Verifica permissão antes de permitir adicionar treinamento
                     st.subheader("Adicionar Treinamento")
                     if not employees.empty:
-                        # Mostrar informações sobre as normas
-                        mostrar_info_normas()
-                        
                         # Seleção do funcionário
                         selected_employee = st.selectbox(
-                            "Selecione um funcionário",
+                            "Selecione o funcionário",
                             employees['id'].tolist(),
-                            format_func=lambda x: f"{employees[employees['id'] == x]['nome'].iloc[0]}",
+                            format_func=lambda x: employees[employees['id'] == x]['nome'].iloc[0],
                             key="treinamento_employee"
                         )
                         
-                        if selected_employee:
-                            with st.form("adicionar_treinamento"):
-                                arquivo = st.file_uploader("Upload do Certificado (PDF)", type=['pdf'], key="treinamento_upload")
-                                
-                                col1, col2 = st.columns(2)
-                                
-                                with col1:
-                                    manual_input = st.checkbox("Inserir dados manualmente", key="treinamento_manual")
-                                
-                                if arquivo and not manual_input:
-                                    with st.spinner("Analisando o PDF do treinamento..."):
-                                        treinamento_info = employee_manager.analyze_training_pdf(arquivo)
-                                        
-                                    if treinamento_info:
-                                        data = st.date_input("Data do Treinamento", value=treinamento_info['data'] if treinamento_info['data'] else datetime.now())
-                                        norma = st.text_input("Norma", value=treinamento_info['norma'])
-                                        modulo = st.text_input("Módulo", value=treinamento_info['modulo'])
-                                        tipo_treinamento = st.selectbox(
-                                            "Tipo de Treinamento",
-                                            ["inicial", "reciclagem"],
-                                            index=0 if treinamento_info['tipo_treinamento'] == 'inicial' else 1
+                        # Formulário para adicionar treinamento
+                        with st.form("form_treinamento"):
+                            data = st.date_input("Data do Treinamento")
+                            norma = st.selectbox(
+                                "Norma",
+                                ["NR-10", "NR-11", "NR-12", "NR-20", "NR-33", "NR-35"]
+                            )
+                            
+                            modulo = None
+                            if norma == "NR-20":
+                                modulo = st.selectbox(
+                                    "Módulo",
+                                    ["Básico", "Intermediário", "Avançado I", "Avançado II"]
+                                )
+                            
+                            tipo_treinamento = st.radio(
+                                "Tipo de Treinamento",
+                                ["Inicial", "Reciclagem"]
+                            )
+                            
+                            carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
+                            arquivo = st.file_uploader("Arquivo do Treinamento", type=['pdf'])
+                            
+                            submitted = st.form_submit_button("Adicionar Treinamento")
+                            if submitted:
+                                if arquivo:
+                                    # Upload do arquivo
+                                    gdrive_uploader = GoogleDriveUploader()
+                                    arquivo_id = gdrive_uploader.upload_file(arquivo, "Treinamento")
+                                    
+                                    if arquivo_id:
+                                        # Validar carga horária
+                                        is_valid, message = employee_manager.validar_treinamento(
+                                            norma, modulo, tipo_treinamento.lower(), carga_horaria
                                         )
-                                        carga_horaria = st.number_input("Carga Horária (horas)", value=treinamento_info['carga_horaria'] if treinamento_info['carga_horaria'] else 0)
                                         
-                                        # Calcula o vencimento automaticamente
-                                        vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
-                                        if vencimento:
-                                            st.info(f"Data de vencimento calculada: {vencimento.strftime('%d/%m/%Y')}")
-                                        
-                                        # Valida a carga horária
-                                        valido, mensagem = employee_manager.validar_treinamento(norma, modulo, tipo_treinamento, carga_horaria)
-                                        if not valido:
-                                            st.warning(mensagem)
-                                    else:
-                                        st.error("Não foi possível extrair informações do PDF. Por favor, insira os dados manualmente.")
-                                        manual_input = True
-                                
-                                if manual_input:
-                                    data = st.date_input("Data do Treinamento")
-                                    norma = st.selectbox("Norma", ["NR-20", "NR-35", "NR-10", "NR-18", "NR-34"])
-                                    
-                                    if norma == "NR-20":
-                                        modulo = st.selectbox("Módulo", ["Básico", "Intermediário", "Avançado I", "Avançado II"])
-                                    else:
-                                        modulo = "N/A"
-                                    
-                                    tipo_treinamento = st.selectbox("Tipo de Treinamento", ["inicial", "reciclagem"])
-                                    carga_horaria = st.number_input("Carga Horária (horas)", min_value=1)
-                                    
-                                    # Calcula o vencimento automaticamente
-                                    vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
-                                    if vencimento:
-                                        st.info(f"Data de vencimento calculada: {vencimento.strftime('%d/%m/%Y')}")
-                                    
-                                    # Valida a carga horária
-                                    valido, mensagem = employee_manager.validar_treinamento(norma, modulo, tipo_treinamento, carga_horaria)
-                                    if not valido:
-                                        st.warning(mensagem)
-                                
-                                    if st.form_submit_button("Adicionar Treinamento"):
-                                        if arquivo:
-                                            if vencimento is None:
-                                                st.error("Não foi possível calcular a data de vencimento. Por favor, verifique os dados do treinamento.")
-                                            else:
-                                                arquivo_id = gdrive_uploader.upload_file(arquivo, f"TREINAMENTO_{selected_employee}_{norma}_{data}")
-                                                employee_manager.add_training(
-                                                    selected_employee,
-                                                    data,
-                                                    vencimento,
-                                                    norma,
-                                                    modulo,
-                                                    "Válido",
-                                                    arquivo_id,
-                                                    tipo_treinamento,
-                                                    carga_horaria
-                                                )
+                                        if is_valid:
+                                            # Adicionar treinamento
+                                            training_id = employee_manager.add_training(
+                                                selected_employee,
+                                                data,
+                                                None,  # vencimento será calculado automaticamente
+                                                norma,
+                                                modulo,
+                                                "Válido",
+                                                arquivo_id,
+                                                tipo_treinamento.lower(),
+                                                carga_horaria
+                                            )
+                                            
+                                            if training_id:
                                                 st.success("Treinamento adicionado com sucesso!")
                                                 st.rerun()
+                                            else:
+                                                st.error("Erro ao adicionar treinamento")
                                         else:
-                                            st.error("Por favor, faça o upload do certificado do treinamento")
+                                            st.error(message)
+                                    else:
+                                        st.error("Erro ao fazer upload do arquivo")
+                                else:
+                                    st.error("Por favor, selecione um arquivo PDF")
                     else:
-                        st.warning("É necessário cadastrar funcionários primeiro")
+                        st.info("Nenhum funcionário cadastrado para esta empresa")
     else:
         # Cadastro de nova empresa
         with st.form("cadastro_empresa"):
@@ -483,6 +453,13 @@ def mostrar_treinamentos():
 
 
    
+
+   
+
+   
+
+   
+
 
    
 
