@@ -82,6 +82,9 @@ def front_page():
                         asos = pd.concat([asos, aso_docs])
                 
                 if not asos.empty:
+                    # Criar URLs completas para os anexos
+                    asos['arquivo_url'] = asos['arquivo_id'].apply(lambda x: f"https://drive.google.com/file/d/{x}/view" if pd.notna(x) else None)
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         asos,
@@ -91,7 +94,7 @@ def front_page():
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "riscos": "Riscos",
                             "cargo": "Cargo",
-                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
+                            "arquivo_url": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
                         },
                         hide_index=True,
                         use_container_width=True
@@ -110,6 +113,9 @@ def front_page():
                         treinamentos = pd.concat([treinamentos, training_docs])
                 
                 if not treinamentos.empty:
+                    # Criar URLs completas para os anexos
+                    treinamentos['arquivo_url'] = treinamentos['arquivo_id'].apply(lambda x: f"https://drive.google.com/file/d/{x}/view" if pd.notna(x) else None)
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         treinamentos,
@@ -122,7 +128,7 @@ def front_page():
                             "status": "Status",
                             "tipo_treinamento": "Tipo",
                             "carga_horaria": st.column_config.NumberColumn("Carga Horária", format="%d horas"),
-                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
+                            "arquivo_url": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
                         },
                         hide_index=True,
                         use_container_width=True
@@ -506,13 +512,6 @@ def mostrar_treinamentos():
 
    
 
-
-   
-
-
-   
-
-   
 
    
 
