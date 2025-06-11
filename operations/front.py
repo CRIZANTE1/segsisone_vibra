@@ -285,27 +285,40 @@ def front_page():
 
                             # Botão para confirmar e salvar
                             if st.button("Confirmar e Salvar"):
-                                # Adicionar treinamento
-                                training_id = employee_manager.add_training(
-                                    id=selected_employee,
-                                    data=data,
-                                    vencimento=vencimento,
-                                    norma=treinamento_info['norma'],
-                                    modulo=treinamento_info['modulo'],
-                                    status="Válido",
-                                    anexo=anexo.name if anexo else None,
-                                    tipo_treinamento=treinamento_info['tipo_treinamento'],
-                                    carga_horaria=treinamento_info['carga_horaria']
-                                )
-                                
-                                if training_id:
-                                    st.success(f"Treinamento registrado com sucesso! ID: {training_id}")
-                                    # Limpar o cache para atualizar os dados
-                                    st.cache_data.clear()
-                                    # Recarregar os dados
-                                    employee_manager.load_data()
-                                else:
-                                    st.error("Erro ao registrar treinamento")
+                                try:
+                                    # Upload do arquivo com ID do empregado e empresa
+                                    gdrive_uploader = GoogleDriveUploader()
+                                    arquivo_id = gdrive_uploader.upload_file(
+                                        anexo, 
+                                        f"TREINAMENTO_EMP_{selected_employee}_COMP_{selected_company}_{treinamento_info['norma']}_{treinamento_info['modulo'] if treinamento_info['modulo'] else 'N/A'}"
+                                    )
+                                    
+                                    if arquivo_id:
+                                        # Adicionar treinamento
+                                        training_id = employee_manager.add_training(
+                                            id=selected_employee,
+                                            data=data,
+                                            vencimento=vencimento,
+                                            norma=treinamento_info['norma'],
+                                            modulo=treinamento_info['modulo'],
+                                            status="Válido",
+                                            anexo=arquivo_id,
+                                            tipo_treinamento=treinamento_info['tipo_treinamento'],
+                                            carga_horaria=treinamento_info['carga_horaria']
+                                        )
+                                        
+                                        if training_id:
+                                            st.success(f"Treinamento registrado com sucesso! ID: {training_id}")
+                                            # Limpar o cache para atualizar os dados
+                                            st.cache_data.clear()
+                                            # Recarregar os dados
+                                            employee_manager.load_data()
+                                        else:
+                                            st.error("Erro ao registrar treinamento")
+                                    else:
+                                        st.error("Erro ao fazer upload do arquivo")
+                                except Exception as e:
+                                    st.error(f"Erro ao processar o treinamento: {str(e)}")
                         else:
                             st.error("Não foi possível extrair informações do PDF. Por favor, verifique se o arquivo está correto.")
     else:
@@ -521,6 +534,8 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
 
    
 
