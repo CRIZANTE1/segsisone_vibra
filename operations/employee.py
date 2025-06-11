@@ -265,31 +265,29 @@ class EmployeeManager:
                 except:
                     data = None
 
+                # Padroniza a norma
                 norma = f"NR-{results[1]}" if results[1].isdigit() else results[1]
-                modulo = results[3]
+                norma = self._padronizar_norma(norma)
+                
+                modulo = results[3] if 3 in results else ""
                 
                 # Processar o tipo de treinamento
-                tipo_treinamento = results[5].lower()
-                if 'sim' in tipo_treinamento:
-                    tipo_treinamento = 'reciclagem'
-                else:
-                    tipo_treinamento = 'inicial'  # Assume inicial como padrão
+                tipo_treinamento = "inicial"  # valor padrão
+                if 5 in results:
+                    tipo_treinamento = results[5].lower()
+                    if 'sim' in tipo_treinamento:
+                        tipo_treinamento = 'reciclagem'
                 
                 try:
-                    carga_horaria = int(''.join(filter(str.isdigit, results[6])))
+                    carga_horaria = int(''.join(filter(str.isdigit, results[6]))) if 6 in results else 0
                 except:
-                    carga_horaria = None
+                    carga_horaria = 0
 
-                # Calcula o vencimento automaticamente
-                vencimento = None
-                if data:
-                    vencimento = self.calcular_vencimento_treinamento(data, norma, modulo, tipo_treinamento)
-
+                # O vencimento será calculado depois, baseado nas configurações
                 return {
                     'norma': norma,
                     'modulo': modulo,
                     'data': data,
-                    'vencimento': vencimento,
                     'tipo_treinamento': tipo_treinamento,
                     'carga_horaria': carga_horaria
                 }
@@ -694,6 +692,8 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
 
 
 
