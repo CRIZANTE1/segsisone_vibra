@@ -277,10 +277,12 @@ def front_page():
                                 treinamento_info['norma'],
                                 treinamento_info['carga_horaria']
                             )
-                            
-                            if not is_valid:
+
+                            if is_valid:
+                                st.success(message)
+                            else:
                                 st.warning(message)
-                            
+
                             # Botão para confirmar e salvar
                             if st.button("Confirmar e Salvar Treinamento", type="primary"):
                                 if is_valid:
@@ -533,7 +535,6 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
-   
    
    
 
