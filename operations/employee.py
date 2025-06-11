@@ -516,14 +516,28 @@ class EmployeeManager:
         Returns:
             datetime.date: Data de vencimento do treinamento
         """
-        if norma == "NR-20" and modulo in self.nr20_config:
-            anos = self.nr20_config[modulo]['reciclagem_anos']
-            return data_realizacao + timedelta(days=anos * 365)
-        elif norma in self.nr_config:
-            anos = self.nr_config[norma]['reciclagem_anos']
-            return data_realizacao + timedelta(days=anos * 365)
+        try:
+            # Padroniza a norma
+            norma = self._padronizar_norma(norma)
+            if not norma:
+                return None
+
+            # Calcula o vencimento baseado na norma
+            if norma == "NR-20" and modulo in self.nr20_config:
+                anos = self.nr20_config[modulo]['reciclagem_anos']
+            elif norma in self.nr_config:
+                anos = self.nr_config[norma]['reciclagem_anos']
+            else:
+                return None
+
+            # Calcula a data de vencimento
+            if data_realizacao:
+                return data_realizacao + timedelta(days=anos * 365)
+            return None
             
-        return None
+        except Exception as e:
+            st.error(f"Erro ao calcular vencimento do treinamento: {str(e)}")
+            return None
 
     def verificar_carga_horaria(self, norma, modulo=None, tipo_treinamento='inicial'):
         """
@@ -680,6 +694,11 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
+
+
+
 
 
 
