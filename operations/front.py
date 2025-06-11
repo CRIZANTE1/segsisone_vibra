@@ -256,20 +256,29 @@ def front_page():
                             st.write(treinamento_info['tipo_treinamento'])
                             
                             # Calcular vencimento
-                            data = datetime.strptime(treinamento_info['data'], "%d/%m/%Y")
-                            vencimento = employee_manager.calcular_vencimento_treinamento(
-                                data,
-                                treinamento_info['norma'],
-                                treinamento_info['modulo'],
-                                treinamento_info['tipo_treinamento']
-                            )
-                            
-                            if vencimento:
-                                st.write("**Vencimento:**")
-                                st.write(vencimento.strftime("%d/%m/%Y"))
-                                treinamento_info['vencimento'] = vencimento
-                            else:
-                                st.warning("Não foi possível calcular a data de vencimento")
+                            try:
+                                # Tenta converter a data para datetime
+                                if isinstance(treinamento_info['data'], str):
+                                    data = datetime.strptime(treinamento_info['data'], "%d/%m/%Y")
+                                else:
+                                    data = treinamento_info['data']
+                                    
+                                vencimento = employee_manager.calcular_vencimento_treinamento(
+                                    data,
+                                    treinamento_info['norma'],
+                                    treinamento_info['modulo'],
+                                    treinamento_info['tipo_treinamento']
+                                )
+                                
+                                if vencimento:
+                                    st.write("**Vencimento:**")
+                                    st.write(vencimento.strftime("%d/%m/%Y"))
+                                    treinamento_info['vencimento'] = vencimento
+                                else:
+                                    st.warning("Não foi possível calcular a data de vencimento")
+                                    treinamento_info['vencimento'] = None
+                            except Exception as e:
+                                st.error(f"Erro ao processar data: {str(e)}")
                                 treinamento_info['vencimento'] = None
 
                             # Validar carga horária
@@ -297,8 +306,8 @@ def front_page():
                                         # Adicionar treinamento
                                         training_id = employee_manager.add_training(
                                             selected_employee,
-                                            treinamento_info.get('data'),
-                                            treinamento_info.get('vencimento'),
+                                            data,
+                                            vencimento,
                                             treinamento_info.get('norma'),
                                             treinamento_info.get('modulo', ''),
                                             "Válido",
@@ -534,6 +543,12 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
+
+   
+
+
 
    
    
