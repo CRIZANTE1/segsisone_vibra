@@ -82,9 +82,15 @@ def front_page():
                         asos = pd.concat([asos, aso_docs])
                 
                 if not asos.empty:
-                    # Converter colunas de data para datetime
-                    asos['data_aso'] = pd.to_datetime(asos['data_aso'])
-                    asos['vencimento'] = pd.to_datetime(asos['vencimento'])
+                    # Converter datas
+                    try:
+                        # Converter data de ASOs
+                        asos['data'] = pd.to_datetime(asos['data'], format='%d/%m/%Y', errors='coerce')
+                        asos['vencimento'] = pd.to_datetime(asos['vencimento'], format='%d/%m/%Y', errors='coerce')
+                    except Exception as e:
+                        st.error(f"Erro ao converter datas: {str(e)}")
+                        # Continuar com as datas originais se houver erro
+                        pass
                     
                     # Adicionar nome do funcionário
                     asos['funcionario_nome'] = asos['funcionario'].map(employees.set_index('id')['nome'])
@@ -95,7 +101,7 @@ def front_page():
                         column_config={
                             "id": st.column_config.NumberColumn("ID", width=50),
                             "funcionario_nome": "Funcionário",
-                            "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
+                            "data": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "riscos": "Riscos",
                             "cargo": "Cargo",
@@ -122,9 +128,15 @@ def front_page():
                         treinamentos = pd.concat([treinamentos, training_docs])
                 
                 if not treinamentos.empty:
-                    # Converter colunas de data para datetime
-                    treinamentos['data'] = pd.to_datetime(treinamentos['data'])
-                    treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'])
+                    # Converter datas
+                    try:
+                        # Converter data de treinamentos
+                        treinamentos['data'] = pd.to_datetime(treinamentos['data'], format='%d/%m/%Y', errors='coerce')
+                        treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'], format='%d/%m/%Y', errors='coerce')
+                    except Exception as e:
+                        st.error(f"Erro ao converter datas: {str(e)}")
+                        # Continuar com as datas originais se houver erro
+                        pass
                     
                     # Adicionar nome do funcionário
                     treinamentos['funcionario_nome'] = treinamentos['funcionario'].map(employees.set_index('id')['nome'])
@@ -253,7 +265,8 @@ def front_page():
                             st.write("**Módulo:**")
                             st.write(treinamento_info['modulo'])
                             st.write("**Tipo:**")
-                            st.write(treinamento_info['tipo_treinamento'])
+                            tipo_treinamento = treinamento_info.get('tipo_treinamento', 'inicial')
+                            st.write(tipo_treinamento)
                             st.write("**Carga Horária:**")
                             st.write(f"{treinamento_info['carga_horaria']} horas")
                             
@@ -269,7 +282,7 @@ def front_page():
                                     data,
                                     treinamento_info['norma'],
                                     treinamento_info['modulo'],
-                                    treinamento_info['tipo_treinamento']
+                                    tipo_treinamento
                                 )
                                 
                                 if vencimento:
@@ -303,7 +316,7 @@ def front_page():
                                             modulo=treinamento_info['modulo'],
                                             status="Válido",
                                             anexo=arquivo_id,
-                                            tipo_treinamento=treinamento_info['tipo_treinamento'],
+                                            tipo_treinamento=tipo_treinamento,
                                             carga_horaria=treinamento_info['carga_horaria']
                                         )
                                         
@@ -535,6 +548,7 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
+   
    
 
    
