@@ -166,7 +166,8 @@ def front_page():
                                         if aso_id:
                                             st.success("ASO adicionado com sucesso!")
                                             # Limpar o estado do uploader
-                                            st.session_state.aso_uploader = None
+                                            if 'aso_uploader' in st.session_state:
+                                                del st.session_state.aso_uploader
                                             st.rerun()
                                         else:
                                             st.error("Erro ao adicionar ASO")
@@ -253,7 +254,8 @@ def front_page():
                                             if training_id:
                                                 st.success("Treinamento adicionado com sucesso!")
                                                 # Limpar o estado do uploader
-                                                st.session_state.treinamento_uploader = None
+                                                if 'treinamento_uploader' in st.session_state:
+                                                    del st.session_state.treinamento_uploader
                                                 st.rerun()
                                             else:
                                                 st.error("Erro ao adicionar treinamento")
@@ -480,6 +482,16 @@ def mostrar_treinamentos():
    
 
    
+
+
+   
+
+   
+
+   
+
+   
+
    
 
 
