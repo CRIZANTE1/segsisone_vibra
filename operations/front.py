@@ -124,44 +124,66 @@ def front_page():
                     arquivo = st.file_uploader("Arquivo do ASO", type=['pdf'])
                     
                     if arquivo:
-                        with st.spinner("Analisando o PDF do ASO..."):
-                            aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                        # Inicializa o estado da sessão se não existir
+                        if 'aso_info' not in st.session_state:
+                            st.session_state.aso_info = None
+                        
+                        # Se o arquivo mudou, analisa novamente
+                        if 'last_aso_file' not in st.session_state or st.session_state.last_aso_file != arquivo.name:
+                            with st.spinner("Analisando o PDF do ASO..."):
+                                st.session_state.aso_info = employee_manager.analyze_aso_pdf(arquivo)
+                                st.session_state.last_aso_file = arquivo.name
+                        
+                        # Se temos informações do ASO, mostra e permite confirmar
+                        if st.session_state.aso_info:
+                            st.subheader("Informações Extraídas:")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write("**Data do ASO:**", st.session_state.aso_info['data_aso'].strftime("%d/%m/%Y"))
+                                st.write("**Cargo:**", st.session_state.aso_info['cargo'])
+                            with col2:
+                                st.write("**Data de Vencimento:**", st.session_state.aso_info['vencimento'].strftime("%d/%m/%Y"))
+                                st.write("**Riscos:**", st.session_state.aso_info['riscos'])
                             
-                        if aso_info:
-                            # Upload do arquivo
-                            gdrive_uploader = GoogleDriveUploader()
-                            arquivo_id = gdrive_uploader.upload_file(arquivo, "ASO")
-                            
-                            if arquivo_id:
-                                # Adicionar ASO
-                                aso_id = employee_manager.add_aso(
-                                    selected_employee,
-                                    aso_info['data_aso'],
-                                    aso_info['vencimento'],
-                                    arquivo_id,
-                                    aso_info['riscos'],
-                                    aso_info['cargo']
-                                )
+                            # Botão de confirmação
+                            if st.button("Confirmar e Salvar ASO"):
+                                # Upload do arquivo
+                                gdrive_uploader = GoogleDriveUploader()
+                                arquivo_id = gdrive_uploader.upload_file(arquivo, "ASO")
                                 
-                                if aso_id:
-                                    st.success("ASO adicionado com sucesso!")
+                                if arquivo_id:
+                                    # Adicionar ASO
+                                    aso_id = employee_manager.add_aso(
+                                        selected_employee,
+                                        st.session_state.aso_info['data_aso'],
+                                        st.session_state.aso_info['vencimento'],
+                                        arquivo_id,
+                                        st.session_state.aso_info['riscos'],
+                                        st.session_state.aso_info['cargo']
+                                    )
                                     
-                                    # Mostrar informações salvas
-                                    st.subheader("Informações Salvas:")
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.write("**Funcionário:**", employees[employees['id'] == selected_employee]['nome'].iloc[0])
-                                        st.write("**Data do ASO:**", aso_info['data_aso'].strftime("%d/%m/%Y"))
-                                        st.write("**Cargo:**", aso_info['cargo'])
-                                    with col2:
-                                        st.write("**Data de Vencimento:**", aso_info['vencimento'].strftime("%d/%m/%Y"))
-                                        st.write("**Riscos:**", aso_info['riscos'])
-                                    
-                                    st.rerun()
+                                    if aso_id:
+                                        st.success("ASO adicionado com sucesso!")
+                                        
+                                        # Mostrar informações salvas
+                                        st.subheader("Informações Salvas:")
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            st.write("**Funcionário:**", employees[employees['id'] == selected_employee]['nome'].iloc[0])
+                                            st.write("**Data do ASO:**", st.session_state.aso_info['data_aso'].strftime("%d/%m/%Y"))
+                                            st.write("**Cargo:**", st.session_state.aso_info['cargo'])
+                                        with col2:
+                                            st.write("**Data de Vencimento:**", st.session_state.aso_info['vencimento'].strftime("%d/%m/%Y"))
+                                            st.write("**Riscos:**", st.session_state.aso_info['riscos'])
+                                        
+                                        # Limpar o estado da sessão
+                                        del st.session_state.aso_info
+                                        del st.session_state.last_aso_file
+                                        st.rerun()
+                                    else:
+                                        st.error("Erro ao adicionar ASO")
                                 else:
-                                    st.error("Erro ao adicionar ASO")
-                            else:
-                                st.error("Erro ao fazer upload do arquivo")
+                                    st.error("Erro ao fazer upload do arquivo")
                         else:
                             st.error("Não foi possível extrair informações do PDF")
                 else:
@@ -183,60 +205,84 @@ def front_page():
                         arquivo = st.file_uploader("Arquivo do Treinamento", type=['pdf'])
                         
                         if arquivo:
-                            with st.spinner("Analisando o PDF do treinamento..."):
-                                treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                            # Inicializa o estado da sessão se não existir
+                            if 'treinamento_info' not in st.session_state:
+                                st.session_state.treinamento_info = None
+                            
+                            # Se o arquivo mudou, analisa novamente
+                            if 'last_treinamento_file' not in st.session_state or st.session_state.last_treinamento_file != arquivo.name:
+                                with st.spinner("Analisando o PDF do treinamento..."):
+                                    st.session_state.treinamento_info = employee_manager.analyze_training_pdf(arquivo)
+                                    st.session_state.last_treinamento_file = arquivo.name
+                            
+                            # Se temos informações do treinamento, mostra e permite confirmar
+                            if st.session_state.treinamento_info:
+                                st.subheader("Informações Extraídas:")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write("**Data do Treinamento:**", st.session_state.treinamento_info['data'].strftime("%d/%m/%Y"))
+                                    st.write("**Norma:**", st.session_state.treinamento_info['norma'])
+                                    st.write("**Módulo:**", st.session_state.treinamento_info['modulo'])
+                                with col2:
+                                    st.write("**Data de Vencimento:**", st.session_state.treinamento_info['vencimento'].strftime("%d/%m/%Y"))
+                                    st.write("**Tipo:**", st.session_state.treinamento_info['tipo_treinamento'])
+                                    st.write("**Carga Horária:**", f"{st.session_state.treinamento_info['carga_horaria']} horas")
                                 
-                            if treinamento_info:
-                                # Upload do arquivo
-                                gdrive_uploader = GoogleDriveUploader()
-                                arquivo_id = gdrive_uploader.upload_file(arquivo, "Treinamento")
-                                
-                                if arquivo_id:
-                                    # Validar carga horária
-                                    is_valid, message = employee_manager.validar_treinamento(
-                                        treinamento_info['norma'],
-                                        treinamento_info['modulo'],
-                                        treinamento_info['tipo_treinamento'],
-                                        treinamento_info['carga_horaria']
-                                    )
+                                # Botão de confirmação
+                                if st.button("Confirmar e Salvar Treinamento"):
+                                    # Upload do arquivo
+                                    gdrive_uploader = GoogleDriveUploader()
+                                    arquivo_id = gdrive_uploader.upload_file(arquivo, "Treinamento")
                                     
-                                    if is_valid:
-                                        # Adicionar treinamento
-                                        training_id = employee_manager.add_training(
-                                            selected_employee,
-                                            treinamento_info['data'],
-                                            treinamento_info['vencimento'],
-                                            treinamento_info['norma'],
-                                            treinamento_info['modulo'],
-                                            "Válido",
-                                            arquivo_id,
-                                            treinamento_info['tipo_treinamento'],
-                                            treinamento_info['carga_horaria']
+                                    if arquivo_id:
+                                        # Validar carga horária
+                                        is_valid, message = employee_manager.validar_treinamento(
+                                            st.session_state.treinamento_info['norma'],
+                                            st.session_state.treinamento_info['modulo'],
+                                            st.session_state.treinamento_info['tipo_treinamento'],
+                                            st.session_state.treinamento_info['carga_horaria']
                                         )
                                         
-                                        if training_id:
-                                            st.success("Treinamento adicionado com sucesso!")
+                                        if is_valid:
+                                            # Adicionar treinamento
+                                            training_id = employee_manager.add_training(
+                                                selected_employee,
+                                                st.session_state.treinamento_info['data'],
+                                                st.session_state.treinamento_info['vencimento'],
+                                                st.session_state.treinamento_info['norma'],
+                                                st.session_state.treinamento_info['modulo'],
+                                                "Válido",
+                                                arquivo_id,
+                                                st.session_state.treinamento_info['tipo_treinamento'],
+                                                st.session_state.treinamento_info['carga_horaria']
+                                            )
                                             
-                                            # Mostrar informações salvas
-                                            st.subheader("Informações Salvas:")
-                                            col1, col2 = st.columns(2)
-                                            with col1:
-                                                st.write("**Funcionário:**", employees[employees['id'] == selected_employee]['nome'].iloc[0])
-                                                st.write("**Data do Treinamento:**", treinamento_info['data'].strftime("%d/%m/%Y"))
-                                                st.write("**Norma:**", treinamento_info['norma'])
-                                                st.write("**Módulo:**", treinamento_info['modulo'])
-                                            with col2:
-                                                st.write("**Data de Vencimento:**", treinamento_info['vencimento'].strftime("%d/%m/%Y"))
-                                                st.write("**Tipo:**", treinamento_info['tipo_treinamento'])
-                                                st.write("**Carga Horária:**", f"{treinamento_info['carga_horaria']} horas")
-                                            
-                                            st.rerun()
+                                            if training_id:
+                                                st.success("Treinamento adicionado com sucesso!")
+                                                
+                                                # Mostrar informações salvas
+                                                st.subheader("Informações Salvas:")
+                                                col1, col2 = st.columns(2)
+                                                with col1:
+                                                    st.write("**Funcionário:**", employees[employees['id'] == selected_employee]['nome'].iloc[0])
+                                                    st.write("**Data do Treinamento:**", st.session_state.treinamento_info['data'].strftime("%d/%m/%Y"))
+                                                    st.write("**Norma:**", st.session_state.treinamento_info['norma'])
+                                                    st.write("**Módulo:**", st.session_state.treinamento_info['modulo'])
+                                                with col2:
+                                                    st.write("**Data de Vencimento:**", st.session_state.treinamento_info['vencimento'].strftime("%d/%m/%Y"))
+                                                    st.write("**Tipo:**", st.session_state.treinamento_info['tipo_treinamento'])
+                                                    st.write("**Carga Horária:**", f"{st.session_state.treinamento_info['carga_horaria']} horas")
+                                                
+                                                # Limpar o estado da sessão
+                                                del st.session_state.treinamento_info
+                                                del st.session_state.last_treinamento_file
+                                                st.rerun()
+                                            else:
+                                                st.error("Erro ao adicionar treinamento")
                                         else:
-                                            st.error("Erro ao adicionar treinamento")
+                                            st.error(message)
                                     else:
-                                        st.error(message)
-                                else:
-                                    st.error("Erro ao fazer upload do arquivo")
+                                        st.error("Erro ao fazer upload do arquivo")
                             else:
                                 st.error("Não foi possível extrair informações do PDF")
                         else:
