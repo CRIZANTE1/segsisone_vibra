@@ -401,11 +401,14 @@ class EmployeeManager:
         Padroniza o formato da norma (ex: NR-6 -> NR-06)
         """
         try:
-            if norma is None or str(norma).strip() == "":
+            # Verifica se a norma é None ou vazia
+            if norma is None:
                 return None
                 
-            # Converte para string se não for
-            norma = str(norma)
+            # Converte para string e remove espaços
+            norma = str(norma).strip()
+            if not norma:
+                return None
             
             # Remove espaços extras e converte para maiúsculas
             norma = ' '.join(norma.split()).upper()
@@ -709,12 +712,6 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
-
-
-
-
-
-
 
 
 
