@@ -121,7 +121,7 @@ def front_page():
                     )
                     
                     # Upload do arquivo
-                    anexo = st.file_uploader("Anexar ASO (PDF)", type=['pdf'])
+                    anexo = st.file_uploader("Anexar ASO (PDF)", type=['pdf'], key="aso_uploader")
                     
                     if anexo:
                         # Analisar o PDF
@@ -165,6 +165,8 @@ def front_page():
                                         )
                                         if aso_id:
                                             st.success("ASO adicionado com sucesso!")
+                                            # Limpar o estado do uploader
+                                            st.session_state.aso_uploader = None
                                             st.rerun()
                                         else:
                                             st.error("Erro ao adicionar ASO")
@@ -186,7 +188,7 @@ def front_page():
                     )
                     
                     # Upload do arquivo
-                    anexo = st.file_uploader("Anexar Certificado (PDF)", type=['pdf'])
+                    anexo = st.file_uploader("Anexar Certificado (PDF)", type=['pdf'], key="treinamento_uploader")
                     
                     if anexo:
                         # Analisar o PDF
@@ -250,6 +252,8 @@ def front_page():
                                             
                                             if training_id:
                                                 st.success("Treinamento adicionado com sucesso!")
+                                                # Limpar o estado do uploader
+                                                st.session_state.treinamento_uploader = None
                                                 st.rerun()
                                             else:
                                                 st.error("Erro ao adicionar treinamento")
@@ -476,9 +480,6 @@ def mostrar_treinamentos():
    
 
    
-
-   
-
    
 
 
