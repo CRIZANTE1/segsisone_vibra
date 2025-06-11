@@ -82,10 +82,20 @@ def front_page():
                         asos = pd.concat([asos, aso_docs])
                 
                 if not asos.empty:
-                    st.dataframe(asos[[
-                        'funcionario', 'data_aso', 'vencimento', 
-                        'cargo', 'riscos'
-                    ]])
+                    # Configurar colunas da tabela
+                    st.dataframe(
+                        asos,
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", width=50),
+                            "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
+                            "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                            "riscos": "Riscos",
+                            "cargo": "Cargo",
+                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
                 else:
                     st.info("Nenhum ASO registrado")
 
@@ -100,10 +110,23 @@ def front_page():
                         treinamentos = pd.concat([treinamentos, training_docs])
                 
                 if not treinamentos.empty:
-                    st.dataframe(treinamentos[[
-                        'funcionario', 'data', 'vencimento', 
-                        'norma', 'modulo', 'status'
-                    ]])
+                    # Configurar colunas da tabela
+                    st.dataframe(
+                        treinamentos,
+                        column_config={
+                            "id": st.column_config.NumberColumn("ID", width=50),
+                            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                            "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                            "norma": "Norma",
+                            "modulo": "Módulo",
+                            "status": "Status",
+                            "tipo_treinamento": "Tipo",
+                            "carga_horaria": st.column_config.NumberColumn("Carga Horária", format="%d horas"),
+                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF", link_target="_blank")
+                        },
+                        hide_index=True,
+                        use_container_width=True
+                    )
                 else:
                     st.info("Nenhum treinamento registrado")
             else:
@@ -485,6 +508,7 @@ def mostrar_treinamentos():
 
 
    
+
 
    
 
