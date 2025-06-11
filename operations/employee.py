@@ -444,6 +444,13 @@ class EmployeeManager:
             if norma_padronizada is None:
                 st.error("Erro ao padronizar a norma do treinamento")
                 return None
+
+            # Calcula o vencimento se não foi fornecido
+            if vencimento is None and data is not None:
+                vencimento = self.calcular_vencimento_treinamento(data, norma_padronizada, modulo, tipo_treinamento)
+                if vencimento is None:
+                    st.error("Não foi possível calcular a data de vencimento do treinamento")
+                    return None
             
             # Prepara os dados do novo treinamento
             new_data = [
@@ -692,6 +699,8 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
 
 
 
