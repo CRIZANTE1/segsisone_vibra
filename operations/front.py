@@ -78,7 +78,7 @@ def front_page():
                     aso_docs, _ = employee_manager.get_employee_docs(employee['id'])
                     if not aso_docs.empty:
                         aso_docs = aso_docs.copy()
-                        aso_docs.loc[:, 'funcionario'] = employee['nome']
+                        aso_docs['funcionario_nome'] = employee['nome']
                         asos = pd.concat([asos, aso_docs])
                 
                 if not asos.empty:
@@ -91,9 +91,6 @@ def front_page():
                         st.error(f"Erro ao converter datas: {str(e)}")
                         # Continuar com as datas originais se houver erro
                         pass
-                    
-                    # Adicionar nome do funcionário
-                    asos['funcionario_nome'] = asos['funcionario'].map(employees.set_index('id')['nome'])
                     
                     # Configurar colunas da tabela
                     st.dataframe(
@@ -124,7 +121,7 @@ def front_page():
                     _, training_docs = employee_manager.get_employee_docs(employee['id'])
                     if not training_docs.empty:
                         training_docs = training_docs.copy()
-                        training_docs.loc[:, 'funcionario'] = employee['nome']
+                        training_docs['funcionario_nome'] = employee['nome']
                         treinamentos = pd.concat([treinamentos, training_docs])
                 
                 if not treinamentos.empty:
@@ -137,9 +134,6 @@ def front_page():
                         st.error(f"Erro ao converter datas: {str(e)}")
                         # Continuar com as datas originais se houver erro
                         pass
-                    
-                    # Adicionar nome do funcionário
-                    treinamentos['funcionario_nome'] = treinamentos['funcionario'].map(employees.set_index('id')['nome'])
                     
                     # Configurar colunas da tabela
                     st.dataframe(
@@ -598,6 +592,12 @@ def mostrar_treinamentos():
                 st.warning("É necessário cadastrar funcionários primeiro")
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
+
+   
+
+   
+
+
 
    
 
