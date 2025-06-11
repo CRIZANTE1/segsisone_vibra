@@ -78,7 +78,7 @@ class EmployeeManager:
                 'reciclagem_horas': 8,
                 'reciclagem_anos': 1
             },
-            'NR-6': {
+            'NR-06': {
                 'inicial_horas': 3,
                 'reciclagem_horas': 3,
                 'reciclagem_anos': 3
