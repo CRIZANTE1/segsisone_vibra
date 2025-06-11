@@ -84,8 +84,7 @@ def front_page():
                 if not asos.empty:
                     # Converter datas
                     try:
-                        # Verificar nomes das colunas
-                        st.write("Colunas disponíveis em ASOs:", asos.columns.tolist())
+                        # Converter data de ASOs
                         asos['data_aso'] = pd.to_datetime(asos['data_aso'], format='%d/%m/%Y', errors='coerce')
                         asos['vencimento'] = pd.to_datetime(asos['vencimento'], format='%d/%m/%Y', errors='coerce')
                     except Exception as e:
@@ -131,8 +130,7 @@ def front_page():
                 if not treinamentos.empty:
                     # Converter datas
                     try:
-                        # Verificar nomes das colunas
-                        st.write("Colunas disponíveis em treinamentos:", treinamentos.columns.tolist())
+                        # Converter data de treinamentos
                         treinamentos['data'] = pd.to_datetime(treinamentos['data'], format='%d/%m/%Y', errors='coerce')
                         treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'], format='%d/%m/%Y', errors='coerce')
                     except Exception as e:
@@ -550,6 +548,9 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
+   
+
+   
    
 
    
