@@ -260,34 +260,46 @@ class EmployeeManager:
                         except:
                             continue
 
-                try:
-                    data = datetime.strptime(results[4], "%d/%m/%Y").date()
-                except:
-                    data = None
+                # Extrair e validar a data
+                data = None
+                if 4 in results:
+                    try:
+                        data = datetime.strptime(results[4], "%d/%m/%Y").date()
+                    except:
+                        pass
 
-                # Padroniza a norma
-                norma = f"NR-{results[1]}" if results[1].isdigit() else results[1]
-                norma = self._padronizar_norma(norma)
-                
-                modulo = results[3] if 3 in results else ""
-                
+                # Extrair e padronizar a norma
+                norma = None
+                if 1 in results:
+                    norma = f"NR-{results[1]}" if results[1].isdigit() else results[1]
+                    norma = self._padronizar_norma(norma)
+
+                # Extrair o módulo
+                modulo = results.get(3, "")
+
                 # Processar o tipo de treinamento
                 tipo_treinamento = "inicial"  # valor padrão
                 if 5 in results:
                     tipo_treinamento = results[5].lower()
                     if 'sim' in tipo_treinamento:
                         tipo_treinamento = 'reciclagem'
-                
-                try:
-                    carga_horaria = int(''.join(filter(str.isdigit, results[6]))) if 6 in results else 0
-                except:
-                    carga_horaria = 0
 
-                # O vencimento será calculado depois, baseado nas configurações
+                # Extrair a carga horária
+                carga_horaria = 0
+                if 6 in results:
+                    try:
+                        carga_horaria = int(''.join(filter(str.isdigit, results[6])))
+                    except:
+                        pass
+
+                # Verifica se os campos obrigatórios estão presentes
+                if not data or not norma:
+                    return None
+
                 return {
+                    'data': data,
                     'norma': norma,
                     'modulo': modulo,
-                    'data': data,
                     'tipo_treinamento': tipo_treinamento,
                     'carga_horaria': carga_horaria
                 }
