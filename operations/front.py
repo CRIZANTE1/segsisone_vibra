@@ -93,8 +93,8 @@ def front_page():
                             "cargo": "Cargo",
                             "arquivo_id": st.column_config.LinkColumn(
                                 label="Anexo",
-                                url="arquivo_id",
-                                display_text="Abrir PDF"
+                                display_text="Abrir PDF",
+                                help="Clique para abrir o PDF no Google Drive"
                             )
                         },
                         hide_index=True,
@@ -128,8 +128,8 @@ def front_page():
                             "carga_horaria": st.column_config.NumberColumn("Carga Horária", format="%d horas"),
                             "arquivo_id": st.column_config.LinkColumn(
                                 label="Anexo",
-                                url="arquivo_id",
-                                display_text="Abrir PDF"
+                                display_text="Abrir PDF",
+                                help="Clique para abrir o PDF no Google Drive"
                             )
                         },
                         hide_index=True,
