@@ -86,11 +86,15 @@ def front_page():
                     asos['data_aso'] = pd.to_datetime(asos['data_aso'])
                     asos['vencimento'] = pd.to_datetime(asos['vencimento'])
                     
+                    # Adicionar nome do funcionário
+                    asos['funcionario_nome'] = asos['funcionario'].map(employees.set_index('id')['nome'])
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         asos,
                         column_config={
                             "id": st.column_config.NumberColumn("ID", width=50),
+                            "funcionario_nome": "Funcionário",
                             "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "riscos": "Riscos",
@@ -122,11 +126,15 @@ def front_page():
                     treinamentos['data'] = pd.to_datetime(treinamentos['data'])
                     treinamentos['vencimento'] = pd.to_datetime(treinamentos['vencimento'])
                     
+                    # Adicionar nome do funcionário
+                    treinamentos['funcionario_nome'] = treinamentos['funcionario'].map(employees.set_index('id')['nome'])
+                    
                     # Configurar colunas da tabela
                     st.dataframe(
                         treinamentos,
                         column_config={
                             "id": st.column_config.NumberColumn("ID", width=50),
+                            "funcionario_nome": "Funcionário",
                             "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                             "norma": "Norma",
@@ -518,6 +526,7 @@ def mostrar_treinamentos():
     else:
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
+   
    
 
    
