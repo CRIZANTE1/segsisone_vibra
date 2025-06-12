@@ -319,6 +319,7 @@ def front_page():
                                             st.cache_data.clear()
                                             # Recarregar os dados
                                             employee_manager.load_data()
+                                            st.rerun()
                                         else:
                                             st.error("Erro ao registrar treinamento")
                                     else:
@@ -574,7 +575,6 @@ def mostrar_treinamentos():
                                                 )
                                                 
                                                 if training_id:
-                                                    st.success(f"Treinamento registrado com sucesso! ID: {training_id}")
                                                     # Limpar o cache para atualizar os dados
                                                     st.cache_data.clear()
                                                     # Recarregar os dados
