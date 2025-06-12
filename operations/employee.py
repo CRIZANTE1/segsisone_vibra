@@ -1,769 +1,243 @@
-import pandas as pd
 import streamlit as st
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
+from operations.employee import EmployeeManager
 from gdrive.gdrive_upload import GoogleDriveUploader
-from AI.api_Operation import PDFQA
-from operations.sheet import SheetOperations
-import tempfile
-import os
-from gdrive.config import (
-    ASO_SHEET_NAME,
-    EMPLOYEE_SHEET_NAME,
-    EMPLOYEE_DATA_SHEET_NAME,
-    TRAINING_SHEET_NAME
-)
+import pandas as pd
+from auth.auth_utils import is_admin, check_admin_permission
 
 # Inicializa o uploader do Google Drive globalmente
 gdrive_uploader = GoogleDriveUploader()
 
-# Cache para carregar dados das planilhas
-@st.cache_resource
-def get_sheet_operations():
-    return SheetOperations()
-
-@st.cache_data(ttl=30)
-def load_sheet_data(sheet_name):
-    sheet_ops = get_sheet_operations()
-    return sheet_ops.carregar_dados_aba(sheet_name)
-
-class EmployeeManager:
-    def __init__(self):
-        # Inicializa o gerenciador de planilhas e carrega os dados
-        self.sheet_ops = get_sheet_operations()
+def mostrar_info_normas():
+    with st.expander("Informações sobre Normas Regulamentadoras"):
+        st.markdown("""
+        ### Cargas Horárias e Periodicidade dos Treinamentos
         
-        # Inicializa as abas se necessário
-        if not self.initialize_sheets():
-            st.error("Erro ao inicializar as abas da planilha. Algumas funcionalidades podem não funcionar corretamente.")
+        #### NR-20
+        ##### Reciclagem:
+        | Módulo | Periodicidade | Carga Horária Mínima |
+        |--------|---------------|---------------------|
+        | Básico | 3 anos | 4 horas |
+        | Intermediário | 2 anos | 4 horas |
+        | Avançado I | 1 ano | 4 horas |
+        | Avançado II | 1 ano | 4 horas |
         
-        # Carrega os dados
-        self.load_data()
-        
-        # Inicializa o analisador de PDF apenas quando necessário
-        self._pdf_analyzer = None
-        
-        # Configuração dos módulos da NR-20
-        self.nr20_config = {
-            'Básico': {
-                'reciclagem_anos': 3,
-                'reciclagem_horas': 4,
-                'inicial_horas': 8
-            },
-            'Intermediário': {
-                'reciclagem_anos': 2,
-                'reciclagem_horas': 4,
-                'inicial_horas': 16
-            },
-            'Avançado I': {
-                'reciclagem_anos': 1,
-                'reciclagem_horas': 4,
-                'inicial_horas': 32
-            },
-            'Avançado II': {
-                'reciclagem_anos': 1,
-                'reciclagem_horas': 4,
-                'inicial_horas': 40
-            }
-        }
+        ##### Formação Inicial:
+        | Módulo | Carga Horária Mínima |
+        |--------|---------------------|
+        | Básico | 8 horas |
+        | Intermediário | 16 horas |
+        | Avançado I | 32 horas |
+        | Avançado II | 40 horas |
 
-        # Configuração das outras NRs
-        self.nr_config = {
-            'NR-35': {
-                'inicial_horas': 8,
-                'reciclagem_horas': 8,
-                'reciclagem_anos': 2
-            },
-            'NR-10': {
-                'inicial_horas': 40,
-                'reciclagem_horas': 40,
-                'reciclagem_anos': 2
-            },
-            'NR-18': {
-                'inicial_horas': 8,
-                'reciclagem_horas': 8,
-                'reciclagem_anos': 1
-            },
-            'NR-06': {
-                'inicial_horas': 3,
-                'reciclagem_horas': 3,
-                'reciclagem_anos': 3
-            },
-            'NR-6': {
-                'inicial_horas': 3,
-                'reciclagem_horas': 3,
-                'reciclagem_anos': 3
-            },
-            'NR-12': {
-                'inicial_horas': 8,
-                'reciclagem_horas': 8,
-                'reciclagem_anos': 2
-            },
-            'NR-34': {
-                'inicial_horas': 8,
-                'reciclagem_horas': 8,
-                'reciclagem_anos': 1
-            }
-        }
+        #### Outras NRs
+        | Norma | Carga Horária Inicial | Carga Horária Reciclagem | Periodicidade Reciclagem |
+        |-------|----------------------|------------------------|----------------------|
+        | NR-35 | 8 horas | 8 horas | 2 anos |
+        | NR-10 | 40 horas | 40 horas | 2 anos |
+        | NR-18 | 8 horas | 8 horas | 1 ano |
+        | NR-34 | 8 horas | 8 horas | 1 ano |
+        """)
 
-    @property
-    def pdf_analyzer(self):
-        if self._pdf_analyzer is None:
-            self._pdf_analyzer = PDFQA()
-        return self._pdf_analyzer
+# Função auxiliar para colorir linhas da tabela com base na data de vencimento
+def highlight_expired(row):
+    today = datetime.now().date()
+    vencimento_val = row.get('vencimento')
+    
+    if vencimento_val and isinstance(vencimento_val, date):
+        if vencimento_val < today:
+            return ['background-color: #FFCDD2'] * len(row) # Vermelho claro
+    return [''] * len(row)
 
-    def load_data(self):
-        try:
-            # Carrega os dados das diferentes abas usando cache
-            companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
-            employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
-            aso_data = load_sheet_data(ASO_SHEET_NAME)
-            training_data = load_sheet_data(TRAINING_SHEET_NAME)
-            
-            # Define as colunas padrão para cada DataFrame
-            company_columns = ['id', 'nome', 'cnpj']
-            employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
-            aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
-            training_columns = [
-                'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-                'arquivo_id', 'tipo_treinamento', 'carga_horaria'
-            ]
-            
-            # Converte os dados para DataFrames com as colunas corretas
-            if companies_data and len(companies_data) > 0:
-                self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
-                # Garante que todas as colunas necessárias existam
-                for col in company_columns:
-                    if col not in self.companies_df.columns:
-                        self.companies_df[col] = ''
-            else:
-                self.companies_df = pd.DataFrame(columns=company_columns)
-            
-            if employees_data and len(employees_data) > 0:
-                self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
-                # Garante que todas as colunas necessárias existam
-                for col in employee_columns:
-                    if col not in self.employees_df.columns:
-                        self.employees_df[col] = ''
-            else:
-                self.employees_df = pd.DataFrame(columns=employee_columns)
-                st.warning("Nenhum funcionário encontrado na planilha.")
-            
-            if aso_data and len(aso_data) > 0:
-                self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
-                # Garante que todas as colunas necessárias existam
-                for col in aso_columns:
-                    if col not in self.aso_df.columns:
-                        self.aso_df[col] = ''
-            else:
-                self.aso_df = pd.DataFrame(columns=aso_columns)
-            
-            if training_data and len(training_data) > 0:
-                self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
-                # Garante que todas as colunas necessárias existam
-                for col in training_columns:
-                    if col not in self.training_df.columns:
-                        self.training_df[col] = ''
-            else:
-                self.training_df = pd.DataFrame(columns=training_columns)
+def front_page():
+    if 'employee_manager' not in st.session_state:
+        st.session_state.employee_manager = EmployeeManager()
+    
+    employee_manager = st.session_state.employee_manager
+    employee_manager.load_data()
+    
+    st.title("Gestão de Documentação de Contratada")
+    
+    selected_company = None
+    if not employee_manager.companies_df.empty:
+        selected_company = st.selectbox(
+            "Selecione uma empresa",
+            employee_manager.companies_df['id'].tolist(),
+            format_func=lambda x: f"{employee_manager.companies_df[employee_manager.companies_df['id'] == x]['nome'].iloc[0]} - {employee_manager.companies_df[employee_manager.companies_df['id'] == x]['cnpj'].iloc[0]}",
+            key="company_select"
+        )
+    
+    tab_dados, tab_aso, tab_treinamento = st.tabs(["**Situação dos Funcionários**", "**Adicionar ASO**", "**Adicionar Treinamento**"])
 
-        except Exception as e:
-            st.error(f"Erro ao carregar dados: {str(e)}")
-            # Em caso de erro, inicializa com DataFrames vazios
-            self.companies_df = pd.DataFrame(columns=company_columns)
-            self.employees_df = pd.DataFrame(columns=employee_columns)
-            self.aso_df = pd.DataFrame(columns=aso_columns)
-            self.training_df = pd.DataFrame(columns=training_columns)
+    with tab_dados:
+        if selected_company:
+            st.subheader(f"Funcionários")
+            employees = employee_manager.get_employees_by_company(selected_company)
 
-    def initialize_sheets(self):
-        """
-        Inicializa as abas da planilha com as colunas corretas se elas não existirem.
-        """
-        try:
-            # Define as colunas para cada aba
-            sheets_structure = {
-                EMPLOYEE_SHEET_NAME: ['id', 'nome', 'cnpj'],
-                EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'],
-                ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo'],
-                TRAINING_SHEET_NAME: [
-                    'id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status',
-                    'arquivo_id', 'tipo_treinamento', 'carga_horaria'
-                ]
-            }
-            
-            # Inicializa cada aba
-            for sheet_name, columns in sheets_structure.items():
-                data = self.sheet_ops.carregar_dados_aba(sheet_name)
-                if not data:
-                    # Se a aba não existe, cria com as colunas corretas
-                    if not self.sheet_ops.criar_aba(sheet_name, columns):
-                        st.error(f"Erro ao criar aba {sheet_name}")
-                        return False
-                    st.success(f"Aba {sheet_name} inicializada com sucesso!")
-                else:
-                    # Verifica se todas as colunas necessárias existem
-                    existing_columns = data[0] if data else []
-                    missing_columns = [col for col in columns if col not in existing_columns]
+            if not employees.empty:
+                for index, employee in employees.iterrows():
+                    employee_id = employee['id']
+                    employee_name = employee['nome']
+                    employee_role = employee['cargo']
                     
-                    if missing_columns:
-                        st.warning(f"Recriando a aba {sheet_name} para corrigir a estrutura...")
+                    # --- Calcula o status do funcionário ---
+                    today = datetime.now().date()
+                    aso_status = 'Não encontrado'
+                    aso_vencimento = None
+                    trainings_total = 0
+                    trainings_expired_count = 0
+                    
+                    latest_aso = employee_manager.get_latest_aso_by_employee(employee_id)
+                    if not latest_aso.empty:
+                        vencimento_aso_obj = latest_aso['vencimento'].iloc[0]
+                        if vencimento_aso_obj and isinstance(vencimento_aso_obj, date):
+                             aso_vencimento = vencimento_aso_obj
+                             aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
+
+                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+                    if not all_trainings.empty:
+                        trainings_total = len(all_trainings)
+                        expired_mask = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date < today
+                        trainings_expired_count = expired_mask.sum()
+                    
+                    overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
+                    status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
+                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+
+                    with st.expander(expander_title):
+                        st.markdown("##### Resumo de Status")
+                        col1, col2, col3 = st.columns(3)
                         
-                        # Backup dos dados existentes se houver
-                        existing_data = []
-                        if len(data) > 1:  # Se há dados além do cabeçalho
-                            df = pd.DataFrame(data[1:], columns=existing_columns)
-                            # Mantém apenas as colunas que existem na nova estrutura
-                            common_columns = [col for col in columns if col in existing_columns]
-                            if common_columns:
-                                existing_data = df[common_columns].values.tolist()
+                        col1.metric(
+                            label="Status Geral", 
+                            value=overall_status,
+                            delta="Todos os documentos OK" if overall_status == 'Em Dia' else f"{trainings_expired_count + (1 if aso_status == 'Vencido' else 0)} pendências",
+                            delta_color="off" if overall_status == 'Em Dia' else "inverse"
+                        )
                         
-                        # Recria a aba com a estrutura correta
-                        if self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns):
-                            # Restaura os dados se houver
-                            if existing_data:
-                                aba = self.sheet_ops.credentials.open_by_url(
-                                    self.sheet_ops.my_archive_google_sheets
-                                ).worksheet_by_title(sheet_name)
-                                aba.append_table(existing_data)
-                            st.success(f"Aba {sheet_name} recriada com sucesso!")
+                        col2.metric(
+                            label="Status do ASO", 
+                            value=aso_status, 
+                            help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}"
+                        )
+
+                        col3.metric(
+                            label="Treinamentos Vencidos",
+                            value=f"{trainings_expired_count} de {trainings_total}"
+                        )
+                        st.markdown("---")
+
+                        st.markdown("##### ASO Mais Recente")
+                        if not latest_aso.empty:
+                            st.dataframe(
+                                latest_aso.style.apply(highlight_expired, axis=1),
+                                column_config={
+                                    "id": "ID ASO", "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
+                                    "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "riscos": "Riscos",
+                                    "cargo": "Cargo (ASO)", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
+                                    "funcionario_id": None, 
+                                },
+                                hide_index=True, use_container_width=True
+                            )
                         else:
-                            st.error(f"Erro ao recriar a aba {sheet_name}")
-                            return False
-            
-            return True
-        except Exception as e:
-            st.error(f"Erro ao inicializar as abas: {str(e)}")
-            return False
+                            st.info("Nenhum ASO encontrado para este funcionário.")
 
-    def analyze_training_pdf(self, pdf_file):
-        try:
-            # Salvar o arquivo temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue())
-                temp_path = temp_file.name
-
-            # Todas as perguntas em uma única string
-            combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas:
-            1. Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.
-            2. Qual é o tipo específico do treinamento? apenas o número da NR.
-            3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II. Se não for especificado, será 'Não se aplica'.
-            4. Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.
-            5. Este documento é um certificado de reciclagem? Caso não for mencionado será formação.
-            6. Qual é a carga horária total do treinamento em horas? Responda apenas o número.
-            
-            Responda cada pergunta em uma nova linha, numerada de 1 a 6.
-            """
-
-            # Fazer uma única requisição com todas as perguntas
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
-            
-            # Limpar o arquivo temporário
-            try:
-                os.unlink(temp_path)
-            except Exception as e:
-                st.warning(f"Erro ao remover arquivo temporário: {str(e)}")
-
-            # Processar as respostas
-            if answer:
-                # Dividir as respostas em linhas e extrair as informações
-                lines = answer.strip().split('\n')
-                results = {}
-                for line in lines:
-                    if line.strip():
-                        try:
-                            num, value = line.split('.', 1)
-                            results[int(num)] = value.strip()
-                        except:
-                            continue
-
-                # Extrair e validar a data
-                data = None
-                if 4 in results:
-                    try:
-                        data = datetime.strptime(results[4], "%d/%m/%Y").date()
-                    except:
-                        pass
-
-                # Extrair e padronizar a norma
-                norma = None
-                if 1 in results:
-                    norma = f"NR-{results[1]}" if results[1].isdigit() else results[1]
-                    norma = self._padronizar_norma(norma)
-
-                # Extrair o módulo
-                modulo = results.get(3, "")
-
-                # Processar o tipo de treinamento
-                tipo_treinamento = "formação"  # valor padrão
-                if 5 in results:
-                    tipo_treinamento = results[5].lower()
-                    if 'sim' in tipo_treinamento:
-                        tipo_treinamento = 'reciclagem'
+                        st.markdown("##### Todos os Treinamentos")
+                        if not all_trainings.empty:
+                            st.dataframe(
+                                all_trainings.style.apply(highlight_expired, axis=1),
+                                column_config={
+                                    "id": "ID Trein.", "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                    "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                                    "carga_horaria": st.column_config.NumberColumn("C.H.", format="%d h", help="Carga Horária"),
+                                    "norma": "Norma", "modulo": "Módulo", "tipo_treinamento": "Tipo",
+                                    "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
+                                    "funcionario_id": None, "status": None
+                                },
+                                hide_index=True, use_container_width=True
+                            )
+                        else:
+                            st.info("Nenhum treinamento encontrado para este funcionário.")
+            else:
+                st.info("Nenhum funcionário cadastrado para esta empresa.")
+        else:
+            with st.form("cadastro_empresa"):
+                st.subheader("Cadastrar Nova Empresa")
+                nome_empresa = st.text_input("Nome da Empresa")
+                cnpj = st.text_input("CNPJ")
+                if st.form_submit_button("Cadastrar Empresa") and nome_empresa and cnpj:
+                    company_id, message = employee_manager.add_company(nome_empresa, cnpj)
+                    if company_id:
+                        st.success(message)
+                        st.rerun()
                     else:
-                        tipo_treinamento = 'formação'  # Garante que será formação se não for explicitamente reciclagem
+                        st.error(message)
 
-                # Extrair a carga horária
-                carga_horaria = 0
-                if 6 in results:
-                    try:
-                        carga_horaria = int(''.join(filter(str.isdigit, results[6])))
-                    except:
-                        pass
+    with tab_aso:
+        if selected_company:
+            if check_admin_permission():
+                st.subheader("Adicionar Novo ASO")
+                current_employees = employee_manager.get_employees_by_company(selected_company)
+                if not current_employees.empty:
+                    selected_employee_aso = st.selectbox("Selecione o funcionário", current_employees['id'].tolist(), format_func=lambda x: employee_manager.get_employee_name(x), key="aso_employee_add_tab")
+                    anexo_aso = st.file_uploader("Anexar ASO (PDF)", type=['pdf'], key="aso_uploader_tab")
+                    if anexo_aso:
+                        with st.spinner("Analisando o PDF do ASO..."):
+                            aso_info = employee_manager.analyze_aso_pdf(anexo_aso)
+                        if aso_info:
+                            with st.container(border=True):
+                                st.markdown("### Informações Extraídas do ASO")
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    st.write(f"**Data do ASO:** {aso_info['data_aso'].strftime('%d/%m/%Y') if aso_info.get('data_aso') else 'Não encontrada'}")
+                                    st.write(f"**Cargo:** {aso_info.get('cargo', 'N/A')}")
+                                with col2:
+                                    st.write(f"**Vencimento:** {aso_info['vencimento'].strftime('%d/%m/%Y') if aso_info.get('vencimento') else 'Não encontrada'}")
+                                    st.write(f"**Riscos:** {aso_info.get('riscos', 'N/A')}")
+                                if st.button("Confirmar e Salvar ASO", type="primary", key="save_aso_btn"):
+                                    arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_EMP_{selected_employee_aso}_COMP_{selected_company}")
+                                    if arquivo_id:
+                                        employee_manager.add_aso(selected_employee_aso, aso_info['data_aso'], aso_info['vencimento'], arquivo_id, aso_info['riscos'], aso_info['cargo'])
+                                        st.success("ASO adicionado com sucesso!")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                        else: st.error("Não foi possível extrair informações do PDF.")
+                else: st.warning("Cadastre funcionários para esta empresa antes de adicionar ASOs.")
+            else: st.error("Você não tem permissão para realizar esta ação.")
+        else: st.info("Selecione uma empresa na aba 'Situação dos Funcionários' para adicionar um ASO.")
 
-                # Verifica se os campos obrigatórios estão presentes
-                if not data or not norma:
-                    return None
-
-                return {
-                    'data': data,
-                    'norma': norma,
-                    'modulo': modulo,
-                    'tipo_treinamento': tipo_treinamento,
-                    'carga_horaria': carga_horaria
-                }
-            return None
-
-        except Exception as e:
-            st.error(f"Erro ao analisar o PDF: {str(e)}")
-            # Garantir que o arquivo temporário seja removido mesmo em caso de erro
-            try:
-                if 'temp_path' in locals():
-                    os.unlink(temp_path)
-            except:
-                pass
-            return None
-
-    def add_company(self, nome, cnpj):
-        # Verifica se o CNPJ já existe
-        if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
-            return None, "CNPJ já cadastrado"
-        
-        # Prepara os dados da nova empresa
-        new_data = [nome, cnpj]
-        
-        try:
-            # Adiciona a empresa na planilha
-            self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
-            # Recarrega os dados
-            self.load_data()
-            # Retorna o ID gerado
-            return self.companies_df.iloc[-1]['id'], "Empresa cadastrada com sucesso"
-        except Exception as e:
-            return None, f"Erro ao cadastrar empresa: {str(e)}"
-    
-    def add_employee(self, nome, cargo, data_admissao, empresa_id):
-        """
-        Adiciona um novo funcionário.
-        
-        Args:
-            nome: Nome do funcionário
-            cargo: Cargo do funcionário
-            data_admissao: Data de admissão (datetime.date)
-            empresa_id: ID da empresa
-            
-        Returns:
-            tuple: (employee_id, message) - ID do funcionário e mensagem de sucesso/erro
-        """
-        try:
-            # Prepara os dados do novo funcionário na ordem correta da planilha
-            new_data = [
-                nome,  # nome
-                empresa_id,  # empresa_id
-                cargo,  # cargo
-                data_admissao.strftime("%d/%m/%Y") if isinstance(data_admissao, (datetime, date)) else data_admissao  # data_admissao
-            ]
-            
-            # Adiciona o funcionário na planilha usando a aba correta de funcionários
-            employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
-            if employee_id:
-                # Limpa o cache antes de recarregar os dados
-                st.cache_data.clear()
-                # Recarrega os dados após adicionar
-                self.load_data()
-                st.success(f"Funcionário adicionado com sucesso! ID: {employee_id}")
-                return employee_id, "Funcionário adicionado com sucesso"
-            else:
-                st.error("Erro ao adicionar funcionário na planilha")
-                return None, "Erro ao adicionar funcionário na planilha"
-        except Exception as e:
-            st.error(f"Erro ao adicionar funcionário: {str(e)}")
-            return None, f"Erro ao adicionar funcionário: {str(e)}"
-    
-    def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
-        """
-        Adiciona um novo ASO para um funcionário.
-        
-        Args:
-            id: ID do funcionário
-            data_aso: Data do ASO
-            vencimento: Data de vencimento
-            arquivo_id: ID do arquivo no Google Drive
-            riscos: Riscos ocupacionais
-            cargo: Cargo conforme ASO
-        """
-        # Prepara os dados do novo ASO
-        new_data = [
-            id,
-            data_aso.strftime("%d/%m/%Y"),
-            vencimento.strftime("%d/%m/%Y"),
-            arquivo_id,  # ID do arquivo no Google Drive
-            riscos,
-            cargo
-        ]
-        
-        try:
-            # Adiciona o ASO na planilha
-            aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
-            if aso_id:
-                # Recarrega os dados após adicionar
-                self.load_data()
-                st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
-                return aso_id
-            else:
-                st.error("Erro ao adicionar ASO na planilha")
-                return None
-        except Exception as e:
-            st.error(f"Erro ao adicionar ASO: {str(e)}")
-            return None
-
-    def _padronizar_norma(self, norma):
-        """
-        Padroniza o formato da norma (ex: NR-6 -> NR-06)
-        """
-        try:
-            # Verifica se a norma é None ou vazia
-            if norma is None:
-                return None
-                
-            # Converte para string e remove espaços
-            norma = str(norma).strip()
-            if not norma:
-                return None
-            
-            # Remove espaços extras e converte para maiúsculas
-            norma = ' '.join(norma.split()).upper()
-            
-            # Remove espaços antes e depois
-            norma = norma.strip()
-            
-            # Adiciona zero se necessário (NR-6 -> NR-06)
-            if norma.startswith("NR-") and len(norma) == 4:
-                norma = norma.replace("NR-", "NR-0")
-            # Se tiver espaço entre NR e o número (ex: "NR 6")
-            elif norma.startswith("NR ") and len(norma) == 4:
-                norma = norma.replace("NR ", "NR-0")
-            # Se tiver espaço entre NR e o número (ex: "NR 06")
-            elif norma.startswith("NR ") and len(norma) == 5:
-                norma = norma.replace("NR ", "NR-")
-                
-            return norma
-        except Exception as e:
-            st.error(f"Erro ao padronizar norma: {str(e)}")
-            return None
-
-    def add_training(self, id, data, vencimento, norma, modulo, status, anexo,
-                    tipo_treinamento, carga_horaria):
-        """
-        Adiciona um novo treinamento para um funcionário.
-        """
-        try:
-            # Verifica se a data foi fornecida
-            if data is None:
-                st.error("Data do treinamento é obrigatória")
-                return None
-
-            # Verifica se a norma foi fornecida
-            if norma is None or str(norma).strip() == "":
-                st.error("A norma do treinamento é obrigatória")
-                return None
-                
-            # Padroniza o formato da norma
-            norma_padronizada = self._padronizar_norma(norma)
-            if norma_padronizada is None:
-                st.error("Erro ao padronizar a norma do treinamento")
-                return None
-
-            # Calcula o vencimento se não foi fornecido
-            if vencimento is None:
-                vencimento = self.calcular_vencimento_treinamento(data, norma_padronizada, modulo, tipo_treinamento)
-                if vencimento is None:
-                    st.error("Não foi possível calcular a data de vencimento do treinamento")
-                    return None
-
-            # Limpa o cache antes de adicionar os dados
-            st.cache_data.clear()
-            
-            # Prepara os dados do novo treinamento na ordem correta das colunas
-            new_data = [
-                str(id),                    # funcionario_id
-                data.strftime("%d/%m/%Y") if data else None,  # data
-                vencimento.strftime("%d/%m/%Y") if vencimento else None,  # vencimento
-                norma_padronizada,     # norma
-                str(modulo) if modulo else "",  # modulo
-                str(status) if status else "Válido",  # status
-                str(anexo) if anexo else "",  # arquivo_id
-                str(tipo_treinamento) if tipo_treinamento else "formação",  # tipo_treinamento
-                str(carga_horaria) if carga_horaria else "0"  # carga_horaria
-            ]
-            
-            # Adiciona o treinamento na planilha
-            training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
-            if training_id:
-                # Recarrega os dados após adicionar
-                self.load_data()
-                st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
-                return training_id
-            else:
-                st.error("Erro ao adicionar treinamento na planilha")
-                return None
-        except Exception as e:
-            st.error(f"Erro ao adicionar treinamento: {str(e)}")
-            return None
-
-    def get_company_name(self, company_id):
-        company = self.companies_df[self.companies_df['id'] == company_id]
-        if not company.empty:
-            return company.iloc[0]['nome']
-        return None
-    
-    def get_employee_name(self, employee_id):
-        employee = self.employees_df[self.employees_df['id'] == employee_id]
-        if not employee.empty:
-            return employee.iloc[0]['nome']
-        return None
-    
-    def get_employees_by_company(self, company_id):
-        # Verifica se o DataFrame está vazio
-        if self.employees_df.empty:
-            return pd.DataFrame()
-        
-        # Verifica se a coluna existe
-        if 'empresa_id' not in self.employees_df.columns:
-            st.error("Erro: A coluna 'empresa_id' não foi encontrada nos dados dos funcionários.")
-            return pd.DataFrame()
-        
-        return self.employees_df[self.employees_df['empresa_id'] == company_id]
-    
-    def get_employee_docs(self, employee_id):
-        """
-        Obtém os documentos mais recentes de um funcionário.
-        
-        Args:
-            employee_id: ID do funcionário
-            
-        Returns:
-            tuple: (aso_docs, training_docs) - DataFrames com os documentos mais recentes
-        """
-        # Obtém todos os ASOs do funcionário
-        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id].copy()
-        if not aso_docs.empty:
-            # Converte as datas para datetime
-            aso_docs['data_aso'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
-            # Ordena por data e pega o mais recente
-            aso_docs = aso_docs.sort_values('data_aso', ascending=False).head(1)
-        
-        # Obtém todos os treinamentos do funcionário
-        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id].copy()
-        if not training_docs.empty:
-            # Converte as datas para datetime
-            training_docs['data'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
-            # Agrupa por norma e módulo e pega o mais recente de cada
-            training_docs = training_docs.sort_values('data', ascending=False).groupby(['norma', 'modulo']).head(1)
-        
-        return aso_docs, training_docs
-
-    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='formação'):
-        """
-        Calcula a data de vencimento do treinamento com base na norma.
-        
-        Args:
-            data_realizacao (datetime.date): Data de realização do treinamento
-            norma (str): Norma do treinamento (ex: NR-35, NR-10)
-            modulo (str, optional): Módulo do treinamento (necessário para NR-20)
-            tipo_treinamento (str): 'formação' ou 'reciclagem'
-            
-        Returns:
-            datetime.date: Data de vencimento do treinamento
-        """
-        try:
-            # Padroniza a norma
-            norma = self._padronizar_norma(norma)
-            if not norma:
-                return None
-
-            # Calcula o vencimento baseado na norma
-            if norma == "NR-20" and modulo in self.nr20_config:
-                anos = self.nr20_config[modulo]['reciclagem_anos']
-            elif norma in self.nr_config:
-                anos = self.nr_config[norma]['reciclagem_anos']
-            else:
-                return None
-
-            # Calcula a data de vencimento
-            if data_realizacao:
-                return data_realizacao + timedelta(days=anos * 365)
-            return None
-            
-        except Exception as e:
-            st.error(f"Erro ao calcular vencimento do treinamento: {str(e)}")
-            return None
-
-    def verificar_carga_horaria(self, norma, modulo=None, tipo_treinamento='formação'):
-        """
-        Verifica a carga horária mínima necessária para o treinamento.
-        
-        Args:
-            norma (str): Norma do treinamento (ex: NR-35, NR-10)
-            modulo (str, optional): Módulo do treinamento (necessário para NR-20)
-            tipo_treinamento (str): 'formação' ou 'reciclagem'
-            
-        Returns:
-            int: Carga horária mínima em horas
-        """
-        if norma == "NR-20" and modulo in self.nr20_config:
-            if tipo_treinamento == 'formação':
-                return self.nr20_config[modulo]['inicial_horas']
-            else:  # reciclagem
-                return self.nr20_config[modulo]['reciclagem_horas']
-        elif norma in self.nr_config:
-            if tipo_treinamento == 'formação':
-                return self.nr_config[norma]['inicial_horas']
-            else:  # reciclagem
-                return self.nr_config[norma]['reciclagem_horas']
-            
-        return None
-
-    def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
-        """
-        Valida se a carga horária do treinamento está de acordo com os requisitos.
-        
-        Returns:
-            tuple: (bool, str) - (válido, mensagem)
-        """
-        carga_minima = self.verificar_carga_horaria(norma, modulo, tipo_treinamento)
-        if carga_minima and carga_horaria < carga_minima:
-            return False, f"Carga horária insuficiente para {norma}. Mínimo necessário: {carga_minima} horas"
-        return True, ""
-
-    def analyze_aso_pdf(self, pdf_file):
-        try:
-            # Salvar o arquivo temporariamente
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue())
-                temp_path = temp_file.name
-
-            # Todas as perguntas em uma única string
-            combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas:
-            1. Qual é a data de realização do ASO? Responda apenas a data no formato DD/MM/AAAA.
-            2. Qual é a data de vencimento do ASO? Responda apenas a data no formato DD/MM/AAAA.
-            3. Quais são os riscos ocupacionais identificados? Liste apenas os riscos.
-            4. Qual é o cargo do funcionário conforme consta no ASO? Responda apenas o cargo.
-            
-            Responda cada pergunta em uma nova linha, numerada de 1 a 4.
-            """
-
-            # Fazer uma única requisição com todas as perguntas
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
-            
-            # Limpar o arquivo temporário
-            try:
-                os.unlink(temp_path)
-            except Exception as e:
-                st.warning(f"Erro ao remover arquivo temporário: {str(e)}")
-
-            # Processar as respostas
-            if answer:
-                # Dividir as respostas em linhas e extrair as informações
-                lines = answer.strip().split('\n')
-                results = {}
-                for line in lines:
-                    if line.strip():
-                        try:
-                            num, value = line.split('.', 1)
-                            results[int(num)] = value.strip()
-                        except:
-                            continue
-
-                try:
-                    data_aso = datetime.strptime(results[1], "%d/%m/%Y").date()
-                except:
-                    data_aso = None
-
-                try:
-                    vencimento = datetime.strptime(results[2], "%d/%m/%Y").date()
-                except:
-                    vencimento = None
-
-                # Se não encontrou a data de vencimento, calcula como 1 ano após a data do ASO
-                if data_aso and not vencimento:
-                    vencimento = data_aso + timedelta(days=365)
-
-                return {
-                    'data_aso': data_aso,
-                    'vencimento': vencimento,
-                    'riscos': results[3],
-                    'cargo': results[4]
-                }
-            return None
-
-        except Exception as e:
-            st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
-            # Garantir que o arquivo temporário seja removido mesmo em caso de erro
-            try:
-                if 'temp_path' in locals():
-                    os.unlink(temp_path)
-            except:
-                pass
-            return None
-
-    def get_document_by_id(self, aba_name, doc_id):
-        """
-        Recupera um documento (ASO ou treinamento) pelo ID.
-        
-        Args:
-            aba_name: Nome da aba (LIFTING_SHEET_NAME ou CRANE_SHEET_NAME)
-            doc_id: ID do documento
-            
-        Returns:
-            dict: Dados do documento ou None se não encontrado
-        """
-        try:
-            data = self.sheet_ops.carregar_dados_aba(aba_name)
-            if not data:
-                return None
-                
-            # Procura o documento pelo ID
-            for row in data[1:]:  # Pula o cabeçalho
-                if row[0] == str(doc_id):
-                    if aba_name == ASO_SHEET_NAME:
-                        return {
-                            'id': row[0],
-                            'funcionario_id': row[1],
-                            'data_aso': row[2],
-                            'vencimento': row[3],
-                            'arquivo_id': row[4],
-                            'riscos': row[5],
-                            'cargo': row[6]
-                        }
-                    else:  # treinamentos
-                        return {
-                            'id': row[0],
-                            'funcionario_id': row[1],
-                            'data': row[2],
-                            'vencimento': row[3],
-                            'norma': row[4],
-                            'modulo': row[5],
-                            'status': row[6],
-                            'arquivo_id': row[7],
-                            'tipo_treinamento': row[8],
-                            'carga_horaria': row[9]
-                        }
-            return None
-        except Exception as e:
-            st.error(f"Erro ao buscar documento: {str(e)}")
-            return None
-
-
+    with tab_treinamento:
+        if selected_company:
+            if check_admin_permission():
+                st.subheader("Adicionar Novo Treinamento")
+                mostrar_info_normas()
+                current_employees = employee_manager.get_employees_by_company(selected_company)
+                if not current_employees.empty:
+                    selected_employee_training = st.selectbox("Selecione o funcionário", current_employees['id'].tolist(), format_func=lambda x: employee_manager.get_employee_name(x), key="treinamento_employee_add_tab")
+                    anexo_training = st.file_uploader("Anexar Certificado (PDF)", type=['pdf'], key="treinamento_uploader_tab")
+                    if anexo_training:
+                        with st.spinner("Analisando o PDF do treinamento..."):
+                            treinamento_info = employee_manager.analyze_training_pdf(anexo_training)
+                        if treinamento_info:
+                            with st.container(border=True):
+                                st.markdown("### Informações Extraídas do Treinamento")
+                                data = treinamento_info.get('data')
+                                vencimento = employee_manager.calcular_vencimento_treinamento(data, treinamento_info.get('norma'), treinamento_info.get('modulo'), treinamento_info.get('tipo_treinamento')) if isinstance(data, date) else None
+                                st.write(f"**Data:** {data.strftime('%d/%m/%Y') if data else 'Não encontrada'}")
+                                st.write(f"**Norma:** {treinamento_info.get('norma', 'N/A')}")
+                                if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
+                                else: st.warning("Não foi possível calcular o vencimento.")
+                                if st.button("Confirmar e Salvar Treinamento", type="primary", key="save_training_btn"):
+                                    arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TREINAMENTO_EMP_{selected_employee_training}_COMP_{selected_company}_{treinamento_info.get('norma')}")
+                                    if arquivo_id:
+                                        employee_manager.add_training(id=selected_employee_training, data=data, vencimento=vencimento, norma=treinamento_info.get('norma'), modulo=treinamento_info.get('modulo'), status="Válido", anexo=arquivo_id, tipo_treinamento=treinamento_info.get('tipo_treinamento'), carga_horaria=treinamento_info.get('carga_horaria'))
+                                        st.success("Treinamento registrado com sucesso!")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                        else: st.error("Não foi possível extrair informações do PDF.")
+                else: st.warning("Cadastre funcionários para esta empresa antes de adicionar treinamentos.")
+            else: st.error("Você não tem permissão para realizar esta ação.")
+        else: st.info("Selecione uma empresa na aba 'Situação dos Funcionários' para adicionar um treinamento.")
 
 
 
