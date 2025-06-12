@@ -8,15 +8,25 @@ import tempfile # Importar o módulo tempfile
 from google.auth.transport.requests import Request
 
 class GoogleDriveUploader:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GoogleDriveUploader, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
-        self.SCOPES = [
-            'https://www.googleapis.com/auth/drive.file',
-            'https://www.googleapis.com/auth/spreadsheets' # Adicionado escopo para Google Sheets
-        ]
-        self.credentials = None
-        self.drive_service = None
-        self.sheets_service = None
-        self.initialize_services()
+        if not self._initialized:
+            self.SCOPES = [
+                'https://www.googleapis.com/auth/drive.file',
+                'https://www.googleapis.com/auth/spreadsheets'
+            ]
+            self.credentials = None
+            self.drive_service = None
+            self.sheets_service = None
+            self.initialize_services()
+            self._initialized = True
 
     def initialize_services(self):
         """Inicializa os serviços do Google Drive e Google Sheets"""
@@ -148,4 +158,5 @@ class GoogleDriveUploader:
         except Exception as e:
             st.error(f"Erro ao ler dados da planilha '{sheet_name}': {str(e)}")
             raise
+
 
