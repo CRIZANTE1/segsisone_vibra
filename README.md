@@ -127,4 +127,4 @@ Lincença restrita.
 
 ## Suporte
 
-Para suporte, envie um email para [seu-email@exemplo.com] ou abra uma issue no GitHub. 
+Para suporte, abra uma issue no GitHub. 
