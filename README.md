@@ -123,7 +123,7 @@ streamlit run main.py
 
 ## Licença
 
-Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE.txt](LICENSE.txt) para detalhes.
+Lincença restrita.
 
 ## Suporte
 
