@@ -43,7 +43,7 @@ class GoogleDriveUploader:
             st.error(f"Erro ao inicializar serviços do Google: {str(e)}")
             raise
 
-    def upload_file(self, arquivo, novo_nome=None): # Adicionado novo_nome como parâmetro
+    def upload_file(self, arquivo, novo_nome=None):
         """
         Faz upload do arquivo para o Google Drive
         
@@ -54,45 +54,41 @@ class GoogleDriveUploader:
         Returns:
             str: URL de visualização do arquivo
         """
-        st.info("Iniciando processo de upload do arquivo.") # Log adicionado
-        temp_file = None # Inicializa temp_file como None
+        progress_bar = st.progress(0)
+        temp_file = None
         try:
-            st.info("Criando arquivo temporário.") # Log adicionado
-            # Criar arquivo temporário usando tempfile
-            # delete=False para que o arquivo não seja excluído automaticamente ao fechar
-            # e possamos passá-lo para MediaFileUpload
+            # Criar arquivo temporário
+            progress_bar.progress(10)
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(arquivo.name)[1])
             temp_file.write(arquivo.getbuffer())
-            temp_file.close() # Fechar o arquivo para liberar o handle
+            temp_file.close()
 
-            temp_path = temp_file.name # Obter o caminho do arquivo temporário
-            st.info(f"Arquivo temporário criado em: {temp_path}") # Log adicionado
+            temp_path = temp_file.name
+            progress_bar.progress(30)
 
             # Preparar metadata
-            st.info("Preparando metadados do arquivo.") # Log adicionado
             file_metadata = {
-                'name': novo_nome if novo_nome else arquivo.name, # Usa novo_nome se fornecido
+                'name': novo_nome if novo_nome else arquivo.name,
                 'parents': [GDRIVE_FOLDER_ID]
             }
-            st.info(f"Metadados: {file_metadata}") # Log adicionado
+            progress_bar.progress(50)
 
             # Preparar upload
-            st.info("Preparando upload de mídia.") # Log adicionado
             media = MediaFileUpload(
                 temp_path,
                 mimetype=arquivo.type,
                 resumable=True
             )
-            st.info(f"Tipo MIME do arquivo: {arquivo.type}") # Log adicionado
+            progress_bar.progress(70)
 
             # Fazer upload
-            st.info("Executando upload para o Google Drive.") # Log adicionado
-            file = self.drive_service.files().create( # Usar self.drive_service
+            file = self.drive_service.files().create(
                 body=file_metadata,
                 media_body=media,
                 fields='id,webViewLink'
             ).execute()
-            st.info("Upload concluído com sucesso.") # Log adicionado
+            progress_bar.progress(100)
+            st.success("Upload concluído com sucesso!")
 
             return file.get('webViewLink')
 
@@ -102,7 +98,7 @@ class GoogleDriveUploader:
             else:
                 st.error(f"Erro ao fazer upload do arquivo: {str(e)}")
             raise
-        finally: # Garante que o arquivo temporário seja removido
+        finally:
             if temp_file and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
@@ -158,5 +154,7 @@ class GoogleDriveUploader:
         except Exception as e:
             st.error(f"Erro ao ler dados da planilha '{sheet_name}': {str(e)}")
             raise
+
+
 
 
