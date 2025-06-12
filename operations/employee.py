@@ -17,15 +17,19 @@ from gdrive.config import (
 gdrive_uploader = GoogleDriveUploader()
 
 # Cache para carregar dados das planilhas
-@st.cache_data(ttl=30) 
+@st.cache_resource
+def get_sheet_operations():
+    return SheetOperations()
+
+@st.cache_data(ttl=30)
 def load_sheet_data(sheet_name):
-    sheet_ops = SheetOperations()
+    sheet_ops = get_sheet_operations()
     return sheet_ops.carregar_dados_aba(sheet_name)
 
 class EmployeeManager:
     def __init__(self):
         # Inicializa o gerenciador de planilhas e carrega os dados
-        self.sheet_ops = SheetOperations()
+        self.sheet_ops = get_sheet_operations()
         
         # Inicializa as abas se necessário
         if not self.initialize_sheets():
@@ -735,6 +739,17 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao buscar documento: {str(e)}")
             return None
+
+
+
+
+
+
+
+
+
+
+
 
 
 
