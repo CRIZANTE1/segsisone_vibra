@@ -544,8 +544,31 @@ class EmployeeManager:
         return self.employees_df[self.employees_df['empresa_id'] == company_id]
     
     def get_employee_docs(self, employee_id):
-        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id]
-        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id]
+        """
+        Obtém os documentos mais recentes de um funcionário.
+        
+        Args:
+            employee_id: ID do funcionário
+            
+        Returns:
+            tuple: (aso_docs, training_docs) - DataFrames com os documentos mais recentes
+        """
+        # Obtém todos os ASOs do funcionário
+        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == employee_id].copy()
+        if not aso_docs.empty:
+            # Converte as datas para datetime
+            aso_docs['data_aso'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
+            # Ordena por data e pega o mais recente
+            aso_docs = aso_docs.sort_values('data_aso', ascending=False).head(1)
+        
+        # Obtém todos os treinamentos do funcionário
+        training_docs = self.training_df[self.training_df['funcionario_id'] == employee_id].copy()
+        if not training_docs.empty:
+            # Converte as datas para datetime
+            training_docs['data'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
+            # Agrupa por norma e módulo e pega o mais recente de cada
+            training_docs = training_docs.sort_values('data', ascending=False).groupby(['norma', 'modulo']).head(1)
+        
         return aso_docs, training_docs
 
     def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='formação'):
