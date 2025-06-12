@@ -20,10 +20,11 @@ class PDFQA:
     #----------------- Função para fazer perguntas ao modelo Gemini----------------------
     def ask_gemini(self, pdf_files, question):
         try:
-            st.info("Enviando pergunta para o modelo Gemini...")
+            progress_bar = st.progress(0)
             
             # Preparar os inputs para o modelo
             inputs = []
+            progress_bar.progress(20)
             
             # Adicionar os PDFs
             for pdf_file in pdf_files:
@@ -41,12 +42,16 @@ class PDFQA:
                 }
                 inputs.append(part)
             
+            progress_bar.progress(40)
+            
             # Adicionar a pergunta como texto
             inputs.append({"text": question})
             
             # Gerar resposta usando o modelo multimodal
+            progress_bar.progress(60)
             response = self.model.generate_content(inputs)
-            st.success("Resposta recebida do modelo Gemini.")
+            progress_bar.progress(100)
+            st.success("Resposta gerada com sucesso!")
             return response.text
             
         except Exception as e:
@@ -58,18 +63,23 @@ class PDFQA:
         start_time = time.time()
 
         try:
-            with st.spinner("Gerando resposta com o modelo Gemini..."):
-                answer = self.ask_gemini(pdf_files, question)
-                if answer:
-                    st.info("Resposta gerada com sucesso.")
-                    return answer, time.time() - start_time
-                else:
-                    st.error("Não foi possível obter uma resposta do modelo.")
-                    return None, 0
+            answer = self.ask_gemini(pdf_files, question)
+            if answer:
+                return answer, time.time() - start_time
+            else:
+                st.error("Não foi possível obter uma resposta do modelo.")
+                return None, 0
         except Exception as e:
             st.error(f"Erro inesperado ao processar a pergunta: {str(e)}")
             st.exception(e)
             return None, 0
+
+
+
+
+
+   
+
 
 
 
