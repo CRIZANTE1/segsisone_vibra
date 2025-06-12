@@ -72,7 +72,7 @@ def front_page():
                 st.dataframe(employees[['nome', 'cargo', 'data_admissao']])
                 
                 # Mostrar ASOs
-                st.subheader("ASOs")
+                st.subheader("ASOs (Mais Recentes)")
                 asos = pd.DataFrame()
                 for _, employee in employees.iterrows():
                     aso_docs, _ = employee_manager.get_employee_docs(employee['id'])
@@ -115,7 +115,7 @@ def front_page():
                     st.info("Nenhum ASO registrado")
 
                 # Mostrar Treinamentos
-                st.subheader("Treinamentos")
+                st.subheader("Treinamentos (Mais Recentes por Norma/Módulo)")
                 treinamentos = pd.DataFrame()
                 for _, employee in employees.iterrows():
                     _, training_docs = employee_manager.get_employee_docs(employee['id'])
@@ -594,6 +594,9 @@ def mostrar_treinamentos():
         st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
 
    
+
+   
+
 
    
 
