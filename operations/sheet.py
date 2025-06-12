@@ -4,17 +4,38 @@ import logging
 import random
 from gdrive.connection import connect_sheet
 from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
+from datetime import datetime
 
 
 class SheetOperations:
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(SheetOperations, cls).__new__(cls)
+        return cls._instance
     
     def __init__(self):
         """
         Inicializa a conexão com o Google Sheets.
         """
-        self.credentials, self.my_archive_google_sheets = connect_sheet()
-        if not self.credentials or not self.my_archive_google_sheets:
-            logging.error("Credenciais ou URL do Google Sheets inválidos.")
+        if not self._initialized:
+            self.credentials, self.my_archive_google_sheets = connect_sheet()
+            if not self.credentials or not self.my_archive_google_sheets:
+                logging.error("Credenciais ou URL do Google Sheets inválidos.")
+            self._initialized = True
+            self._cache = {}
+            self._cache_timestamp = {}
+            self._cache_ttl = 30  # Tempo de vida do cache em segundos
+
+    def _is_cache_valid(self, key):
+        """
+        Verifica se o cache para uma chave específica ainda é válido.
+        """
+        if key not in self._cache_timestamp:
+            return False
+        return (datetime.now() - self._cache_timestamp[key]).total_seconds() < self._cache_ttl
 
     def carregar_dados_aba(self, aba_name):
         """
@@ -29,6 +50,11 @@ class SheetOperations:
         """
         if not self.credentials or not self.my_archive_google_sheets:
             return None
+
+        # Verifica se os dados estão em cache e são válidos
+        if aba_name in self._cache and self._is_cache_valid(aba_name):
+            return self._cache[aba_name]
+
         try:
             logging.info(f"Tentando ler dados da aba '{aba_name}'...")
             
@@ -41,6 +67,10 @@ class SheetOperations:
             
             aba = archive.worksheet_by_title(aba_name)
             data = aba.get_all_values()
+            
+            # Atualiza o cache
+            self._cache[aba_name] = data
+            self._cache_timestamp[aba_name] = datetime.now()
             
             logging.info(f"Dados da aba '{aba_name}' lidos com sucesso.")
             return data
@@ -397,6 +427,7 @@ class SheetOperations:
             st.error(f"Erro ao recriar aba: {e}")
             return False
             
+
 
             
 
