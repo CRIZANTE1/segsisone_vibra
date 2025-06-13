@@ -26,6 +26,7 @@ def load_sheet_data(sheet_name):
     return sheet_ops.carregar_dados_aba(sheet_name)
 
 class EmployeeManager:
+    # ... (__init__ e _parse_flexible_date sem alterações) ...
     def _parse_flexible_date(self, date_string: str) -> date | None:
         if not date_string: return None
         match = re.search(r'(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})', date_string, re.IGNORECASE)
@@ -113,7 +114,8 @@ class EmployeeManager:
             aso_docs = aso_docs.dropna(subset=['data_aso']).sort_values('data_aso', ascending=False).head(1)
             if not aso_docs.empty:
                 aso_docs['data_aso'] = aso_docs['data_aso'].dt.date
-                aso_docs['vencimento'] = pd.to_datetime(aso_docs['vencimento'], errors='coerce').dt.date
+                # --- CORREÇÃO APLICADA AQUI ---
+                aso_docs['vencimento'] = pd.to_datetime(aso_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return aso_docs
 
     def get_all_trainings_by_employee(self, employee_id):
@@ -124,7 +126,8 @@ class EmployeeManager:
              training_docs = training_docs.dropna(subset=['data']).sort_values('data', ascending=False)
              if not training_docs.empty:
                  training_docs['data'] = training_docs['data'].dt.date
-                 training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], errors='coerce').dt.date
+                 # --- CORREÇÃO APLICADA AQUI ---
+                 training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return training_docs
 
     def analyze_training_pdf(self, pdf_file):
@@ -137,14 +140,7 @@ class EmployeeManager:
                 temp_file.write(pdf_file.getvalue())
                 temp_path = temp_file.name
             
-            combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual a data de emissão do ASO? (ex: 25/05/2024 ou 25 de Maio de 2024)
-            2. Qual a data de vencimento do ASO? (Se não houver, responda 'N/A')
-            3. Quais são os riscos ocupacionais?
-            4. Qual o cargo do funcionário?
-            5. Qual o tipo de exame médico? (ex: Admissional, Periódico, Demissional, Mudança de Risco, Retorno ao Trabalho, Monitoramento Pontual)
-            """
+            combined_question = "..."
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
             if not answer: return None
@@ -159,23 +155,14 @@ class EmployeeManager:
             
             vencimento = self._parse_flexible_date(results.get(2, ''))
             
-            # --- LÓGICA DE IDENTIFICAÇÃO DE TIPO APRIMORADA ---
             tipo_aso_str = results.get(5, '').lower()
             tipo_aso = "Não identificado"
-
-            # Verifica múltiplas palavras-chave para cada tipo
-            if any(term in tipo_aso_str for term in ['admissional', 'admissão']):
-                tipo_aso = 'Admissional'
-            elif 'periódico' in tipo_aso_str:
-                tipo_aso = 'Periódico'
-            elif 'demissional' in tipo_aso_str:
-                tipo_aso = 'Demissional'
-            elif any(term in tipo_aso_str for term in ['mudança', 'função', 'cargo']):
-                tipo_aso = 'Mudança de Risco'
-            elif 'retorno' in tipo_aso_str:
-                tipo_aso = 'Retorno ao Trabalho'
-            elif any(term in tipo_aso_str for term in ['monitoramento', 'pontual']):
-                tipo_aso = 'Monitoramento Pontual'
+            if any(term in tipo_aso_str for term in ['admissional', 'admissão']): tipo_aso = 'Admissional'
+            elif 'periódico' in tipo_aso_str: tipo_aso = 'Periódico'
+            elif 'demissional' in tipo_aso_str: tipo_aso = 'Demissional'
+            elif any(term in tipo_aso_str for term in ['mudança', 'função', 'cargo']): tipo_aso = 'Mudança de Risco'
+            elif 'retorno' in tipo_aso_str: tipo_aso = 'Retorno ao Trabalho'
+            elif any(term in tipo_aso_str for term in ['monitoramento', 'pontual']): tipo_aso = 'Monitoramento Pontual'
 
             if not vencimento and tipo_aso != 'Demissional':
                 st.info(f"Vencimento não encontrado. Calculando com base no tipo '{tipo_aso}'...")
@@ -183,7 +170,7 @@ class EmployeeManager:
                     vencimento = data_aso + timedelta(days=365)
                 elif tipo_aso == 'Monitoramento Pontual':
                     vencimento = data_aso + timedelta(days=180)
-                else: # Inclui "Não identificado"
+                else:
                     vencimento = data_aso + timedelta(days=365)
                     st.warning("Tipo de ASO não identificado, assumindo validade de 1 ano.")
             
@@ -196,6 +183,7 @@ class EmployeeManager:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
             return None
 
+    # O resto do código (add_company, add_employee, etc.) permanece igual
     def add_company(self, nome, cnpj):
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             return None, "CNPJ já cadastrado"
