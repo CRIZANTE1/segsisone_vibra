@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
