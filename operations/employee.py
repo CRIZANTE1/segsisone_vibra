@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/employee.py
+
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -12,9 +14,8 @@ import locale
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
-    pass # Ignora silenciosamente se o locale não estiver disponível
+    pass
 
-# Os decoradores de cache são seguros, eles não executam st.something imediatamente
 @st.cache_resource
 def get_sheet_operations():
     return SheetOperations()
@@ -26,19 +27,24 @@ def load_sheet_data(sheet_name):
 
 class EmployeeManager:
     def _parse_flexible_date(self, date_string: str) -> date | None:
-        if not date_string: return None
-        match = re.search(r'(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})', date_string, re.IGNORECASE)
-        if not match: return None
-        clean_date_string = match.group(0)
+        if not date_string or date_string.lower() == 'n/a':
+            return None
+        match = re.search(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2})', date_string, re.IGNORECASE)
+        if not match:
+            return None
+        clean_date_string = match.group(0).replace('.', '/')
         formats = ['%d/%m/%Y', '%d-%m-%Y', '%d/%m/%y', '%d-%m-%y', '%d de %B de %Y', '%Y-%m-%d']
         for fmt in formats:
-            try: return datetime.strptime(clean_date_string, fmt).date()
-            except ValueError: continue
+            try:
+                return datetime.strptime(clean_date_string, fmt).date()
+            except ValueError:
+                continue
         return None
 
     def __init__(self):
         self.sheet_ops = get_sheet_operations()
-        if not self.initialize_sheets(): st.error("Erro ao inicializar as abas da planilha.")
+        if not self.initialize_sheets():
+            st.error("Erro ao inicializar as abas da planilha.")
         self.load_data()
         self._pdf_analyzer = None
         self.nr20_config = {
@@ -59,7 +65,8 @@ class EmployeeManager:
 
     @property
     def pdf_analyzer(self):
-        if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
+        if self._pdf_analyzer is None:
+            self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
     def load_data(self):
@@ -72,12 +79,16 @@ class EmployeeManager:
             
             companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
             self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 0 else pd.DataFrame(columns=company_columns)
+            
             employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
             self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 0 else pd.DataFrame(columns=employee_columns)
+
             aso_data = load_sheet_data(ASO_SHEET_NAME)
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 0 else pd.DataFrame(columns=aso_columns)
+            
             training_data = load_sheet_data(TRAINING_SHEET_NAME)
             self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 0 else pd.DataFrame(columns=training_columns)
+
         except Exception as e:
             st.error(f"Erro ao carregar dados: {str(e)}")
             self.companies_df, self.employees_df, self.aso_df, self.training_df = (pd.DataFrame() for _ in range(4))
@@ -93,7 +104,8 @@ class EmployeeManager:
             }
             for sheet_name, columns in sheets_structure.items():
                 data = self.sheet_ops.carregar_dados_aba(sheet_name)
-                if not data: self.sheet_ops.criar_aba(sheet_name, columns)
+                if not data:
+                    self.sheet_ops.criar_aba(sheet_name, columns)
                 else:
                     header = data[0]
                     if sheet_name == ASO_SHEET_NAME and 'tipo_aso' not in header:
@@ -127,8 +139,53 @@ class EmployeeManager:
         return training_docs
 
     def analyze_training_pdf(self, pdf_file):
-        # ... (código de análise de treinamento) ...
-        return {}
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            combined_question = """
+            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
+            1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
+            2. Qual é o módulo do treinamento? (ex: Básico, ou 'Não se aplica')
+            3. Qual é a data de realização do treinamento? (ex: 25/05/2024)
+            4. Este documento é um certificado de reciclagem? (Responda 'sim' ou 'não')
+            5. Qual é a carga horária total do treinamento em horas? (Responda apenas o número)
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
+            os.unlink(temp_path)
+            if not answer: return None
+
+            lines = answer.strip().split('\n')
+            results = {}
+            for line in lines:
+                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
+                if match:
+                    key = int(match.group(1))
+                    value = match.group(2).strip()
+                    results[key] = value
+            
+            data = self._parse_flexible_date(results.get(3, ''))
+            norma = self._padronizar_norma(results.get(1))
+            
+            if not data or not norma: 
+                st.warning("Não foi possível extrair a data ou a norma do PDF.")
+                return None
+            
+            carga_horaria_str = results.get(5, '0')
+            match_carga = re.search(r'\d+', carga_horaria_str)
+            carga_horaria = int(match_carga.group(0)) if match_carga else 0
+
+            return {
+                'data': data,
+                'norma': norma,
+                'modulo': results.get(2, ""),
+                'tipo_treinamento': 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação',
+                'carga_horaria': carga_horaria
+            }
+        except Exception as e:
+            st.error(f"Erro ao analisar o PDF de treinamento: {str(e)}")
+            return None
 
     def analyze_aso_pdf(self, pdf_file):
         try:
@@ -138,7 +195,7 @@ class EmployeeManager:
             
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual a data de emissão do ASO? (ex: 25/05/2024)
+            1. Qual a data de emissão do ASO? (ex: 25/05/2024 ou 25 de Maio de 2024)
             2. Qual a data de vencimento do ASO? (Se não houver, responda 'N/A')
             3. Quais são os riscos ocupacionais?
             4. Qual o cargo do funcionário?
@@ -148,11 +205,9 @@ class EmployeeManager:
             os.unlink(temp_path)
             if not answer: return None
             
-            # --- CORREÇÃO APLICADA AQUI ---
             lines = answer.strip().split('\n')
             results = {}
             for line in lines:
-                # Usa regex para encontrar o número no início da linha, ignorando markdown
                 match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
                 if match:
                     key = int(match.group(1))
@@ -195,6 +250,7 @@ class EmployeeManager:
             return None
 
     def add_company(self, nome, cnpj):
+        from gdrive.config import EMPLOYEE_SHEET_NAME
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             return None, "CNPJ já cadastrado"
         new_data = [nome, cnpj]
@@ -208,6 +264,7 @@ class EmployeeManager:
             return None, f"Erro ao cadastrar empresa: {str(e)}"
     
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
+        from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
         new_data = [nome, empresa_id, cargo, data_admissao.strftime("%d/%m/%Y")]
         try:
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
@@ -219,6 +276,7 @@ class EmployeeManager:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo, tipo_aso="Não identificado"):
+        from gdrive.config import ASO_SHEET_NAME
         if not all([id, data_aso, arquivo_id, cargo]):
             st.error("Dados essenciais para o ASO (ID, Data, Arquivo, Cargo) estão faltando.")
             return None
@@ -243,6 +301,7 @@ class EmployeeManager:
         return norma
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
+        from gdrive.config import TRAINING_SHEET_NAME
         if not all([data, norma, vencimento]):
             st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando.")
             return None
