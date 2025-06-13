@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/front.py
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -236,7 +238,6 @@ def front_page():
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-
    
 
 
