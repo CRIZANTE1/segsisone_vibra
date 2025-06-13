@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/employee.py
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -8,7 +6,7 @@ from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
 import tempfile
 import os
-import re
+import re # <-- ADICIONADO: Importa o módulo de expressões regulares
 from gdrive.config import (
     ASO_SHEET_NAME,
     EMPLOYEE_SHEET_NAME,
@@ -16,10 +14,9 @@ from gdrive.config import (
     TRAINING_SHEET_NAME
 )
 
-# Inicializa o uploader do Google Drive globalmente
+# ... (o resto dos imports e inicializações globais permanecem iguais) ...
 gdrive_uploader = GoogleDriveUploader()
 
-# Cache para carregar dados das planilhas
 @st.cache_resource
 def get_sheet_operations():
     return SheetOperations()
@@ -29,11 +26,13 @@ def load_sheet_data(sheet_name):
     sheet_ops = get_sheet_operations()
     return sheet_ops.carregar_dados_aba(sheet_name)
 
+
 class EmployeeManager:
+    # ... (__init__, pdf_analyzer, load_data, initialize_sheets permanecem iguais) ...
     def __init__(self):
         self.sheet_ops = get_sheet_operations()
         if not self.initialize_sheets():
-            st.error("Erro ao inicializar as abas da planilha.")
+            st.error("Erro ao inicializar as abas da planilha. Algumas funcionalidades podem não funcionar corretamente.")
         self.load_data()
         self._pdf_analyzer = None
         self.nr20_config = {
@@ -62,7 +61,7 @@ class EmployeeManager:
         try:
             company_columns = ['id', 'nome', 'cnpj']
             employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
-            aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
+            aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
             training_columns = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'arquivo_id', 'tipo_treinamento', 'carga_horaria']
             
             companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
@@ -86,18 +85,12 @@ class EmployeeManager:
             sheets_structure = {
                 EMPLOYEE_SHEET_NAME: ['id', 'nome', 'cnpj'],
                 EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'],
-                ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso'],
+                ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo'],
                 TRAINING_SHEET_NAME: ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'arquivo_id', 'tipo_treinamento', 'carga_horaria']
             }
             for sheet_name, columns in sheets_structure.items():
-                data = self.sheet_ops.carregar_dados_aba(sheet_name)
-                if not data:
+                if not self.sheet_ops.carregar_dados_aba(sheet_name):
                     self.sheet_ops.criar_aba(sheet_name, columns)
-                else: # Garante que colunas novas sejam adicionadas se faltarem
-                    header = data[0]
-                    if sheet_name == ASO_SHEET_NAME and 'tipo_aso' not in header:
-                         st.warning(f"A coluna 'tipo_aso' não foi encontrada na aba {ASO_SHEET_NAME} e será adicionada. Verifique sua planilha.")
-                         self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns)
             return True
         except Exception as e:
             st.error(f"Erro ao inicializar as abas: {str(e)}")
@@ -124,7 +117,8 @@ class EmployeeManager:
                  training_docs['data'] = training_docs['data'].dt.date
                  training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return training_docs
-
+    
+    # --- CORREÇÃO APLICADA AQUI ---
     def analyze_training_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
@@ -132,15 +126,12 @@ class EmployeeManager:
                 temp_path = temp_file.name
             
             combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas:
-            1. Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.
-            2. Qual é o tipo específico do treinamento? Apenas o nome do treinamento.
-            3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II. Se não for especificado, será 'Não se aplica'.
-            4. Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.
-            5. Este documento é um certificado de reciclagem? Responda 'sim' ou 'não'.
-            6. Qual é a carga horária total do treinamento em horas? Responda apenas o número.
-            
-            Responda cada pergunta em uma nova linha, numerada de 1 a 6.
+            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
+            1. Qual é a norma regulamentadora (NR) do treinamento? (ex: NR-10)
+            2. Qual é o módulo do treinamento? (ex: Básico, Intermediário, Avançado I, Avançado II, ou 'Não se aplica')
+            3. Qual é a data de realização do treinamento? Responda APENAS a data no formato DD/MM/AAAA.
+            4. Este documento é um certificado de reciclagem? Responda 'sim' ou 'não'.
+            5. Qual é a carga horária total do treinamento em horas? Responda APENAS o número.
             """
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
@@ -149,32 +140,31 @@ class EmployeeManager:
             lines = answer.strip().split('\n')
             results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
             
-            data_str = results.get(4, '')
-            match_data = re.search(r'\d{2}/\d{2}/\d{4}', data_str)
-            data = datetime.strptime(match_data.group(0), "%d/%m/%Y").date() if match_data else None
+            data = None
+            # Usa regex para encontrar a data na resposta da pergunta 3
+            if 3 in results:
+                match = re.search(r'\d{2}/\d{2}/\d{4}', results[3])
+                if match:
+                    data = datetime.strptime(match.group(0), "%d/%m/%Y").date()
 
-            norma_num = results.get(1, "").strip()
-            norma = self._padronizar_norma(f"NR-{norma_num}") if norma_num.isdigit() else self._padronizar_norma(results.get(1))
+            norma = self._padronizar_norma(results.get(1))
             
-            if not data or not norma: 
+            if not data or not norma:
                 st.warning("Não foi possível extrair a data ou a norma do PDF.")
                 return None
-            
-            carga_horaria_str = results.get(6, '0')
-            match_carga = re.search(r'\d+', carga_horaria_str)
-            carga_horaria = int(match_carga.group(0)) if match_carga else 0
 
             return {
                 'data': data,
                 'norma': norma,
-                'modulo': results.get(3, ""),
-                'tipo_treinamento': 'reciclagem' if 'sim' in results.get(5, '').lower() else 'formação',
-                'carga_horaria': carga_horaria
+                'modulo': results.get(2, ""),
+                'tipo_treinamento': 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação',
+                'carga_horaria': int(''.join(filter(str.isdigit, results.get(5, '0'))))
             }
         except Exception as e:
-            st.error(f"Erro ao analisar o PDF de treinamento: {str(e)}")
+            st.error(f"Erro ao analisar o PDF de treinamento: {e}")
             return None
 
+    # --- CORREÇÃO APLICADA AQUI ---
     def analyze_aso_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
@@ -182,12 +172,11 @@ class EmployeeManager:
                 temp_path = temp_file.name
             
             combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas:
+            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
             1. Qual é a data de realização do ASO? Responda APENAS a data no formato DD/MM/AAAA.
-            2. Qual é a data de vencimento do ASO? Se houver, responda APENAS a data no formato DD/MM/AAAA.
-            3. Quais são os riscos ocupacionais identificados?
-            4. Qual é o cargo do funcionário?
-            5. Qual é o tipo de exame médico? (ex: Admissional, Periódico, Demissional, Mudança de Risco, Retorno ao Trabalho, Monitoramento Pontual). Responda apenas o tipo.
+            2. Qual é a data de vencimento do ASO? Responda APENAS a data no formato DD/MM/AAAA. Se não houver, não responda.
+            3. Quais são os riscos ocupacionais identificados? Liste apenas os riscos.
+            4. Qual é o cargo do funcionário conforme consta no ASO? Responda apenas o cargo.
             """
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
@@ -196,49 +185,34 @@ class EmployeeManager:
             lines = answer.strip().split('\n')
             results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
             
-            data_aso_str = results.get(1, '')
-            match_data_aso = re.search(r'\d{2}/\d{2}/\d{4}', data_aso_str)
-            data_aso = datetime.strptime(match_data_aso.group(0), "%d/%m/%Y").date() if match_data_aso else None
+            data_aso = None
+            vencimento = None
+
+            # Usa regex para encontrar a data de realização
+            if 1 in results:
+                match = re.search(r'\d{2}/\d{2}/\d{4}', results[1])
+                if match:
+                    data_aso = datetime.strptime(match.group(0), "%d/%m/%Y").date()
+            
+            # Usa regex para encontrar a data de vencimento
+            if 2 in results:
+                match = re.search(r'\d{2}/\d{2}/\d{4}', results[2])
+                if match:
+                    vencimento = datetime.strptime(match.group(0), "%d/%m/%Y").date()
+            
+            if data_aso and not vencimento:
+                vencimento = data_aso + timedelta(days=365)
             
             if not data_aso:
                 st.warning("Não foi possível extrair a data de realização do ASO.")
                 return None
-            
-            vencimento_str = results.get(2, '')
-            match_vencimento = re.search(r'\d{2}/\d{2}/\d{4}', vencimento_str)
-            vencimento = datetime.strptime(match_vencimento.group(0), "%d/%m/%Y").date() if match_vencimento else None
-            
-            tipo_aso_str = results.get(5, '').lower()
-            tipo_aso = "Não identificado"
 
-            if 'admissional' in tipo_aso_str: tipo_aso = 'Admissional'
-            elif 'periódico' in tipo_aso_str: tipo_aso = 'Periódico'
-            elif 'demissional' in tipo_aso_str: tipo_aso = 'Demissional'
-            elif 'mudança' in tipo_aso_str: tipo_aso = 'Mudança de Risco'
-            elif 'retorno' in tipo_aso_str: tipo_aso = 'Retorno ao Trabalho'
-            elif 'monitoramento' in tipo_aso_str or 'pontual' in tipo_aso_str: tipo_aso = 'Monitoramento Pontual'
-
-            if not vencimento:
-                st.info("Data de vencimento não encontrada no ASO. Calculando com base no tipo...")
-                if tipo_aso in ['Admissional', 'Periódico', 'Mudança de Risco', 'Retorno ao Trabalho']:
-                    vencimento = data_aso + timedelta(days=365)
-                elif tipo_aso == 'Monitoramento Pontual':
-                    vencimento = data_aso + timedelta(days=180)
-                elif tipo_aso == 'Demissional':
-                    vencimento = None
-                else:
-                    vencimento = data_aso + timedelta(days=365)
-                    st.warning("Tipo de ASO não identificado, assumindo validade de 1 ano.")
-            
-            return {
-                'data_aso': data_aso, 'vencimento': vencimento, 
-                'riscos': results.get(3, ""), 'cargo': results.get(4, ""),
-                'tipo_aso': tipo_aso
-            }
+            return {'data_aso': data_aso, 'vencimento': vencimento, 'riscos': results.get(3, ""), 'cargo': results.get(4, "")}
         except Exception as e:
-            st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
+            st.error(f"Erro ao analisar o PDF do ASO: {e}")
             return None
 
+    # --- O RESTANTE DO CÓDIGO PERMANECE IGUAL ---
     def add_company(self, nome, cnpj):
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             return None, "CNPJ já cadastrado"
@@ -246,7 +220,8 @@ class EmployeeManager:
         try:
             company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
             if company_id:
-                st.cache_data.clear(); self.load_data()
+                st.cache_data.clear()
+                self.load_data()
                 return company_id, "Empresa cadastrada com sucesso"
             return None, "Falha ao obter ID da empresa."
         except Exception as e:
@@ -257,22 +232,23 @@ class EmployeeManager:
         try:
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             if employee_id:
-                st.cache_data.clear(); self.load_data()
+                st.cache_data.clear()
+                self.load_data()
                 return employee_id, "Funcionário adicionado com sucesso"
             return None, "Erro ao adicionar funcionário na planilha"
         except Exception as e:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
-    def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo, tipo_aso="Não identificado"):
-        if not all([id, data_aso, arquivo_id, cargo]):
-            st.error("Dados essenciais para o ASO (ID, Data, Arquivo, Cargo) estão faltando.")
+    def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
+        if not all([id, data_aso, vencimento, arquivo_id, cargo]):
+            st.error("Dados essenciais para o ASO estão faltando.")
             return None
-        vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
-        new_data = [str(id), data_aso.strftime("%d/%m/%Y"), vencimento_str, str(arquivo_id), str(riscos), str(cargo), str(tipo_aso)]
+        new_data = [str(id), data_aso.strftime("%d/%m/%Y"), vencimento.strftime("%d/%m/%Y"), str(arquivo_id), str(riscos), str(cargo)]
         try:
             aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
             if aso_id:
-                st.cache_data.clear(); self.load_data()
+                st.cache_data.clear()
+                self.load_data()
                 return aso_id
             return None
         except Exception as e:
@@ -298,7 +274,8 @@ class EmployeeManager:
         try:
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
-                st.cache_data.clear(); self.load_data()
+                st.cache_data.clear()
+                self.load_data()
                 return training_id
             return None
         except Exception as e:
@@ -325,21 +302,19 @@ class EmployeeManager:
         all_trainings = self.get_all_trainings_by_employee(employee_id)
         return latest_aso, all_trainings
 
-    def calcular_vencimento_treinamento(self, data, norma, modulo=None, tipo_treinamento='formação'):
-        if not isinstance(data, date): return None
+    def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='formação'):
+        if not isinstance(data_realizacao, date): return None
         norma_padronizada = self._padronizar_norma(norma)
         if not norma_padronizada: return None
         
         config = self.nr20_config.get(modulo) if norma_padronizada == "NR-20" else self.nr_config.get(norma_padronizada)
         if config:
             anos_validade = config.get('reciclagem_anos', 1)
-            return data + timedelta(days=anos_validade * 365)
+            return data_realizacao + timedelta(days=anos_validade * 365)
         return None
 
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         return True, ""
-
-
 
 
 
