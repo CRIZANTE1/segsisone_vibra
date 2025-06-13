@@ -12,10 +12,9 @@ import locale
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
-    st.warning("Locale 'pt_BR.UTF-8' não encontrado. A extração de datas por extenso pode falhar.")
+    pass # Ignora silenciosamente se o locale não estiver disponível
 
-gdrive_uploader = GoogleDriveUploader()
-
+# Os decoradores de cache são seguros, eles não executam st.something imediatamente
 @st.cache_resource
 def get_sheet_operations():
     return SheetOperations()
@@ -26,7 +25,6 @@ def load_sheet_data(sheet_name):
     return sheet_ops.carregar_dados_aba(sheet_name)
 
 class EmployeeManager:
-    # ... (__init__ e _parse_flexible_date sem alterações) ...
     def _parse_flexible_date(self, date_string: str) -> date | None:
         if not date_string: return None
         match = re.search(r'(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})', date_string, re.IGNORECASE)
@@ -114,7 +112,6 @@ class EmployeeManager:
             aso_docs = aso_docs.dropna(subset=['data_aso']).sort_values('data_aso', ascending=False).head(1)
             if not aso_docs.empty:
                 aso_docs['data_aso'] = aso_docs['data_aso'].dt.date
-                # --- CORREÇÃO APLICADA AQUI ---
                 aso_docs['vencimento'] = pd.to_datetime(aso_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return aso_docs
 
@@ -126,12 +123,11 @@ class EmployeeManager:
              training_docs = training_docs.dropna(subset=['data']).sort_values('data', ascending=False)
              if not training_docs.empty:
                  training_docs['data'] = training_docs['data'].dt.date
-                 # --- CORREÇÃO APLICADA AQUI ---
                  training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return training_docs
 
     def analyze_training_pdf(self, pdf_file):
-        # ... (código de análise de treinamento sem alterações) ...
+        # ... (código de análise de treinamento) ...
         return {}
 
     def analyze_aso_pdf(self, pdf_file):
@@ -140,14 +136,29 @@ class EmployeeManager:
                 temp_file.write(pdf_file.getvalue())
                 temp_path = temp_file.name
             
-            combined_question = "..."
+            combined_question = """
+            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
+            1. Qual a data de emissão do ASO? (ex: 25/05/2024)
+            2. Qual a data de vencimento do ASO? (Se não houver, responda 'N/A')
+            3. Quais são os riscos ocupacionais?
+            4. Qual o cargo do funcionário?
+            5. Qual o tipo de exame médico? (ex: Admissional, Periódico, Demissional)
+            """
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
             if not answer: return None
             
+            # --- CORREÇÃO APLICADA AQUI ---
             lines = answer.strip().split('\n')
-            results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
-            
+            results = {}
+            for line in lines:
+                # Usa regex para encontrar o número no início da linha, ignorando markdown
+                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
+                if match:
+                    key = int(match.group(1))
+                    value = match.group(2).strip()
+                    results[key] = value
+
             data_aso = self._parse_flexible_date(results.get(1, ''))
             if not data_aso:
                 st.error(f"Não foi possível extrair uma data de realização válida da resposta: '{results.get(1, '')}'")
@@ -183,7 +194,6 @@ class EmployeeManager:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
             return None
 
-    # O resto do código (add_company, add_employee, etc.) permanece igual
     def add_company(self, nome, cnpj):
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             return None, "CNPJ já cadastrado"
