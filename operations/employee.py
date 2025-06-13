@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/employee.py
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -30,28 +28,17 @@ def load_sheet_data(sheet_name):
 
 class EmployeeManager:
     def __init__(self):
-        # Inicializa o gerenciador de planilhas e carrega os dados
         self.sheet_ops = get_sheet_operations()
-        
-        # Inicializa as abas se necessário
         if not self.initialize_sheets():
             st.error("Erro ao inicializar as abas da planilha. Algumas funcionalidades podem não funcionar corretamente.")
-        
-        # Carrega os dados
         self.load_data()
-        
-        # Inicializa o analisador de PDF apenas quando necessário
         self._pdf_analyzer = None
-        
-        # Configuração dos módulos da NR-20
         self.nr20_config = {
             'Básico': {'reciclagem_anos': 3, 'reciclagem_horas': 4, 'inicial_horas': 8},
             'Intermediário': {'reciclagem_anos': 2, 'reciclagem_horas': 4, 'inicial_horas': 16},
             'Avançado I': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 32},
             'Avançado II': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 40}
         }
-
-        # Configuração das outras NRs
         self.nr_config = {
             'NR-35': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
             'NR-10': {'inicial_horas': 40, 'reciclagem_horas': 40, 'reciclagem_anos': 2},
@@ -70,30 +57,26 @@ class EmployeeManager:
 
     def load_data(self):
         try:
-            # Carrega os dados das diferentes abas usando cache
-            companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
-            employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
-            aso_data = load_sheet_data(ASO_SHEET_NAME)
-            training_data = load_sheet_data(TRAINING_SHEET_NAME)
-            
-            # Define as colunas padrão para cada DataFrame
             company_columns = ['id', 'nome', 'cnpj']
             employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
             aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo']
             training_columns = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'arquivo_id', 'tipo_treinamento', 'carga_horaria']
             
-            # Converte os dados para DataFrames com as colunas corretas
+            companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
             self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 0 else pd.DataFrame(columns=company_columns)
+            
+            employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
             self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 0 else pd.DataFrame(columns=employee_columns)
+
+            aso_data = load_sheet_data(ASO_SHEET_NAME)
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 0 else pd.DataFrame(columns=aso_columns)
+            
+            training_data = load_sheet_data(TRAINING_SHEET_NAME)
             self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 0 else pd.DataFrame(columns=training_columns)
 
         except Exception as e:
             st.error(f"Erro ao carregar dados: {str(e)}")
-            self.companies_df = pd.DataFrame(columns=company_columns)
-            self.employees_df = pd.DataFrame(columns=employee_columns)
-            self.aso_df = pd.DataFrame(columns=aso_columns)
-            self.training_df = pd.DataFrame(columns=training_columns)
+            self.companies_df, self.employees_df, self.aso_df, self.training_df = (pd.DataFrame(columns=c) for c in [company_columns, employee_columns, aso_columns, training_columns])
 
     def initialize_sheets(self):
         try:
@@ -112,9 +95,7 @@ class EmployeeManager:
             return False
 
     def get_latest_aso_by_employee(self, employee_id):
-        """ Obtém o ASO mais recente de um funcionário específico. """
-        if self.aso_df.empty:
-            return pd.DataFrame()
+        if self.aso_df.empty: return pd.DataFrame()
         aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
         if not aso_docs.empty:
             aso_docs['data_aso'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
@@ -125,9 +106,7 @@ class EmployeeManager:
         return aso_docs
 
     def get_all_trainings_by_employee(self, employee_id):
-        """ Obtém todos os treinamentos de um funcionário específico. """
-        if self.training_df.empty:
-            return pd.DataFrame()
+        if self.training_df.empty: return pd.DataFrame()
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
         if not training_docs.empty:
              training_docs['data'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
@@ -146,33 +125,34 @@ class EmployeeManager:
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas:
             1. Qual é a norma regulamentadora (NR) deste treinamento? Responda apenas o número da NR.
-            2. Qual é o tipo específico do treinamento? apenas o número da NR.
+            2. Qual é o tipo específico do treinamento? Apenas o nome do treinamento.
             3. Qual é o módulo do treinamento? Se for NR-20, especifique se é Básico, Intermediário, Avançado I ou Avançado II. Se não for especificado, será 'Não se aplica'.
             4. Qual é a data de realização do treinamento? Responda no formato DD/MM/AAAA.
-            5. Este documento é um certificado de reciclagem? Caso não for mencionado será formação.
+            5. Este documento é um certificado de reciclagem? Responda 'sim' ou 'não'.
             6. Qual é a carga horária total do treinamento em horas? Responda apenas o número.
             
             Responda cada pergunta em uma nova linha, numerada de 1 a 6.
             """
-
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
-            if answer:
-                lines = answer.strip().split('\n')
-                results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
-                
-                data = datetime.strptime(results.get(4), "%d/%m/%Y").date() if 4 in results else None
-                norma_num = results.get(1, "").strip()
-                norma = self._padronizar_norma(f"NR-{norma_num}") if norma_num.isdigit() else self._padronizar_norma(results.get(1))
-                
-                return {
-                    'data': data,
-                    'norma': norma,
-                    'modulo': results.get(3, ""),
-                    'tipo_treinamento': 'reciclagem' if 'sim' in results.get(5, '').lower() else 'formação',
-                    'carga_horaria': int(''.join(filter(str.isdigit, results.get(6, '0'))))
-                }
-            return None
+            if not answer: return None
+
+            lines = answer.strip().split('\n')
+            results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
+            
+            data = datetime.strptime(results.get(4), "%d/%m/%Y").date() if 4 in results else None
+            norma_num = results.get(1, "").strip()
+            norma = self._padronizar_norma(f"NR-{norma_num}") if norma_num.isdigit() else self._padronizar_norma(results.get(1))
+            
+            if not data or not norma: return None
+
+            return {
+                'data': data,
+                'norma': norma,
+                'modulo': results.get(3, ""),
+                'tipo_treinamento': 'reciclagem' if 'sim' in results.get(5, '').lower() else 'formação',
+                'carga_horaria': int(''.join(filter(str.isdigit, results.get(6, '0'))))
+            }
         except Exception as e:
             st.error(f"Erro ao analisar o PDF de treinamento: {str(e)}")
             return None
@@ -182,10 +162,10 @@ class EmployeeManager:
             return None, "CNPJ já cadastrado"
         new_data = [nome, cnpj]
         try:
-            # Assumindo que adc_dados_aba retorna o ID
             company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
             if company_id:
-                self.load_data() # Recarrega os dados
+                st.cache_data.clear()
+                self.load_data()
                 return company_id, "Empresa cadastrada com sucesso"
             return None, "Falha ao obter ID da empresa."
         except Exception as e:
@@ -204,10 +184,14 @@ class EmployeeManager:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo):
-        new_data = [id, data_aso.strftime("%d/%m/%Y"), vencimento.strftime("%d/%m/%Y"), arquivo_id, riscos, cargo]
+        if not all([id, data_aso, vencimento, arquivo_id, cargo]):
+            st.error("Dados essenciais para o ASO estão faltando.")
+            return None
+        new_data = [str(id), data_aso.strftime("%d/%m/%Y"), vencimento.strftime("%d/%m/%Y"), str(arquivo_id), str(riscos), str(cargo)]
         try:
             aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
             if aso_id:
+                st.cache_data.clear()
                 self.load_data()
                 return aso_id
             return None
@@ -218,8 +202,9 @@ class EmployeeManager:
     def _padronizar_norma(self, norma):
         if not norma: return None
         norma = str(norma).strip().upper().replace("NR ", "NR-")
-        if norma.startswith("NR-") and len(norma.split('-')[1]) == 1:
-            norma = f"NR-0{norma.split('-')[1]}"
+        parts = norma.split('-')
+        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit() and len(parts[1]) == 1:
+            return f"NR-0{parts[1]}"
         return norma
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
@@ -233,6 +218,7 @@ class EmployeeManager:
         try:
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
+                st.cache_data.clear()
                 self.load_data()
                 return training_id
             return None
@@ -261,17 +247,18 @@ class EmployeeManager:
         return latest_aso, all_trainings
 
     def calcular_vencimento_treinamento(self, data_realizacao, norma, modulo=None, tipo_treinamento='formação'):
+        if not isinstance(data_realizacao, date): return None
         norma_padronizada = self._padronizar_norma(norma)
         if not norma_padronizada: return None
         
         config = self.nr20_config.get(modulo) if norma_padronizada == "NR-20" else self.nr_config.get(norma_padronizada)
-        if config and data_realizacao:
-            anos_validade = config.get('reciclagem_anos', 1) # Default 1 ano se não especificado
+        if config:
+            anos_validade = config.get('reciclagem_anos', 1)
             return data_realizacao + timedelta(days=anos_validade * 365)
         return None
 
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
-        # Implemente sua lógica de validação aqui se necessário
+        # Implemente sua lógica de validação aqui
         return True, ""
 
     def analyze_aso_pdf(self, pdf_file):
@@ -283,30 +270,29 @@ class EmployeeManager:
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas:
             1. Qual é a data de realização do ASO? Responda apenas a data no formato DD/MM/AAAA.
-            2. Qual é a data de vencimento do ASO? Responda apenas a data no formato DD/MM/AAAA.
+            2. Qual é a data de vencimento do ASO? Responda apenas a data no formato DD/MM/AAAA. Se não houver, não responda.
             3. Quais são os riscos ocupacionais identificados? Liste apenas os riscos.
             4. Qual é o cargo do funcionário conforme consta no ASO? Responda apenas o cargo.
             
             Responda cada pergunta em uma nova linha, numerada de 1 a 4.
             """
-
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
             os.unlink(temp_path)
-            if answer:
-                lines = answer.strip().split('\n')
-                results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
-                data_aso = datetime.strptime(results.get(1), "%d/%m/%Y").date() if 1 in results else None
-                vencimento = datetime.strptime(results.get(2), "%d/%m/%Y").date() if 2 in results else None
-                if data_aso and not vencimento: # Se não encontrou vencimento, calcula 1 ano
-                    vencimento = data_aso + timedelta(days=365)
+            if not answer: return None
+            
+            lines = answer.strip().split('\n')
+            results = {int(line.split('.', 1)[0]): line.split('.', 1)[1].strip() for line in lines if '.' in line}
+            
+            data_aso = datetime.strptime(results.get(1), "%d/%m/%Y").date() if 1 in results else None
+            vencimento = datetime.strptime(results.get(2), "%d/%m/%Y").date() if 2 in results else None
+            
+            if data_aso and not vencimento:
+                vencimento = data_aso + timedelta(days=365)
 
-                return {'data_aso': data_aso, 'vencimento': vencimento, 'riscos': results.get(3, ""), 'cargo': results.get(4, "")}
-            return None
+            return {'data_aso': data_aso, 'vencimento': vencimento, 'riscos': results.get(3, ""), 'cargo': results.get(4, "")}
         except Exception as e:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
             return None
-
-
 
 
 
