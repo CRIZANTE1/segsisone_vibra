@@ -92,22 +92,24 @@ def front_page():
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
                             # --- CORREÇÃO APLICADA AQUI ---
-                            # Garante que todas as colunas esperadas existam no DataFrame
                             aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
                             for col in aso_display_cols:
                                 if col not in latest_aso.columns:
-                                    latest_aso[col] = "N/A" # Adiciona a coluna com um valor padrão
-
+                                    latest_aso[col] = "N/A"
+                            
+                            # 1. Reordena o DataFrame primeiro
+                            aso_reordered_df = latest_aso[aso_display_cols]
+                            
+                            # 2. Passa o DataFrame reordenado para o .style e depois para o st.dataframe
                             st.dataframe(
-                                latest_aso.style.apply(highlight_expired, axis=1),
+                                aso_reordered_df.style.apply(highlight_expired, axis=1),
                                 column_config={
                                     "tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                     "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                                     "cargo": "Cargo (ASO)", "riscos": "Riscos",
                                     "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                                    "id": None, "funcionario_id": None,
                                 },
-                                order=aso_display_cols, # Usa a lista para reordenar
+                                # REMOVE o parâmetro 'order'
                                 hide_index=True, use_container_width=True
                             )
                         else: st.info("Nenhum ASO encontrado.")
@@ -115,23 +117,25 @@ def front_page():
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             # --- CORREÇÃO APLICADA AQUI ---
-                            # Garante que todas as colunas esperadas existam
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
                             for col in training_display_cols:
                                 if col not in all_trainings.columns:
                                     all_trainings[col] = "N/A"
-
+                            
+                            # 1. Reordena o DataFrame primeiro
+                            training_reordered_df = all_trainings[training_display_cols]
+                            
+                            # 2. Passa o DataFrame reordenado para o .style e depois para o st.dataframe
                             st.dataframe(
-                                all_trainings.style.apply(highlight_expired, axis=1),
+                                training_reordered_df.style.apply(highlight_expired, axis=1),
                                 column_config={
                                     "norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"),
                                     "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                                     "tipo_treinamento": "Tipo",
                                     "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"),
                                     "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                                    "id": None, "funcionario_id": None, "status": None, "modulo": None,
                                 },
-                                order=training_display_cols, # Usa a lista para reordenar
+                                # REMOVE o parâmetro 'order'
                                 hide_index=True, use_container_width=True
                             )
                         else: st.info("Nenhum treinamento encontrado.")
@@ -145,8 +149,8 @@ def front_page():
                         _, message = employee_manager.add_company(nome_empresa, cnpj)
                         st.success(message); st.rerun()
 
+    # O resto das abas permanece igual
     with tab_aso:
-        # Lógica da aba Adicionar ASO (sem alterações)
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo ASO")
@@ -181,7 +185,6 @@ def front_page():
         else: st.info("Selecione uma empresa na primeira aba.")
 
     with tab_treinamento:
-        # Lógica da aba Adicionar Treinamento (sem alterações)
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo Treinamento")
@@ -216,7 +219,6 @@ def front_page():
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-   
 
    
 
