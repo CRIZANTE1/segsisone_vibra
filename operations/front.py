@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/front.py
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -12,7 +14,7 @@ def mostrar_info_normas():
     with st.expander("Informações sobre Normas Regulamentadoras"):
         st.markdown("""
         ### Cargas Horárias e Periodicidade dos Treinamentos
-        (Sua tabela de NRs aqui)
+        (Tabela de NRs...)
         """)
 
 def highlight_expired(row):
@@ -21,7 +23,7 @@ def highlight_expired(row):
     
     if vencimento_val and isinstance(vencimento_val, date):
         if vencimento_val < today:
-            return ['background-color: #FFCDD2'] * len(row)
+            return ['background-color: #FFCDD2'] * len(row) # Vermelho claro
     return [''] * len(row)
 
 def front_page():
@@ -35,12 +37,10 @@ def front_page():
     
     selected_company = None
     if not employee_manager.companies_df.empty:
-        # Garante que os IDs sejam strings para a busca
-        df = employee_manager.companies_df.astype({'id': 'str'})
         selected_company = st.selectbox(
             "Selecione uma empresa",
-            df['id'].tolist(),
-            format_func=lambda x: f"{df[df['id'] == x]['nome'].iloc[0]} - {df[df['id'] == x]['cnpj'].iloc[0]}",
+            employee_manager.companies_df['id'].tolist(),
+            format_func=lambda x: f"{employee_manager.companies_df[employee_manager.companies_df['id'] == str(x)]['nome'].iloc[0]} - {employee_manager.companies_df[employee_manager.companies_df['id'] == str(x)]['cnpj'].iloc[0]}",
             key="company_select"
         )
     
@@ -84,8 +84,7 @@ def front_page():
                         st.markdown("##### Resumo de Status")
                         col1, col2, col3 = st.columns(3)
                         
-                        num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
-                        col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
+                        col1.metric("Status Geral", overall_status, f"{trainings_expired_count + (1 if aso_status == 'Vencido' else 0)} pendências" if overall_status != 'Em Dia' else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
                         col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
                         col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
                         
@@ -128,25 +127,10 @@ def front_page():
                             with st.container(border=True):
                                 st.markdown("### Informações Extraídas")
                                 st.write(f"**Data:** {aso_info['data_aso'].strftime('%d/%m/%Y')}")
-                                st.write(f"**Tipo de ASO Identificado:** {aso_info.get('tipo_aso', 'N/A')}")
-                                vencimento_aso = aso_info.get('vencimento')
-                                if vencimento_aso:
-                                    st.success(f"**Vencimento:** {vencimento_aso.strftime('%d/%m/%Y')}")
-                                else:
-                                    st.info("**Vencimento:** N/A (Ex: Demissional)")
-
                                 if st.button("Confirmar e Salvar ASO", type="primary"):
                                     arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{selected_employee_aso}_{aso_info['data_aso']}")
                                     if arquivo_id:
-                                        employee_manager.add_aso(
-                                            id=selected_employee_aso,
-                                            data_aso=aso_info['data_aso'],
-                                            vencimento=vencimento_aso,
-                                            arquivo_id=arquivo_id,
-                                            riscos=aso_info.get('riscos'),
-                                            cargo=aso_info.get('cargo'),
-                                            tipo_aso=aso_info.get('tipo_aso')
-                                        )
+                                        employee_manager.add_aso(selected_employee_aso, **aso_info, arquivo_id=arquivo_id)
                                         st.success("ASO adicionado!")
                                         st.rerun()
                         else: st.error("Não foi possível extrair informações do PDF.")
@@ -169,34 +153,20 @@ def front_page():
                         if training_info and training_info.get('data'):
                             with st.container(border=True):
                                 st.markdown("### Informações Extraídas")
-                                data = training_info.get('data')
-                                vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=training_info.get('norma'), modulo=training_info.get('modulo'), tipo_treinamento=training_info.get('tipo_treinamento'))
-                                
-                                st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
+                                vencimento = employee_manager.calcular_vencimento_treinamento(**training_info)
+                                st.write(f"**Data:** {training_info['data'].strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma:** {training_info.get('norma')}")
                                 if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
-                                
                                 if st.button("Confirmar e Salvar Treinamento", type="primary"):
                                     arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TRAINING_{selected_employee_training}_{training_info.get('norma')}")
                                     if arquivo_id:
-                                        employee_manager.add_training(
-                                            id=selected_employee_training, anexo=arquivo_id, vencimento=vencimento, 
-                                            status="Válido", **training_info
-                                        )
+                                        employee_manager.add_training(id=selected_employee_training, anexo=arquivo_id, vencimento=vencimento, status="Válido", **training_info)
                                         st.success("Treinamento adicionado!")
                                         st.rerun()
                         else: st.error("Não foi possível extrair informações do PDF.")
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-
-   
-
-
-   
-   
-
-   
 
    
 
