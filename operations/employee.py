@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/employee.py
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -26,6 +24,7 @@ def load_sheet_data(sheet_name):
     return sheet_ops.carregar_dados_aba(sheet_name)
 
 class EmployeeManager:
+    # ... (código inicial até get_employee_docs sem alterações) ...
     def _parse_flexible_date(self, date_string: str) -> date | None:
         if not date_string or date_string.lower() == 'n/a': return None
         match = re.search(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2})', date_string, re.IGNORECASE)
@@ -36,33 +35,17 @@ class EmployeeManager:
             try: return datetime.strptime(clean_date_string, fmt).date()
             except ValueError: continue
         return None
-
     def __init__(self):
         self.sheet_ops = get_sheet_operations()
         if not self.initialize_sheets(): st.error("Erro ao inicializar as abas da planilha.")
         self.load_data()
         self._pdf_analyzer = None
-        self.nr20_config = {
-            'Básico': {'reciclagem_anos': 3, 'reciclagem_horas': 4, 'inicial_horas': 8},
-            'Intermediário': {'reciclagem_anos': 2, 'reciclagem_horas': 4, 'inicial_horas': 16},
-            'Avançado I': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 32},
-            'Avançado II': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 40}
-        }
-        self.nr_config = {
-            'NR-35': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
-            'NR-10': {'inicial_horas': 40, 'reciclagem_horas': 40, 'reciclagem_anos': 2},
-            'NR-18': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
-            'NR-06': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3},
-            'NR-6': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3},
-            'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
-            'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1}
-        }
-
+        self.nr20_config = {'Básico': {'reciclagem_anos': 3, 'reciclagem_horas': 4, 'inicial_horas': 8}, 'Intermediário': {'reciclagem_anos': 2, 'reciclagem_horas': 4, 'inicial_horas': 16}, 'Avançado I': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 32}, 'Avançado II': {'reciclagem_anos': 1, 'reciclagem_horas': 4, 'inicial_horas': 40}}
+        self.nr_config = {'NR-35': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2}, 'NR-10': {'inicial_horas': 40, 'reciclagem_horas': 40, 'reciclagem_anos': 2}, 'NR-18': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1}, 'NR-06': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3}, 'NR-6': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3}, 'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2}, 'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1}}
     @property
     def pdf_analyzer(self):
         if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
-
     def load_data(self):
         try:
             from gdrive.config import ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
@@ -76,7 +59,8 @@ class EmployeeManager:
             training_data = load_sheet_data(TRAINING_SHEET_NAME)
             self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 0 else pd.DataFrame(columns=training_columns)
         except Exception as e:
-            st.error(f"Erro ao carregar dados: {str(e)}"); self.companies_df, self.employees_df, self.aso_df, self.training_df = (pd.DataFrame() for _ in range(4))
+            st.error(f"Erro ao carregar dados: {str(e)}")
+            self.companies_df, self.employees_df, self.aso_df, self.training_df = (pd.DataFrame() for _ in range(4))
     def initialize_sheets(self):
         try:
             from gdrive.config import ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
@@ -109,16 +93,13 @@ class EmployeeManager:
              if not training_docs.empty:
                  training_docs['data'] = training_docs['data'].dt.date; training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return training_docs
-    
-    # --- FUNÇÃO CORRIGIDA ---
     def analyze_training_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue()); temp_path = temp_file.name
-            
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
+            1. Qual é a norma regulamentadora (NR) do treinamento? (ex: NR-10)
             2. Qual é o módulo do treinamento? (ex: Básico, Intermediário, ou 'Não se aplica')
             3. Qual é a data de realização do treinamento? (ex: 25/05/2024)
             4. Este documento é um certificado de reciclagem? (Responda 'sim' ou 'não')
@@ -126,42 +107,16 @@ class EmployeeManager:
             """
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question); os.unlink(temp_path)
             if not answer: return None
-
             lines = answer.strip().split('\n'); results = {}
             for line in lines:
                 match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
                 if match: key = int(match.group(1)); value = match.group(2).strip(); results[key] = value
-            
             data = self._parse_flexible_date(results.get(3, '')); norma = self._padronizar_norma(results.get(1))
-            
-            if not data or not norma: 
-                st.warning("Não foi possível extrair a data ou a norma do PDF."); return None
-            
+            if not data or not norma: st.warning("Não foi possível extrair a data ou a norma do PDF."); return None
             carga_horaria_str = results.get(5, '0'); match_carga = re.search(r'\d+', carga_horaria_str); carga_horaria = int(match_carga.group(0)) if match_carga else 0
-            
-            modulo = results.get(2, "").strip()
-            tipo_treinamento = 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação'
-
-            # --- LÓGICA DE INFERÊNCIA DE MÓDULO ---
-            # Se a norma for NR-20 e o módulo não for válido, tenta inferir pela carga horária
-            if norma == "NR-20" and (not modulo or modulo.lower() == 'não se aplica'):
-                st.info("Módulo da NR-20 não encontrado, tentando inferir pela carga horária...")
-                # Procura a carga horária nas configurações da NR-20
-                for mod, config in self.nr20_config.items():
-                    # Compara a carga horária do tipo de treinamento (formação ou reciclagem)
-                    key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
-                    if carga_horaria == config.get(key_ch):
-                        modulo = mod
-                        st.success(f"Módulo inferido como '{mod}' com base na carga horária de {carga_horaria}h.")
-                        break
-
-            return {
-                'data': data, 'norma': norma, 'modulo': modulo,
-                'tipo_treinamento': tipo_treinamento, 'carga_horaria': carga_horaria
-            }
+            return {'data': data, 'norma': norma, 'modulo': results.get(2, ""), 'tipo_treinamento': 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação', 'carga_horaria': carga_horaria}
         except Exception as e:
             st.error(f"Erro ao analisar o PDF de treinamento: {str(e)}"); return None
-
     def analyze_aso_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
@@ -191,7 +146,6 @@ class EmployeeManager:
             return {'data_aso': data_aso, 'vencimento': vencimento, 'riscos': results.get(3, ""), 'cargo': results.get(4, ""), 'tipo_aso': tipo_aso}
         except Exception as e:
             st.error(f"Erro ao analisar o PDF do ASO: {str(e)}"); return None
-            
     def add_company(self, nome, cnpj):
         from gdrive.config import EMPLOYEE_SHEET_NAME
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values: return None, "CNPJ já cadastrado"
@@ -248,15 +202,25 @@ class EmployeeManager:
     def get_employee_docs(self, employee_id):
         latest_aso = self.get_latest_aso_by_employee(employee_id); all_trainings = self.get_all_trainings_by_employee(employee_id)
         return latest_aso, all_trainings
+    
+    # --- CORREÇÃO APLICADA AQUI ---
     def calcular_vencimento_treinamento(self, data, norma, modulo=None, tipo_treinamento='formação'):
         if not isinstance(data, date): return None
         norma_padronizada = self._padronizar_norma(norma)
         if not norma_padronizada: return None
+        
+        # Normaliza o módulo para corresponder às chaves do dicionário
+        # Remove espaços e coloca a primeira letra em maiúscula
         modulo_normalizado = modulo.strip().capitalize() if modulo else None
+        
         config = self.nr20_config.get(modulo_normalizado) if norma_padronizada == "NR-20" else self.nr_config.get(norma_padronizada)
+        
         if config:
             anos_validade = config.get('reciclagem_anos', 1)
             return data + timedelta(days=anos_validade * 365)
+        
+        # Se chegou aqui, não encontrou uma configuração válida
         return None
+
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         return True, ""
