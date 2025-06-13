@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -203,24 +201,31 @@ def front_page():
                             with st.container(border=True):
                                 st.markdown("### Confirme as Informações Extraídas")
                                 data = training_info.get('data')
-                                vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=training_info.get('norma'), modulo=training_info.get('modulo'), tipo_treinamento=training_info.get('tipo_treinamento'))
+                                norma_bruta = training_info.get('norma')
+                                norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
+                                modulo = training_info.get('modulo')
+                                tipo_treinamento = training_info.get('tipo_treinamento')
+                                carga_horaria = training_info.get('carga_horaria', 0)
+                                
+                                vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=norma_padronizada, modulo=modulo, tipo_treinamento=tipo_treinamento)
                                 
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
-                                st.write(f"**Norma:** {training_info.get('norma')}")
-                                st.write(f"**Módulo:** {training_info.get('modulo', 'N/A')}")
-                                st.write(f"**Tipo:** {training_info.get('tipo_treinamento', 'N/A')}")
-                                st.write(f"**Carga Horária:** {training_info.get('carga_horaria', 0)} horas")
+                                st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
+                                st.write(f"**Módulo:** {modulo or 'N/A'}")
+                                st.write(f"**Tipo:** {tipo_treinamento}")
+                                st.write(f"**Carga Horária:** {carga_horaria} horas")
                                 if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
+                                else: st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada nas configurações.")
                                 
-                                if st.button("Confirmar e Salvar Treinamento", type="primary"):
+                                if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
                                     with st.spinner("Salvando Treinamento..."):
                                         anexo_training = st.session_state.training_anexo_para_salvar
                                         selected_employee_training = st.session_state.training_funcionario_para_salvar
                                         
-                                        arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TRAINING_{selected_employee_training}_{training_info.get('norma')}")
+                                        arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TRAINING_{selected_employee_training}_{norma_padronizada}")
                                         
                                         if arquivo_id:
-                                            training_info.update({'id': selected_employee_training, 'anexo': arquivo_id, 'vencimento': vencimento, 'status': "Válido"})
+                                            training_info.update({'id': selected_employee_training, 'anexo': arquivo_id, 'vencimento': vencimento, 'status': "Válido", 'norma': norma_padronizada})
                                             training_id = employee_manager.add_training(**training_info)
                                             
                                             if training_id:
@@ -229,7 +234,7 @@ def front_page():
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
                                             else:
-                                                st.error("Falha ao salvar dados na planilha.")
+                                                pass
                                         else:
                                             st.error("Falha ao fazer o upload do anexo.")
                         else:
@@ -238,10 +243,6 @@ def front_page():
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-   
-
-
-   
 
 
    
