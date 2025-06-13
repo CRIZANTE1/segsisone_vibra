@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -14,16 +12,15 @@ def mostrar_info_normas():
     with st.expander("Informações sobre Normas Regulamentadoras"):
         st.markdown("""
         ### Cargas Horárias e Periodicidade dos Treinamentos
-        (Tabela de NRs...)
+        (Sua tabela de NRs aqui...)
         """)
 
+# Função para destacar linhas vencidas
 def highlight_expired(row):
     today = datetime.now().date()
     vencimento_val = row.get('vencimento')
-    
-    if vencimento_val and isinstance(vencimento_val, date):
-        if vencimento_val < today:
-            return ['background-color: #FFCDD2'] * len(row) # Vermelho claro
+    if vencimento_val and isinstance(vencimento_val, date) and vencimento_val < today:
+        return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
 def front_page():
@@ -37,10 +34,12 @@ def front_page():
     
     selected_company = None
     if not employee_manager.companies_df.empty:
+        # Garante que os IDs são strings para a comparação no format_func
+        employee_manager.companies_df['id'] = employee_manager.companies_df['id'].astype(str)
         selected_company = st.selectbox(
             "Selecione uma empresa",
             employee_manager.companies_df['id'].tolist(),
-            format_func=lambda x: f"{employee_manager.companies_df[employee_manager.companies_df['id'] == str(x)]['nome'].iloc[0]} - {employee_manager.companies_df[employee_manager.companies_df['id'] == str(x)]['cnpj'].iloc[0]}",
+            format_func=lambda x: f"{employee_manager.companies_df[employee_manager.companies_df['id'] == x]['nome'].iloc[0]} - {employee_manager.companies_df[employee_manager.companies_df['id'] == x]['cnpj'].iloc[0]}",
             key="company_select"
         )
     
@@ -57,16 +56,14 @@ def front_page():
                     employee_name = employee['nome']
                     employee_role = employee['cargo']
                     
+                    # --- Lógica de cálculo de status (como antes) ---
                     today = datetime.now().date()
-                    aso_status = 'Não encontrado'
-                    aso_vencimento = None
-                    trainings_total = 0
-                    trainings_expired_count = 0
+                    aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
                     
                     latest_aso = employee_manager.get_latest_aso_by_employee(employee_id)
                     if not latest_aso.empty:
                         vencimento_aso_obj = latest_aso['vencimento'].iloc[0]
-                        if vencimento_aso_obj and isinstance(vencimento_aso_obj, date):
+                        if isinstance(vencimento_aso_obj, date):
                              aso_vencimento = vencimento_aso_obj
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
 
@@ -81,37 +78,81 @@ def front_page():
                     expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
+                        # --- Dashboard de Status (como antes) ---
                         st.markdown("##### Resumo de Status")
                         col1, col2, col3 = st.columns(3)
-                        
                         col1.metric("Status Geral", overall_status, f"{trainings_expired_count + (1 if aso_status == 'Vencido' else 0)} pendências" if overall_status != 'Em Dia' else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
                         col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
                         col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
                         
                         st.markdown("---")
+
+                        # --- Exibição de ASO com FORMATAÇÃO ---
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
-                            st.dataframe(latest_aso.style.apply(highlight_expired, axis=1), hide_index=True, use_container_width=True)
+                            # Reordenar as colunas para melhor visualização
+                            aso_display_cols = ['data_aso', 'vencimento', 'cargo', 'riscos', 'arquivo_id']
+                            st.dataframe(
+                                latest_aso[aso_display_cols].style.apply(highlight_expired, axis=1),
+                                column_config={
+                                    "data_aso": st.column_config.DateColumn("Data do ASO", format="DD/MM/YYYY"),
+                                    "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                                    "cargo": st.column_config.TextColumn("Cargo (no ASO)"),
+                                    "riscos": st.column_config.TextColumn("Riscos"),
+                                    "arquivo_id": st.column_config.LinkColumn(
+                                        "Anexo", 
+                                        help="Clique para abrir o ASO em PDF", 
+                                        display_text="Abrir PDF"
+                                    )
+                                },
+                                hide_index=True,
+                                use_container_width=True
+                            )
                         else:
                             st.info("Nenhum ASO encontrado.")
 
+                        # --- Exibição de Treinamentos com FORMATAÇÃO ---
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
-                            st.dataframe(all_trainings.style.apply(highlight_expired, axis=1), hide_index=True, use_container_width=True)
+                             # Reordenar as colunas
+                            training_display_cols = ['norma', 'modulo', 'data', 'vencimento', 'tipo_treinamento', 'carga_horaria', 'arquivo_id']
+                            st.dataframe(
+                                all_trainings[training_display_cols].style.apply(highlight_expired, axis=1),
+                                column_config={
+                                    "norma": st.column_config.TextColumn("Norma"),
+                                    "modulo": st.column_config.TextColumn("Módulo"),
+                                    "data": st.column_config.DateColumn("Data Realização", format="DD/MM/YYYY"),
+                                    "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                                    "tipo_treinamento": st.column_config.TextColumn("Tipo"),
+                                    "carga_horaria": st.column_config.NumberColumn("C.H.", format="%d h", help="Carga Horária"),
+                                    "arquivo_id": st.column_config.LinkColumn(
+                                        "Anexo", 
+                                        help="Clique para abrir o certificado em PDF", 
+                                        display_text="Abrir PDF"
+                                    )
+                                },
+                                hide_index=True,
+                                use_container_width=True
+                            )
                         else:
                             st.info("Nenhum treinamento encontrado.")
             else:
                 st.info("Nenhum funcionário cadastrado para esta empresa.")
         else:
-            with st.form("cadastro_empresa"):
-                st.subheader("Cadastrar Nova Empresa")
-                nome_empresa = st.text_input("Nome da Empresa")
-                cnpj = st.text_input("CNPJ")
-                if st.form_submit_button("Cadastrar Empresa") and nome_empresa and cnpj:
-                    _, message = employee_manager.add_company(nome_empresa, cnpj)
-                    st.success(message)
-                    st.rerun()
+            if employee_manager.companies_df.empty:
+                 with st.form("cadastro_empresa"):
+                    st.subheader("Cadastrar Nova Empresa")
+                    nome_empresa = st.text_input("Nome da Empresa")
+                    cnpj = st.text_input("CNPJ")
+                    if st.form_submit_button("Cadastrar Empresa") and nome_empresa and cnpj:
+                        _, message = employee_manager.add_company(nome_empresa, cnpj)
+                        st.success(message)
+                        st.rerun()
+            else:
+                 st.info("Selecione uma empresa para começar.")
 
+
+    # --- Aba Adicionar ASO (sem grandes alterações, mas com melhorias) ---
     with tab_aso:
         if selected_company:
             if check_admin_permission():
@@ -127,17 +168,26 @@ def front_page():
                             with st.container(border=True):
                                 st.markdown("### Informações Extraídas")
                                 st.write(f"**Data:** {aso_info['data_aso'].strftime('%d/%m/%Y')}")
-                                if st.button("Confirmar e Salvar ASO", type="primary"):
+                                if st.button("Confirmar e Salvar ASO", type="primary", key="save_aso_btn"):
                                     arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{selected_employee_aso}_{aso_info['data_aso']}")
                                     if arquivo_id:
-                                        employee_manager.add_aso(selected_employee_aso, **aso_info, arquivo_id=arquivo_id)
+                                        # Passando os dados extraídos para a função add_aso
+                                        employee_manager.add_aso(
+                                            id=selected_employee_aso,
+                                            data_aso=aso_info['data_aso'],
+                                            vencimento=aso_info['vencimento'],
+                                            arquivo_id=arquivo_id,
+                                            riscos=aso_info['riscos'],
+                                            cargo=aso_info['cargo']
+                                        )
                                         st.success("ASO adicionado!")
                                         st.rerun()
                         else: st.error("Não foi possível extrair informações do PDF.")
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
-        else: st.info("Selecione uma empresa na primeira aba.")
+        else: st.info("Selecione uma empresa na primeira aba para adicionar um documento.")
 
+    # --- Aba Adicionar Treinamento (sem grandes alterações, mas com melhorias) ---
     with tab_treinamento:
         if selected_company:
             if check_admin_permission():
@@ -153,24 +203,29 @@ def front_page():
                         if training_info and training_info.get('data'):
                             with st.container(border=True):
                                 st.markdown("### Informações Extraídas")
-                                vencimento = employee_manager.calcular_vencimento_treinamento(**training_info)
-                                st.write(f"**Data:** {training_info['data'].strftime('%d/%m/%Y')}")
-                                st.write(f"**Norma:** {training_info.get('norma')}")
+                                data = training_info.get('data')
+                                vencimento = employee_manager.calcular_vencimento_treinamento(**training_info) if isinstance(data, date) else None
+                                
+                                st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
+                                st.write(f"**Norma:** {training_info.get('norma', 'N/A')}")
                                 if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
-                                if st.button("Confirmar e Salvar Treinamento", type="primary"):
+
+                                if st.button("Confirmar e Salvar Treinamento", type="primary", key="save_training_btn"):
                                     arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TRAINING_{selected_employee_training}_{training_info.get('norma')}")
                                     if arquivo_id:
-                                        employee_manager.add_training(id=selected_employee_training, anexo=arquivo_id, vencimento=vencimento, status="Válido", **training_info)
+                                        employee_manager.add_training(
+                                            id=selected_employee_training,
+                                            anexo=arquivo_id,
+                                            vencimento=vencimento,
+                                            status="Válido",
+                                            **training_info
+                                        )
                                         st.success("Treinamento adicionado!")
                                         st.rerun()
                         else: st.error("Não foi possível extrair informações do PDF.")
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
-        else: st.info("Selecione uma empresa na primeira aba.")
-
-   
-
-
+        else: st.info("Selecione uma empresa na primeira aba para adicionar um documento.")
    
    
 
