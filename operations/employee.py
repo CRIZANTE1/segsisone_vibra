@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/employee.py
+
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -12,6 +14,7 @@ import locale
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
+    # Ignora silenciosamente se o locale não estiver disponível no ambiente de nuvem
     pass
 
 @st.cache_resource
@@ -136,7 +139,6 @@ class EmployeeManager:
                  training_docs['vencimento'] = pd.to_datetime(training_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         return training_docs
 
-    # --- FUNÇÃO CORRIGIDA ---
     def analyze_training_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
@@ -145,8 +147,8 @@ class EmployeeManager:
             
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual é a norma regulamentadora (NR) do treinamento? (ex: NR-10)
-            2. Qual é o módulo do treinamento? (ex: Básico, Intermediário, ou 'Não se aplica')
+            1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
+            2. Qual é o módulo do treinamento? (ex: Básico, ou 'Não se aplica')
             3. Qual é a data de realização do treinamento? (ex: 25/05/2024)
             4. Este documento é um certificado de reciclagem? (Responda 'sim' ou 'não')
             5. Qual é a carga horária total do treinamento em horas? (Responda apenas o número)
@@ -351,5 +353,4 @@ class EmployeeManager:
 
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         return True, ""
-
 
