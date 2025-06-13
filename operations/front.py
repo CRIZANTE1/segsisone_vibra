@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -11,7 +9,26 @@ def mostrar_info_normas():
     with st.expander("Informações sobre Normas Regulamentadoras"):
         st.markdown("""
         ### Cargas Horárias e Periodicidade dos Treinamentos
-        (Sua tabela de NRs aqui)
+        
+        #### NR-20
+        | Módulo | Formação Inicial | Reciclagem (Periodicidade) | Reciclagem (C.H. Mínima) |
+        |--------|------------------|----------------------------|--------------------------|
+        | Básico | 8 horas          | 3 anos                     | 4 horas                  |
+        | Intermediário | 16 horas         | 2 anos                     | 4 horas                  |
+        | Avançado I | 32 horas         | 1 ano                      | 4 horas                  |
+        | Avançado II | 40 horas         | 1 ano                      | 4 horas                  |
+        
+        ---
+
+        #### Outras NRs Comuns
+        | Norma | Formação Inicial (C.H.) | Reciclagem (C.H.) | Periodicidade Reciclagem |
+        |-------|---------------------------|-----------------------|--------------------------|
+        | NR-35 | 8 horas                   | 8 horas               | 2 anos                   |
+        | NR-10 | 40 horas                  | 40 horas              | 2 anos                   |
+        | NR-18 | 8 horas                   | 8 horas               | 1 ano                    |
+        | NR-34 | 8 horas                   | 8 horas               | 1 ano                    |
+        | NR-12 | 8 horas                   | 8 horas               | 2 anos                   |
+        | NR-06 | 3 horas                   | 3 horas               | 3 anos                   |
         """)
 
 def highlight_expired(row):
@@ -113,7 +130,8 @@ def front_page():
                             training_reordered_df = all_trainings[training_display_cols]
                             st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
                         else: st.info("Nenhum treinamento encontrado.")
-            else: st.info("Nenhum funcionário cadastrado para esta empresa.")
+            else:
+                st.info("Nenhum funcionário cadastrado para esta empresa.")
         else:
             if employee_manager.companies_df.empty:
                 with st.form("cadastro_empresa"):
@@ -150,11 +168,7 @@ def front_page():
                                         arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{selected_employee_aso}_{aso_info['data_aso']}")
                                         
                                         if arquivo_id:
-                                            aso_id = employee_manager.add_aso(
-                                                id=selected_employee_aso,
-                                                arquivo_id=arquivo_id,
-                                                **aso_info
-                                            )
+                                            aso_id = employee_manager.add_aso(id=selected_employee_aso, arquivo_id=arquivo_id, **aso_info)
                                             if aso_id:
                                                 st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                                                 for key in ['aso_info_para_salvar', 'aso_anexo_para_salvar', 'aso_funcionario_para_salvar']:
@@ -191,6 +205,9 @@ def front_page():
                                 
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma:** {training_info.get('norma')}")
+                                st.write(f"**Módulo:** {training_info.get('modulo', 'N/A')}")
+                                st.write(f"**Tipo:** {training_info.get('tipo_treinamento', 'N/A')}")
+                                st.write(f"**Carga Horária:** {training_info.get('carga_horaria', 0)} horas")
                                 if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
                                 
                                 if st.button("Confirmar e Salvar Treinamento", type="primary"):
