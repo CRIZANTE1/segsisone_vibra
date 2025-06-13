@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/employee.py
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -14,7 +12,6 @@ import locale
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
-    # Ignora silenciosamente se o locale não estiver disponível no ambiente de nuvem
     pass
 
 @st.cache_resource
@@ -147,7 +144,7 @@ class EmployeeManager:
             
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
+            1. Qual é a norma regulamentadora (NR) do treinamento? (ex: NR-10)
             2. Qual é o módulo do treinamento? (ex: Básico, ou 'Não se aplica')
             3. Qual é a data de realização do treinamento? (ex: 25/05/2024)
             4. Este documento é um certificado de reciclagem? (Responda 'sim' ou 'não')
