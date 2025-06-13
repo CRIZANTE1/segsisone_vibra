@@ -62,26 +62,26 @@ def front_page():
             if not employees.empty:
                 for index, employee in employees.iterrows():
                     employee_id = employee['id']; employee_name = employee['nome']; employee_role = employee['cargo']
-                    today = datetime.now().date(); aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
                     
+                    # Lógica de status (sem alterações)
+                    today = datetime.now().date(); aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
                     latest_aso = employee_manager.get_latest_aso_by_employee(employee_id)
                     if not latest_aso.empty:
                         vencimento_aso_obj = latest_aso['vencimento'].iloc[0]
                         if isinstance(vencimento_aso_obj, date):
                              aso_vencimento = vencimento_aso_obj
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-                    
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
                     if not all_trainings.empty:
                         trainings_total = len(all_trainings)
                         expired_mask = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date < today
                         trainings_expired_count = expired_mask.sum()
-                    
                     overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
                     status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
                     expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
+                        # Dashboard de status (sem alterações)
                         st.markdown("##### Resumo de Status")
                         col1, col2, col3 = st.columns(3); num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
                         col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
@@ -91,45 +91,48 @@ def front_page():
 
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
-                            # --- FORMATAÇÃO CORRIGIDA AQUI ---
+                            # --- CORREÇÃO APLICADA AQUI ---
+                            # Garante que todas as colunas esperadas existam no DataFrame
+                            aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
+                            for col in aso_display_cols:
+                                if col not in latest_aso.columns:
+                                    latest_aso[col] = "N/A" # Adiciona a coluna com um valor padrão
+
                             st.dataframe(
                                 latest_aso.style.apply(highlight_expired, axis=1),
                                 column_config={
-                                    "tipo_aso": "Tipo",
-                                    "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                                    "tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                                     "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
-                                    "cargo": "Cargo (ASO)",
-                                    "riscos": "Riscos",
+                                    "cargo": "Cargo (ASO)", "riscos": "Riscos",
                                     "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                                    "id": None, # Oculta coluna
-                                    "funcionario_id": None, # Oculta coluna
+                                    "id": None, "funcionario_id": None,
                                 },
-                                order=["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"], # Reordena colunas
-                                hide_index=True, 
-                                use_container_width=True
+                                order=aso_display_cols, # Usa a lista para reordenar
+                                hide_index=True, use_container_width=True
                             )
                         else: st.info("Nenhum ASO encontrado.")
 
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
-                            # --- FORMATAÇÃO CORRIGIDA AQUI ---
+                            # --- CORREÇÃO APLICADA AQUI ---
+                            # Garante que todas as colunas esperadas existam
+                            training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
+                            for col in training_display_cols:
+                                if col not in all_trainings.columns:
+                                    all_trainings[col] = "N/A"
+
                             st.dataframe(
                                 all_trainings.style.apply(highlight_expired, axis=1),
                                 column_config={
-                                    "norma": "Norma",
-                                    "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"),
+                                    "norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"),
                                     "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                                     "tipo_treinamento": "Tipo",
                                     "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"),
                                     "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                                    "id": None,
-                                    "funcionario_id": None,
-                                    "status": None,
-                                    "modulo": None,
+                                    "id": None, "funcionario_id": None, "status": None, "modulo": None,
                                 },
-                                order=["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"],
-                                hide_index=True, 
-                                use_container_width=True
+                                order=training_display_cols, # Usa a lista para reordenar
+                                hide_index=True, use_container_width=True
                             )
                         else: st.info("Nenhum treinamento encontrado.")
             else:
@@ -143,6 +146,7 @@ def front_page():
                         st.success(message); st.rerun()
 
     with tab_aso:
+        # Lógica da aba Adicionar ASO (sem alterações)
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo ASO")
@@ -177,6 +181,7 @@ def front_page():
         else: st.info("Selecione uma empresa na primeira aba.")
 
     with tab_treinamento:
+        # Lógica da aba Adicionar Treinamento (sem alterações)
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo Treinamento")
