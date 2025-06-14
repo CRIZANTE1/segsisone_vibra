@@ -15,6 +15,7 @@ EMPLOYEE_SHEET_NAME = "empresas"  # Aba para empresas
 EMPLOYEE_DATA_SHEET_NAME = "funcionarios"  # Aba para funcionários
 TRAINING_SHEET_NAME = "treinamento"  # Aba para treinamentos
 ADM_SHEET_NAME = "ADM"  # Aba para administradores
+COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
 
 def get_credentials_dict():
     """Retorna as credenciais do serviço do Google, seja do arquivo local ou do Streamlit Cloud."""
