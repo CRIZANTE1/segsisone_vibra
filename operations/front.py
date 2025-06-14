@@ -1,6 +1,9 @@
+# /mount/src/segsisone/operations/front.py
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
+from operations.company_docs import CompanyDocsManager # Importa a nova classe
 from gdrive.gdrive_upload import GoogleDriveUploader
 import pandas as pd
 from auth.auth_utils import check_admin_permission
@@ -54,12 +57,24 @@ def process_training_pdf():
             st.session_state.training_funcionario_para_salvar = st.session_state.training_employee_add
             st.session_state.training_info_para_salvar = employee_manager.analyze_training_pdf(st.session_state.training_uploader_tab)
 
+def process_company_doc_pdf():
+    if st.session_state.get('doc_uploader_tab'):
+        docs_manager = st.session_state.docs_manager
+        with st.spinner("Analisando PDF do documento..."):
+            st.session_state.doc_anexo_para_salvar = st.session_state.doc_uploader_tab
+            st.session_state.doc_info_para_salvar = docs_manager.analyze_company_doc_pdf(st.session_state.doc_uploader_tab)
+
 def front_page():
     if 'employee_manager' not in st.session_state:
         st.session_state.employee_manager = EmployeeManager()
+    if 'docs_manager' not in st.session_state:
+        st.session_state.docs_manager = CompanyDocsManager()
     
     employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    
     employee_manager.load_data()
+    docs_manager.load_company_docs_data()
     
     gdrive_uploader = GoogleDriveUploader()
     
@@ -75,10 +90,28 @@ def front_page():
             key="company_select"
         )
     
-    tab_dados, tab_aso, tab_treinamento = st.tabs(["**Situação dos Funcionários**", "**Adicionar ASO**", "**Adicionar Treinamento**"])
+    tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento = st.tabs([
+        "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento"
+    ])
 
-    with tab_dados:
+    with tab_situacao:
         if selected_company:
+            st.subheader("Documentos da Empresa")
+            company_docs = docs_manager.get_docs_by_company(selected_company)
+            if not company_docs.empty:
+                st.dataframe(company_docs.style.apply(highlight_expired, axis=1),
+                    column_config={
+                        "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Data de Emissão", format="DD/MM/YYYY"),
+                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
+                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
+                        "id": None, "empresa_id": None
+                    },
+                    order=["tipo_documento", "data_emissao", "vencimento", "arquivo_id"],
+                    hide_index=True, use_container_width=True
+                )
+            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+            
+            st.markdown("---")
             st.subheader("Funcionários")
             employees = employee_manager.get_employees_by_company(selected_company)
             if not employees.empty:
@@ -140,7 +173,51 @@ def front_page():
                         _, message = employee_manager.add_company(nome_empresa, cnpj)
                         st.success(message); st.rerun()
 
-    with tab_aso:
+    with tab_add_doc_empresa:
+        if selected_company:
+            if check_admin_permission():
+                st.subheader("Adicionar Documento (PGR, PCMSO, etc.)")
+                company_name = employee_manager.companies_df[employee_manager.companies_df['id'] == selected_company]['nome'].iloc[0]
+                st.info(f"Adicionando documento para a empresa: **{company_name}**")
+                
+                st.file_uploader("Anexar Documento (PDF)", type=['pdf'], key="doc_uploader_tab", on_change=process_company_doc_pdf)
+                
+                if st.session_state.get('doc_info_para_salvar'):
+                    doc_info = st.session_state.doc_info_para_salvar
+                    if doc_info and doc_info.get('data_emissao'):
+                        with st.container(border=True):
+                            st.markdown("### Confirme as Informações Extraídas")
+                            st.write(f"**Tipo Identificado:** {doc_info['tipo_documento']}")
+                            st.write(f"**Data de Emissão/Vigência:** {doc_info['data_emissao'].strftime('%d/%m/%Y')}")
+                            st.success(f"**Vencimento Calculado:** {doc_info['vencimento'].strftime('%d/%m/%Y')}")
+                            
+                            if st.button("Confirmar e Salvar Documento", type="primary"):
+                                with st.spinner("Salvando documento..."):
+                                    anexo_doc = st.session_state.doc_anexo_para_salvar
+                                    arquivo_id = gdrive_uploader.upload_file(anexo_doc, f"{doc_info['tipo_documento']}_{company_name}_{doc_info['data_emissao']}")
+                                    
+                                    if arquivo_id:
+                                        doc_id = docs_manager.add_company_document(
+                                            empresa_id=selected_company,
+                                            tipo_documento=doc_info['tipo_documento'],
+                                            data_emissao=doc_info['data_emissao'],
+                                            vencimento=doc_info['vencimento'],
+                                            arquivo_id=arquivo_id
+                                        )
+                                        if doc_id:
+                                            st.success("Documento da empresa salvo com sucesso!")
+                                            for key in ['doc_info_para_salvar', 'doc_anexo_para_salvar']:
+                                                if key in st.session_state: del st.session_state[key]
+                                            st.rerun()
+                                        else: st.error("Falha ao salvar os dados na planilha.")
+                                    else: st.error("Falha ao fazer upload do anexo.")
+                    else:
+                        st.error("Não foi possível extrair data de emissão do PDF.")
+                        if 'doc_info_para_salvar' in st.session_state: del st.session_state.doc_info_para_salvar
+            else: st.error("Você não tem permissão para esta ação.")
+        else: st.info("Selecione uma empresa na primeira aba para adicionar documentos.")
+
+    with tab_add_aso:
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo ASO")
@@ -185,7 +262,7 @@ def front_page():
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
 
-    with tab_treinamento:
+    with tab_add_treinamento:
         if selected_company:
             if check_admin_permission():
                 st.subheader("Adicionar Novo Treinamento")
@@ -234,7 +311,7 @@ def front_page():
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
                                             else:
-                                                pass
+                                                st.error("Falha ao salvar dados na planilha.")
                                         else:
                                             st.error("Falha ao fazer o upload do anexo.")
                         else:
