@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/front.py
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -35,8 +37,10 @@ def mostrar_info_normas():
 def highlight_expired(row):
     today = datetime.now().date()
     vencimento_val = row.get('vencimento')
-    if isinstance(vencimento_val, date) and vencimento_val < today:
-        return ['background-color: #FFCDD2'] * len(row)
+    # Adiciona uma verificação para garantir que o valor não é NaT (Not a Time)
+    if pd.notna(vencimento_val) and isinstance(vencimento_val, date):
+        if vencimento_val < today:
+            return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
 def process_aso_pdf():
@@ -96,36 +100,38 @@ def front_page():
         if selected_company:
             st.subheader("Documentos da Empresa")
             company_docs = docs_manager.get_docs_by_company(selected_company)
+            
             if not company_docs.empty:
-                # --- CORREÇÃO APLICADA AQUI ---
+                # Converte as colunas de data para o tipo datetime
+                company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
+                company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+
                 company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 for col in company_doc_cols:
                     if col not in company_docs.columns:
                         company_docs[col] = "N/A"
                 
-                # 1. Reordena o DataFrame primeiro
                 company_docs_reordered = company_docs[company_doc_cols]
                 
-                # 2. Passa o DF reordenado para o .style
                 st.dataframe(
                     company_docs_reordered.style.apply(highlight_expired, axis=1),
                     column_config={
-                        "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Data de Emissão", format="DD/MM/YYYY"),
+                        "tipo_documento": "Documento",
+                        "data_emissao": st.column_config.DateColumn("Data de Emissão", format="DD/MM/YYYY"),
                         "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                         "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                        "id": None, "empresa_id": None
                     },
-                    # REMOVE o parâmetro 'order'
                     hide_index=True, use_container_width=True
                 )
-            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+            else: 
+                st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
             
             st.markdown("---")
             st.subheader("Funcionários")
+            
             employees = employee_manager.get_employees_by_company(selected_company)
             if not employees.empty:
                 for index, employee in employees.iterrows():
-                    # ... (código do expander dos funcionários, que já está correto) ...
                     employee_id = employee['id']; employee_name = employee['nome']; employee_role = employee['cargo']
                     today = datetime.now().date(); aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
                     
@@ -183,7 +189,6 @@ def front_page():
                         _, message = employee_manager.add_company(nome_empresa, cnpj)
                         st.success(message); st.rerun()
 
-    # O resto das abas permanece o mesmo
     with tab_add_doc_empresa:
         if selected_company:
             if check_admin_permission():
@@ -331,7 +336,6 @@ def front_page():
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-   
 
    
 
