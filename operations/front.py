@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -37,7 +35,6 @@ def mostrar_info_normas():
 def highlight_expired(row):
     today = datetime.now().date()
     vencimento_val = row.get('vencimento')
-    # Adiciona uma verificação para garantir que o valor não é NaT (Not a Time)
     if pd.notna(vencimento_val) and isinstance(vencimento_val, date):
         if vencimento_val < today:
             return ['background-color: #FFCDD2'] * len(row)
@@ -99,13 +96,12 @@ def front_page():
     with tab_situacao:
         if selected_company:
             st.subheader("Documentos da Empresa")
-            company_docs = docs_manager.get_docs_by_company(selected_company)
+            company_docs = docs_manager.get_docs_by_company(selected_company).copy()
             
             if not company_docs.empty:
-                # Converte as colunas de data para o tipo datetime
                 company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
                 company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-
+                
                 company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 for col in company_doc_cols:
                     if col not in company_docs.columns:
@@ -117,7 +113,7 @@ def front_page():
                     company_docs_reordered.style.apply(highlight_expired, axis=1),
                     column_config={
                         "tipo_documento": "Documento",
-                        "data_emissao": st.column_config.DateColumn("Data de Emissão", format="DD/MM/YYYY"),
+                        "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
                         "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
                         "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
                     },
@@ -135,14 +131,14 @@ def front_page():
                     employee_id = employee['id']; employee_name = employee['nome']; employee_role = employee['cargo']
                     today = datetime.now().date(); aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
                     
-                    latest_aso = employee_manager.get_latest_aso_by_employee(employee_id)
+                    latest_aso = employee_manager.get_latest_aso_by_employee(employee_id).copy()
                     if not latest_aso.empty:
                         vencimento_aso_obj = latest_aso['vencimento'].iloc[0]
                         if isinstance(vencimento_aso_obj, date):
                              aso_vencimento = vencimento_aso_obj
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
 
-                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id).copy()
                     if not all_trainings.empty:
                         trainings_total = len(all_trainings)
                         expired_mask = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date < today
@@ -336,7 +332,6 @@ def front_page():
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-
    
 
    
