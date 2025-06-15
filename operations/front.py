@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/front.py
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -51,6 +49,8 @@ def style_status_table(df: pd.DataFrame):
         elif 'conforme' in val_lower:
             color = 'background-color: #C8E6C9'
         return color
+    
+    # Usa o nome exato da coluna da planilha
     if 'status' in df.columns:
         return df.style.map(highlight_status, subset=['status'])
     return df.style
@@ -176,19 +176,26 @@ def front_page():
                 audit_history = docs_manager.get_audits_by_company(selected_company)
                 
                 if not audit_history.empty:
+                    audit_history['data_auditoria'] = pd.to_datetime(audit_history['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                     audit_history_display = audit_history.sort_values(by='data_auditoria', ascending=False)
+                    
                     st.dataframe(
                         style_status_table(audit_history_display),
                         column_config={
-                            "data_auditoria": st.column_config.TextColumn("Data da Análise", help="Data e hora em que a análise foi salva."),
+                            "data_auditoria": st.column_config.DatetimeColumn("Data da Análise", format="DD/MM/YYYY HH:mm"),
                             "tipo_documento": "Doc. Analisado",
                             "norma_auditada": "Norma",
                             "item_verificacao": "Item de Verificação",
                             "status": "Status",
                             "observacao": "Observação da IA",
-                            "id": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
+                            "id": None, 
+                            "id_auditoria": None, 
+                            "id_empresa": None, 
+                            "id_documento_original": None, 
+                            "id_funcionario": None,
                         },
-                        use_container_width=True, hide_index=True
+                        use_container_width=True, 
+                        hide_index=True
                     )
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
