@@ -1,3 +1,4 @@
+
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
@@ -13,6 +14,7 @@ import io
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
+    """Carrega a planilha de RAG em um DataFrame do Pandas usando gspread."""
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds_dict = get_credentials_dict()
@@ -20,7 +22,10 @@ def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
         gc = gspread.authorize(creds)
         spreadsheet = gc.open_by_key(sheet_id)
         worksheet = spreadsheet.sheet1
-        return pd.DataFrame(worksheet.get_all_records())
+        df = pd.DataFrame(worksheet.get_all_records())
+        expected_columns = ["ID", "Section_Number", "Page", "Keywords", "Question", "Answer_Chunk"]
+        columns_to_keep = [col for col in expected_columns if col in df.columns]
+        return df[columns_to_keep]
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(f"Planilha de RAG com ID '{sheet_id}' não encontrada.")
         return pd.DataFrame()
@@ -65,6 +70,7 @@ class NRAnalyzer:
     def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
         if rag_df.empty: return "Base de conhecimento indisponível."
         regex_pattern = '|'.join(map(re.escape, keywords))
+        if 'Keywords' not in rag_df.columns: return "Coluna 'Keywords' não encontrada na planilha de RAG."
         rag_df['Keywords'] = rag_df['Keywords'].astype(str)
         relevant_rows = rag_df[rag_df['Keywords'].str.contains(regex_pattern, case=False, na=False)]
         
@@ -77,15 +83,11 @@ class NRAnalyzer:
         if doc_type == "Treinamento":
             return f"""
             Você é um auditor de Segurança do Trabalho detalhista. Sua tarefa é auditar o certificado de treinamento em PDF e compará-lo com os trechos da {norma_analisada}.
-
             **Base de Conhecimento Relevante (Trechos da {norma_analisada}):**
             {nr_knowledge_base}
-            
             **Tarefa:**
             Verifique os itens de conformidade abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 3 partes, separadas por '|':
-            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa detalhada]`
-            
             **Itens de Verificação para o Certificado de {norma_analisada}:**
             - ITEM: Assinaturas Obrigatórias | STATUS: [] | OBSERVAÇÃO: [Verifique se o certificado possui as assinaturas do trabalhador, instrutor(es) e responsável técnico, conforme exigido. Especifique quais assinaturas estão presentes ou ausentes.]
             - ITEM: Compatibilidade do Conteúdo Programático | STATUS: [] | OBSERVAÇÃO: [Compare o conteúdo listado no certificado com os requisitos da norma na base de conhecimento. Liste os tópicos obrigatórios e indique se o certificado os cobre.]
@@ -96,15 +98,11 @@ class NRAnalyzer:
         else:
             return f"""
             Você é um auditor de Segurança do Trabalho. Analise o documento PDF e compare com a base de conhecimento da {norma_analisada}.
-
             **Base de Conhecimento Relevante (Trechos da {norma_analisada}):**
             {nr_knowledge_base}
-
             **Tarefa:**
             Verifique os itens de conformidade abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 3 partes, separadas por '|':
-            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa detalhada]`
-            
             **Itens de Verificação para {doc_type}:**
             - ITEM: Estrutura e Conteúdo Mínimo | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Vigência e Periodicidade | STATUS: [] | OBSERVAÇÃO: []
@@ -124,12 +122,12 @@ class NRAnalyzer:
                         item = parts[0].replace("ITEM:", "").strip()
                         status = parts[1].replace("STATUS:", "").strip()
                         obs = parts[2].replace("OBSERVAÇÃO:", "").strip()
-                        data.append({"item_de_verificacao": item, "Status": status, "observacao": obs})
+                        data.append({"item_verificacao": item, "status": status, "observacao": obs})
                 except Exception:
                     continue
         
         if not data:
-            return pd.DataFrame([{"item_de_verificacao": "Análise Geral", "Status": "Não Estruturado", "observacao": analysis_result}])
+            return pd.DataFrame([{"item_verificacao": "Análise Geral", "status": "Não Estruturado", "observacao": analysis_result}])
             
         return pd.DataFrame(data)
 
