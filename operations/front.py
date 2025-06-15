@@ -1,3 +1,5 @@
+# /mount/src/segsisone/operations/front.py
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -40,6 +42,19 @@ def highlight_expired(row):
             return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
+def style_status_table(df: pd.DataFrame):
+    def highlight_status(val):
+        color = ''
+        val_lower = str(val).lower()
+        if 'não conforme' in val_lower:
+            color = 'background-color: #FFCDD2'
+        elif 'conforme' in val_lower:
+            color = 'background-color: #C8E6C9'
+        return color
+    if 'status' in df.columns:
+        return df.style.map(highlight_status, subset=['status'])
+    return df.style
+
 def process_aso_pdf():
     if st.session_state.get('aso_uploader_tab'):
         employee_manager = st.session_state.employee_manager
@@ -73,7 +88,7 @@ def front_page():
     docs_manager = st.session_state.docs_manager
     
     employee_manager.load_data()
-    docs_manager.load_company_docs_data()
+    docs_manager.load_company_data()
     
     gdrive_uploader = GoogleDriveUploader()
     
@@ -97,34 +112,18 @@ def front_page():
         if selected_company:
             st.subheader("Documentos da Empresa")
             company_docs = docs_manager.get_docs_by_company(selected_company).copy()
-            
             if not company_docs.empty:
                 company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
                 company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-                
                 company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 for col in company_doc_cols:
-                    if col not in company_docs.columns:
-                        company_docs[col] = "N/A"
-                
+                    if col not in company_docs.columns: company_docs[col] = "N/A"
                 company_docs_reordered = company_docs[company_doc_cols]
-                
-                st.dataframe(
-                    company_docs_reordered.style.apply(highlight_expired, axis=1),
-                    column_config={
-                        "tipo_documento": "Documento",
-                        "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"),
-                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"),
-                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                    },
-                    hide_index=True, use_container_width=True
-                )
-            else: 
-                st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+                st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
+            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
             
             st.markdown("---")
             st.subheader("Funcionários")
-            
             employees = employee_manager.get_employees_by_company(selected_company)
             if not employees.empty:
                 for index, employee in employees.iterrows():
@@ -137,13 +136,11 @@ def front_page():
                         if isinstance(vencimento_aso_obj, date):
                              aso_vencimento = vencimento_aso_obj
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id).copy()
                     if not all_trainings.empty:
                         trainings_total = len(all_trainings)
                         expired_mask = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date < today
                         trainings_expired_count = expired_mask.sum()
-                    
                     overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
                     status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
                     expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
@@ -155,28 +152,46 @@ def front_page():
                         col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
                         col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
                         st.markdown("---")
-
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
                             aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
                             for col in aso_display_cols:
-                                if col not in latest_aso.columns:
-                                    latest_aso[col] = "N/A"
+                                if col not in latest_aso.columns: latest_aso[col] = "N/A"
                             aso_reordered_df = latest_aso[aso_display_cols]
                             st.dataframe(aso_reordered_df.style.apply(highlight_expired, axis=1), column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None,}, hide_index=True, use_container_width=True)
                         else: st.info("Nenhum ASO encontrado.")
-
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
                             for col in training_display_cols:
-                                if col not in all_trainings.columns:
-                                    all_trainings[col] = "N/A"
+                                if col not in all_trainings.columns: all_trainings[col] = "N/A"
                             training_reordered_df = all_trainings[training_display_cols]
                             st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
                         else: st.info("Nenhum treinamento encontrado.")
             else:
                 st.info("Nenhum funcionário cadastrado para esta empresa.")
+
+            st.markdown("---")
+            with st.expander("📖 Histórico de Auditorias de Conformidade"):
+                audit_history = docs_manager.get_audits_by_company(selected_company)
+                
+                if not audit_history.empty:
+                    audit_history_display = audit_history.sort_values(by='data_auditoria', ascending=False)
+                    st.dataframe(
+                        style_status_table(audit_history_display),
+                        column_config={
+                            "data_auditoria": st.column_config.TextColumn("Data da Análise", help="Data e hora em que a análise foi salva."),
+                            "tipo_documento": "Doc. Analisado",
+                            "norma_auditada": "Norma",
+                            "item_verificacao": "Item de Verificação",
+                            "status": "Status",
+                            "observacao": "Observação da IA",
+                            "id": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
+                        },
+                        use_container_width=True, hide_index=True
+                    )
+                else:
+                    st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
         else:
             if employee_manager.companies_df.empty:
                 with st.form("cadastro_empresa"):
