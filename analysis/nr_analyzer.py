@@ -1,5 +1,3 @@
-# /mount/src/segsisone/pages/2_Auditoria_de_Conformidade.py
-
 import streamlit as st
 import pandas as pd
 from operations.employee import EmployeeManager
