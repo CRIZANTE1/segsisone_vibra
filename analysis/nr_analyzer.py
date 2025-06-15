@@ -1,96 +1,162 @@
 import streamlit as st
+from AI.api_Operation import PDFQA
+import tempfile
+import os
+import gdown
 import pandas as pd
-from operations.employee import EmployeeManager
-from operations.company_docs import CompanyDocsManager
-from analysis.nr_analyzer import NRAnalyzer
+import re
+from gdrive.config import get_credentials_dict
+import gspread
+from google.oauth2.service_account import Credentials
 
-def init_managers():
-    if 'employee_manager' not in st.session_state:
-        st.session_state.employee_manager = EmployeeManager()
-    if 'docs_manager' not in st.session_state:
-        st.session_state.docs_manager = CompanyDocsManager()
-    if 'nr_analyzer' not in st.session_state:
-        st.session_state.nr_analyzer = NRAnalyzer()
+@st.cache_data(ttl=3600)
+def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
+    """
+    Carrega a planilha de RAG em um DataFrame do Pandas usando gspread.
+    """
+    try:
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds_dict = get_credentials_dict()
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        gc = gspread.authorize(creds)
+        spreadsheet = gc.open_by_key(sheet_id)
+        worksheet = spreadsheet.sheet1
+        return pd.DataFrame(worksheet.get_all_records())
+    except gspread.exceptions.SpreadsheetNotFound:
+        st.error(f"Planilha de RAG com ID '{sheet_id}' não encontrada.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Falha ao carregar a base de conhecimento RAG: {e}")
+        return pd.DataFrame()
 
-def style_status_table(df: pd.DataFrame):
-    def highlight_status(val):
-        color = ''
-        val_lower = str(val).lower()
-        if 'não conforme' in val_lower:
-            color = 'background-color: #FFCDD2'  # Vermelho claro
-        elif 'conforme' in val_lower:
-            color = 'background-color: #C8E6C9'  # Verde claro
-        return color
-    
-    if 'Status' in df.columns:
-        return df.style.applymap(highlight_status, subset=['Status'])
-    return df.style
+class NRAnalyzer:
+    def __init__(self):
+        self.pdf_analyzer = PDFQA()
+        try:
+            self.nr_sheets_map = {
+                "NR-01": st.secrets.app_settings.get("rag_nr01_id"),
+                "NR-07": st.secrets.app_settings.get("rag_nr07_id"),
+                "NR-34": st.secrets.app_settings.get("rag_nr34_id"),
+                "NR-35": st.secrets.app_settings.get("rag_nr35_id"),
+            }
+            self.nr_sheets_map = {k: v for k, v in self.nr_sheets_map.items() if v}
+        except (AttributeError, KeyError):
+            st.error("A seção [app_settings] não foi encontrada no seu secrets.toml.")
+            self.nr_sheets_map = {}
 
-st.set_page_config(page_title="Auditoria de Conformidade", page_icon="🔍", layout="wide")
-init_managers()
-
-employee_manager = st.session_state.employee_manager
-docs_manager = st.session_state.docs_manager
-nr_analyzer = st.session_state.nr_analyzer
-
-st.title("🔍 Auditoria de Conformidade de Documentos")
-st.markdown("Selecione um documento existente para realizar uma análise profunda contra a base de conhecimento de uma NR.")
-
-if not employee_manager.companies_df.empty:
-    df_companies = employee_manager.companies_df.astype({'id': 'str'})
-    selected_company_id = st.selectbox(
-        "Selecione a empresa para auditar",
-        df_companies['id'].tolist(),
-        format_func=lambda x: f"{df_companies[df_companies['id'] == x]['nome'].iloc[0]}",
-        index=None, placeholder="Escolha uma empresa..."
-    )
-
-    if selected_company_id:
-        asos = employee_manager.aso_df[employee_manager.aso_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
-        trainings = employee_manager.training_df[employee_manager.training_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
-        company_docs = docs_manager.get_docs_by_company(selected_company_id)
+    def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
+        if rag_df.empty:
+            return "Base de conhecimento indisponível."
         
-        docs_list = []
-        if not trainings.empty:
-            for _, row in trainings.iterrows():
-                employee_name = employee_manager.get_employee_name(row['funcionario_id']) or "Funcionário Desconhecido"
-                norma = employee_manager._padronizar_norma(row['norma'])
-                docs_list.append({"label": f"Treinamento: {norma} - {employee_name}", "url": row['arquivo_id'], "norma": norma, "type": "Treinamento"})
-        if not company_docs.empty:
-             for _, row in company_docs.iterrows():
-                doc_type = row['tipo_documento']; norma_associada = "NR-01" if doc_type == "PGR" else ("NR-07" if doc_type == "PCMSO" else "NR-01")
-                docs_list.append({"label": f"Doc. Empresa: {doc_type}", "url": row['arquivo_id'], "norma": norma_associada, "type": doc_type})
-        if not asos.empty:
-            for _, row in asos.iterrows():
-                employee_name = employee_manager.get_employee_name(row['funcionario_id']) or "Funcionário Desconhecido"
-                docs_list.append({"label": f"ASO: {row.get('tipo_aso', 'N/A')} - {employee_name}", "url": row['arquivo_id'], "norma": "NR-07", "type": "ASO"})
-
-        selected_doc = st.selectbox(
-            "Selecione o documento para análise",
-            options=docs_list, format_func=lambda x: x['label'],
-            index=None, placeholder="Escolha um documento..."
-        )
-
-        if selected_doc:
-            norma_para_analise = selected_doc.get("norma")
-            st.info(f"Documento selecionado: **{selected_doc['label']}**. Será analisado contra a **{norma_para_analise}**.")
+        regex_pattern = '|'.join(keywords)
+        rag_df['Keywords'] = rag_df['Keywords'].astype(str)
+        relevant_rows = rag_df[rag_df['Keywords'].str.contains(regex_pattern, case=False, na=False)]
+        
+        if relevant_rows.empty:
+            return "Nenhum trecho relevante encontrado para as palavras-chave."
             
-            if norma_para_analise in nr_analyzer.nr_sheets_map:
-                if st.button(f"Analisar Conformidade com a {norma_para_analise}", type="primary"):
-                    resultado_df = nr_analyzer.analyze_document_compliance(selected_doc['url'], selected_doc)
-                    st.session_state.audit_result_df = resultado_df
-            else:
-                st.warning(f"A análise para a {norma_para_analise} não está disponível. Nenhuma planilha de RAG foi configurada para esta norma em `analysis/nr_analyzer.py`.")
+        knowledge_text = "\n\n".join(relevant_rows['Answer_Chunk'].tolist())
+        return knowledge_text
 
-            if 'audit_result_df' in st.session_state and st.session_state.audit_result_df is not None:
-                st.markdown("---")
-                st.subheader("Resultado da Análise de Conformidade")
+    def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str, keywords: list[str]) -> str:
+        return f"""
+        Você é um auditor de Segurança do Trabalho. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com os trechos relevantes da {norma_analisada} que encontrei para você.
+
+        **Base de Conhecimento Relevante (Trechos da {norma_analisada} sobre {', '.join(keywords)}):**
+        {nr_knowledge_base}
+        
+        **Tarefa:**
+        Verifique os seguintes itens de conformidade no documento, usando a base de conhecimento acima. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
+        
+        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa citando a norma, se possível]`
+        
+        **Itens de Verificação para {doc_type}:**
+        - ITEM: Conformidade com o conteúdo programático/estrutura mínima | STATUS: [] | OBSERVAÇÃO: []
+        - ITEM: Conformidade com carga horária e validade | STATUS: [] | OBSERVAÇÃO: []
+        - ITEM: Presença de informações obrigatórias (responsáveis, assinaturas, etc.) | STATUS: [] | OBSERVAÇÃO: []
+        - ITEM: Pontos de atenção ou não conformidades específicas | STATUS: [] | OBSERVAÇÃO: []
+        - ITEM: Resumo geral da conformidade | STATUS: [] | OBSERVAÇÃO: []
+        """
+
+    def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
+        lines = analysis_result.strip().split('\n')
+        data = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith("ITEM:") and "STATUS:" in line and "OBSERVAÇÃO:" in line:
+                try:
+                    parts = line.split('|', 2)
+                    item = parts[0].replace("ITEM:", "").strip()
+                    status = parts[1].replace("STATUS:", "").strip()
+                    obs = obs_part.replace("OBSERVAÇÃO:", "").strip()
+                    data.append({"Item de Verificação": item, "Status": status, "Observação": obs})
+                except ValueError: continue
+        
+        if not data:
+            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result}])
+            
+        return pd.DataFrame(data)
+
+    def analyze_document_compliance(self, document_url: str, doc_info: dict) -> pd.DataFrame | None:
+        doc_type = doc_info.get("type")
+        norma_analisada = doc_info.get("norma")
+        
+        st.info(f"Iniciando análise de conformidade do documento '{doc_info.get('label')}' contra a {norma_analisada}...")
+
+        sheet_id = self.nr_sheets_map.get(norma_analisada)
+        if not sheet_id:
+            st.error(f"Análise não disponível. Nenhuma planilha de RAG configurada para {norma_analisada}.")
+            return None
+        
+        with st.spinner(f"Carregando base de conhecimento da {norma_analisada}..."):
+            rag_df = load_nr_knowledge_base(sheet_id)
+
+        if rag_df.empty:
+            return None
+        
+        keywords = ["Requisitos", "Documentação"] # Default
+        if doc_type == "PGR": keywords = ["PGR", "Gerenciamento de Riscos", "Inventário de riscos", "Plano de ação"]
+        elif doc_type == "PCMSO": keywords = ["PCMSO", "Exames médicos", "ASO", "Relatório analítico"]
+        elif doc_type == "ASO": keywords = ["ASO", "Atestado de Saúde", "Exame admissional", "Exame periódico", "Exame demissional"]
+        elif doc_type == "Treinamento": keywords = ["Treinamento", "Capacitação", "Carga horária", "Certificado", norma_analisada]
+            
+        with st.spinner("Buscando informações relevantes na base de conhecimento..."):
+            relevant_knowledge = self._find_relevant_chunks(rag_df, keywords)
+
+        try:
+            # Extrai o FILE_ID da URL de visualização
+            file_id_match = re.search(r'/d/([a-zA-Z0-9_-]+)', document_url)
+            if not file_id_match:
+                st.error(f"Não foi possível extrair o ID do arquivo da URL do Google Drive: {document_url}")
+                return None
+            
+            file_id = file_id_match.group(1)
+            
+            # Constrói a URL de download direto
+            download_url = f'https://drive.google.com/uc?id={file_id}'
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                with st.spinner("Baixando documento do Google Drive..."):
+                    # Usa a nova URL de download
+                    gdown.download(url=download_url, output=temp_file.name, quiet=True)
+                temp_path = temp_file.name
                 
-                styled_df = style_status_table(st.session_state.audit_result_df)
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
-                
-                if st.button("Limpar Análise"):
-                    del st.session_state.audit_result_df
-                    st.rerun()
-else:
-    st.warning("Nenhuma empresa cadastrada. Adicione uma empresa na página principal primeiro.")
+        except Exception as e:
+            st.error(f"Falha ao baixar o documento do Google Drive. Verifique se o link é compartilhável."); st.code(str(e))
+            if 'temp_path' in locals() and os.path.exists(temp_path): os.unlink(temp_path)
+            return None
+
+        prompt = self._get_analysis_prompt(doc_type, norma_analisada, relevant_knowledge, keywords)
+
+        try:
+            with st.spinner("IA realizando a análise profunda..."):
+                analysis_result, _ = self.pdf_analyzer.answer_question([temp_path], prompt)
+            os.unlink(temp_path)
+            
+            if analysis_result:
+                return self._parse_analysis_to_dataframe(analysis_result)
+            else:
+                st.warning("A IA não conseguiu gerar uma análise.")
+                return None
+        except Exception as e:
+            st.error(f"Ocorreu um erro durante a análise profunda: {e}"); return None
