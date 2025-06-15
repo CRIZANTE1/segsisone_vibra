@@ -15,6 +15,7 @@ EMPLOYEE_SHEET_NAME = "empresas"  # Aba para empresas
 EMPLOYEE_DATA_SHEET_NAME = "funcionarios"  # Aba para funcionários
 TRAINING_SHEET_NAME = "treinamento"  # Aba para treinamentos
 ADM_SHEET_NAME = "ADM"  # Aba para administradores
+AUDIT_RESULTS_SHEET_NAME = "auditorias"
 COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
 
 def get_credentials_dict():
