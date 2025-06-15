@@ -1,5 +1,3 @@
-# /mount/src/segsisone/analysis/nr_analyzer.py
-
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
@@ -20,12 +18,13 @@ def load_nr_knowledge_base(sheet_id: str) -> str:
         creds_dict = get_credentials_dict()
         
         # Diz explicitamente para o pygsheets usar as credenciais da conta de serviço.
+        # Isso impede que ele procure pelo arquivo 'client_secret.json'.
         gc = pygsheets.authorize(service_account_data=creds_dict)
         
         spreadsheet = gc.open_by_key(sheet_id)
+        
         full_text = ""
         for worksheet in spreadsheet.worksheets():
-            # Itera sobre todas as linhas e colunas para pegar todo o texto
             sheet_text = "\n".join([" ".join(map(str, row)) for row in worksheet.get_all_values()])
             full_text += f"\n\n--- Início da {worksheet.title} ---\n{sheet_text}\n--- Fim da {worksheet.title} ---"
         return full_text
