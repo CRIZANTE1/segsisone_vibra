@@ -1,4 +1,3 @@
-
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -172,7 +171,8 @@ def front_page():
                     audit_history_display = audit_history.copy()
                     if 'data_auditoria' in audit_history_display.columns:
                         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                        audit_history_display = audit_history_display.dropna(subset=['data_auditoria']).sort_values(by='data_auditoria', ascending=False)
+                        audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
+                        audit_history_display = audit_history_display.sort_values(by='data_auditoria', ascending=False)
                     
                     st.dataframe(
                         audit_history_display.style.apply(style_audit_table, axis=1),
@@ -180,12 +180,13 @@ def front_page():
                             "data_auditoria": st.column_config.DatetimeColumn("Data da Análise", format="DD/MM/YYYY HH:mm"),
                             "tipo_documento": "Doc. Analisado",
                             "norma_auditada": "Norma",
-                            "item_de_vericacao": "Item de Verificação",
-                            "Status": "Status",
+                            "item_verificacao": "Item de Verificação",
+                            "status": "Status",
                             "observacao": "Observação da IA",
                             "id": None, "id_auditoria": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
                         },
-                        use_container_width=True, hide_index=True
+                        use_container_width=True, 
+                        hide_index=True
                     )
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
