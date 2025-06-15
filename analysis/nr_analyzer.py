@@ -1,5 +1,3 @@
-# /mount/src/segsisone/analysis/nr_analyzer.py
-
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
