@@ -36,7 +36,7 @@ employee_manager = st.session_state.employee_manager
 docs_manager = st.session_state.docs_manager
 nr_analyzer = st.session_state.nr_analyzer
 
-st.title("🔍 Auditoria de Conformidade de Documentos")
+st.title("Auditoria de Conformidade de Documentos")
 st.markdown("Selecione um documento existente para realizar uma análise profunda contra a base de conhecimento de uma NR.")
 
 if not employee_manager.companies_df.empty:
