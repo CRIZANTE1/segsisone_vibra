@@ -1,11 +1,10 @@
-# /mount/src/segsisone/pages/2_Auditoria_de_Conformidade.py
-
 import streamlit as st
 import pandas as pd
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from analysis.nr_analyzer import NRAnalyzer
 
+# Funções de inicialização para garantir que os managers estejam disponíveis
 def init_managers():
     if 'employee_manager' not in st.session_state:
         st.session_state.employee_manager = EmployeeManager()
@@ -92,10 +91,14 @@ if not employee_manager.companies_df.empty:
             # --- 4. Botão de Análise (norma é deduzida) ---
             st.info(f"Documento selecionado: **{selected_doc['label']}**. Será analisado contra a **{norma_para_analise}**.")
             
-            if st.button(f"Analisar Conformidade com a {norma_para_analise}", type="primary"):
-                # Passa o dicionário completo do documento para a função de análise
-                resultado = nr_analyzer.analyze_document_compliance(selected_doc['url'], selected_doc)
-                st.session_state.audit_result = resultado
+            # Verifica se a norma selecionada tem uma planilha de RAG configurada
+            if norma_para_analise in nr_analyzer.nr_sheets_map:
+                if st.button(f"Analisar Conformidade com a {norma_para_analise}", type="primary"):
+                    # Passa o dicionário completo do documento para a função de análise
+                    resultado = nr_analyzer.analyze_document_compliance(selected_doc['url'], selected_doc)
+                    st.session_state.audit_result = resultado
+            else:
+                st.warning(f"A análise para a {norma_para_analise} não está disponível. Nenhuma planilha de RAG foi configurada para esta norma em `analysis/nr_analyzer.py`.")
 
             if 'audit_result' in st.session_state:
                 st.markdown("---")
