@@ -1,3 +1,5 @@
+
+
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -29,13 +31,16 @@ class CompanyDocsManager:
     def initialize_sheets(self):
         try:
             docs_columns = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            audit_columns = ["id", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
+            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
             
             if not self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME):
                 self.sheet_ops.criar_aba(COMPANY_DOCS_SHEET_NAME, docs_columns)
             
-            if not self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME):
+            data_audit = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
+            if not data_audit:
                 self.sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, audit_columns)
+            elif data_audit and 'id_auditoria' not in data_audit[0]:
+                st.warning(f"A coluna 'id_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME}. A funcionalidade pode ser limitada.")
             
             return True
         except Exception as e:
@@ -43,16 +48,29 @@ class CompanyDocsManager:
 
     def load_company_data(self):
         try:
+            # Carrega documentos da empresa
             docs_data = self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME)
             docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
             self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0]) if docs_data and len(docs_data) > 0 else pd.DataFrame(columns=docs_cols)
 
+            # Carrega e limpa os dados da auditoria
             audit_data = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
-            audit_cols = ["id", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
-            self.audit_df = pd.DataFrame(audit_data[1:], columns=audit_data[0]) if audit_data and len(audit_data) > 0 else pd.DataFrame(columns=audit_cols)
+            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
+            
+            if audit_data and len(audit_data) > 1:
+                # Usa o cabeçalho real da planilha para o DataFrame inicial
+                header = audit_data[0]
+                temp_df = pd.DataFrame(audit_data[1:], columns=header)
+                
+                # Seleciona apenas as colunas que existem no nosso modelo `audit_cols`
+                # e que também estão no cabeçalho lido, para evitar erros.
+                final_cols = [col for col in audit_cols if col in temp_df.columns]
+                self.audit_df = temp_df[final_cols]
+            else:
+                self.audit_df = pd.DataFrame(columns=audit_cols)
             
         except Exception as e:
-            st.error(f"Erro ao carregar dados da empresa: {e}")
+            st.error(f"Erro ao carregar dados da empresa: {str(e)}")
             self.docs_df = pd.DataFrame()
             self.audit_df = pd.DataFrame()
 
@@ -63,8 +81,11 @@ class CompanyDocsManager:
     def get_audits_by_company(self, company_id):
         if self.audit_df.empty:
             return pd.DataFrame()
-        return self.audit_df[self.audit_df['id_empresa'] == str(company_id)]
-
+        # Garante que a coluna existe antes de filtrar
+        if 'id_empresa' in self.audit_df.columns:
+            return self.audit_df[self.audit_df['id_empresa'] == str(company_id)]
+        return pd.DataFrame()
+        
     def _parse_flexible_date(self, date_string: str) -> date | None:
         if not date_string or date_string.lower() == 'n/a': return None
         match = re.search(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2})', date_string, re.IGNORECASE)
@@ -75,7 +96,7 @@ class CompanyDocsManager:
             try: return datetime.strptime(clean_date_string, fmt).date()
             except ValueError: continue
         return None
-        
+
     def analyze_company_doc_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
