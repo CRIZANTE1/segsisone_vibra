@@ -32,7 +32,6 @@ def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
 class NRAnalyzer:
     def __init__(self):
         self.pdf_analyzer = PDFQA()
-        # Inicializa o serviço do Drive uma vez para ser reutilizado
         try:
             creds_dict = get_credentials_dict()
             creds = Credentials.from_service_account_info(creds_dict)
@@ -54,75 +53,82 @@ class NRAnalyzer:
             self.nr_sheets_map = {}
 
     def _download_file_from_drive(self, file_id: str) -> bytes:
-        """Faz o download de um arquivo do Drive e retorna seus bytes."""
         if not self.drive_service:
             raise Exception("Serviço do Google Drive não inicializado.")
-            
         request = self.drive_service.files().get_media(fileId=file_id)
         file_buffer = io.BytesIO()
         downloader = MediaIoBaseDownload(file_buffer, request)
         done = False
-        while done is False:
+        while not done:
             status, done = downloader.next_chunk()
-        
         return file_buffer.getvalue()
 
+    # --- FUNÇÃO ATUALIZADA ---
     def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
-        """Busca no DataFrame de RAG por linhas que contenham as palavras-chave e retorna os trechos de resposta."""
-        if rag_df.empty:
-            return "Base de conhecimento indisponível."
-        
-        regex_pattern = '|'.join(keywords)
-        # Garante que a coluna 'Keywords' seja do tipo string para usar o .str.contains
+        """Busca por palavras-chave e retorna os trechos com a referência da seção."""
+        if rag_df.empty: return "Base de conhecimento indisponível."
+        regex_pattern = '|'.join(map(re.escape, keywords))
         rag_df['Keywords'] = rag_df['Keywords'].astype(str)
         relevant_rows = rag_df[rag_df['Keywords'].str.contains(regex_pattern, case=False, na=False)]
         
-        if relevant_rows.empty:
-            return "Nenhum trecho relevante encontrado para as palavras-chave."
+        if relevant_rows.empty: return "Nenhum trecho relevante encontrado para as palavras-chave."
             
-        # Concatena os trechos de resposta relevantes em uma única string
-        knowledge_text = "\n\n".join(relevant_rows['Answer_Chunk'].tolist())
+        # Inclui o número da seção na base de conhecimento para a IA poder citá-lo
+        knowledge_text = "\n\n".join(
+            f"Referência Normativa {row.get('Section_Number', '')}: {row.get('Answer_Chunk', '')}" 
+            for _, row in relevant_rows.iterrows()
+        )
         return knowledge_text
 
+    # --- FUNÇÃO ATUALIZADA ---
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str, keywords: list[str]) -> str:
-        """Retorna o prompt apropriado com base no tipo de documento e palavras-chave."""
-        
+        """Retorna o prompt aprimorado que exige a referência normativa."""
         return f"""
-        Você é um auditor de Segurança do Trabalho. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com os trechos relevantes da {norma_analisada} que encontrei para você.
+        Você é um auditor de Segurança do Trabalho altamente detalhista. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com os trechos relevantes da {norma_analisada}.
 
         **Base de Conhecimento Relevante (Trechos da {norma_analisada} sobre {', '.join(keywords)}):**
         {nr_knowledge_base}
         
         **Tarefa:**
-        Verifique os seguintes itens de conformidade no documento, usando a base de conhecimento acima. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
+        Verifique os seguintes itens de conformidade no documento. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 4 partes, separadas por '|':
         
-        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa citando a norma, se possível]`
+        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa] | REFERÊNCIA: [Cite o número da Referência Normativa usada, ex: 'Referência Normativa 34.5.1' ou 'N/A']`
         
         **Itens de Verificação para {doc_type}:**
-        - ITEM: Conformidade com o conteúdo programático/estrutura mínima | STATUS: [] | OBSERVAÇÃO: []
-        - ITEM: Conformidade com carga horária e validade | STATUS: [] | OBSERVAÇÃO: []
-        - ITEM: Presença de informações obrigatórias (responsáveis, assinaturas, etc.) | STATUS: [] | OBSERVAÇÃO: []
-        - ITEM: Pontos de atenção ou não conformidades específicas | STATUS: [] | OBSERVAÇÃO: []
-        - ITEM: Resumo geral da conformidade | STATUS: [] | OBSERVAÇÃO: []
+        - ITEM: Conformidade com o conteúdo programático/estrutura mínima | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
+        - ITEM: Conformidade com carga horária e validade | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
+        - ITEM: Presença de informações obrigatórias (responsáveis, assinaturas, etc.) | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
+        - ITEM: Pontos de atenção ou não conformidades específicas | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
+        - ITEM: Resumo geral da conformidade | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
         """
 
+    # --- FUNÇÃO ATUALIZADA ---
     def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
-        """Converte a resposta em texto da IA em um DataFrame do Pandas."""
+        """Converte a resposta em texto da IA em um DataFrame do Pandas, agora com 4 colunas."""
         lines = analysis_result.strip().split('\n')
         data = []
         for line in lines:
             line = line.strip()
-            if line.startswith("ITEM:") and "STATUS:" in line and "OBSERVAÇÃO:" in line:
+            # Procura por uma linha que contenha os 4 marcadores
+            if all(marker in line for marker in ["ITEM:", "STATUS:", "OBSERVAÇÃO:", "REFERÊNCIA:"]):
                 try:
-                    parts = line.split('|', 2)
-                    item = parts[0].replace("ITEM:", "").strip()
-                    status = parts[1].replace("STATUS:", "").strip()
-                    obs = obs_part.replace("OBSERVAÇÃO:", "").strip()
-                    data.append({"Item de Verificação": item, "Status": status, "Observação": obs})
-                except ValueError: continue
+                    parts = line.split('|', 3) # Divide no máximo 3 vezes para obter 4 partes
+                    if len(parts) == 4:
+                        item = parts[0].replace("ITEM:", "").strip()
+                        status = parts[1].replace("STATUS:", "").strip()
+                        obs = parts[2].replace("OBSERVAÇÃO:", "").strip()
+                        ref = parts[3].replace("REFERÊNCIA:", "").strip()
+                        data.append({
+                            "Item de Verificação": item, 
+                            "Status": status, 
+                            "Observação": obs,
+                            "Referência Normativa": ref
+                        })
+                except Exception:
+                    continue
         
         if not data:
-            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result}])
+            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result, "Referência Normativa": "N/A"}])
             
         return pd.DataFrame(data)
 
@@ -134,19 +140,18 @@ class NRAnalyzer:
 
         sheet_id = self.nr_sheets_map.get(norma_analisada)
         if not sheet_id:
-            st.error(f"Análise não disponível. Nenhuma planilha de RAG configurada para {norma_analisada} no arquivo secrets.toml.")
+            st.error(f"Análise não disponível. Nenhuma planilha de RAG configurada para {norma_analisada}.")
             return None
         
         with st.spinner(f"Carregando base de conhecimento da {norma_analisada}..."):
             rag_df = load_nr_knowledge_base(sheet_id)
 
-        if rag_df.empty:
-            return None
+        if rag_df.empty: return None
         
         keywords = ["Requisitos", "Documentação"] # Default
-        if doc_type == "PGR": keywords = ["PGR", "Gerenciamento de Riscos", "Inventário de riscos", "Plano de ação"]
+        if doc_type == "PGR": keywords = ["PGR", "Gerenciamento de Riscos", "Inventário", "Plano de ação"]
         elif doc_type == "PCMSO": keywords = ["PCMSO", "Exames médicos", "ASO", "Relatório analítico"]
-        elif doc_type == "ASO": keywords = ["ASO", "Atestado de Saúde", "Exame admissional", "Exame periódico", "Exame demissional"]
+        elif doc_type == "ASO": keywords = ["ASO", "Atestado de Saúde", "Exame", "Médico"]
         elif doc_type == "Treinamento": keywords = ["Treinamento", "Capacitação", "Carga horária", "Certificado", norma_analisada]
             
         with st.spinner("Buscando informações relevantes na base de conhecimento..."):
@@ -154,7 +159,6 @@ class NRAnalyzer:
 
         temp_path = None
         try:
-            # Extrai o FILE_ID da URL de visualização
             file_id_match = re.search(r'/d/([a-zA-Z0-9_-]+)', document_url)
             if not file_id_match:
                 st.error("Não foi possível extrair o ID do arquivo da URL do Google Drive.")
@@ -162,11 +166,9 @@ class NRAnalyzer:
             
             file_id = file_id_match.group(1)
             
-            # Usa o método robusto da API para baixar o conteúdo do arquivo
             with st.spinner("Baixando documento do Google Drive..."):
                 file_content = self._download_file_from_drive(file_id)
             
-            # Salva o conteúdo em um arquivo temporário para análise
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(file_content)
                 temp_path = temp_file.name
@@ -190,6 +192,5 @@ class NRAnalyzer:
         except Exception as e:
             st.error(f"Ocorreu um erro durante a análise profunda: {e}"); return None
         finally:
-            # Garante que o arquivo temporário seja sempre removido
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
