@@ -1,3 +1,5 @@
+# /mount/src/segsisone/analysis/nr_analyzer.py
+
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
@@ -10,13 +12,20 @@ from gdrive.config import get_credentials_dict
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> str:
-    """Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena."""
+    """
+    Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena.
+    """
     try:
+        # Pega as credenciais usando a função que já existe e funciona.
         creds_dict = get_credentials_dict()
+        
+        # Diz explicitamente para o pygsheets usar as credenciais da conta de serviço.
         gc = pygsheets.authorize(service_account_data=creds_dict)
+        
         spreadsheet = gc.open_by_key(sheet_id)
         full_text = ""
         for worksheet in spreadsheet.worksheets():
+            # Itera sobre todas as linhas e colunas para pegar todo o texto
             sheet_text = "\n".join([" ".join(map(str, row)) for row in worksheet.get_all_values()])
             full_text += f"\n\n--- Início da {worksheet.title} ---\n{sheet_text}\n--- Fim da {worksheet.title} ---"
         return full_text
@@ -46,7 +55,6 @@ class NRAnalyzer:
         except (AttributeError, KeyError):
             st.error("A seção [app_settings] ou as chaves rag_nrXX_id não foram encontradas no seu arquivo secrets.toml.")
             self.nr_sheets_map = {}
-
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str) -> str:
         """Retorna o prompt apropriado com base no tipo de documento."""
@@ -95,7 +103,7 @@ class NRAnalyzer:
             """
             
         # Prompt padrão para outros tipos de documentos (como ASO)
-        else:
+        else: # Inclui 'ASO'
             return f"""
             Você é um especialista em Segurança do Trabalho. Analise o documento em PDF fornecido.
             Use a base de conhecimento da {norma_analisada} abaixo para verificar a conformidade do documento.
