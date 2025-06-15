@@ -1,7 +1,8 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-import random # Importa a biblioteca random para gerar IDs
+import random
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from analysis.nr_analyzer import NRAnalyzer
@@ -31,20 +32,18 @@ def style_status_table(df: pd.DataFrame):
     return df.style
 
 def setup_audit_sheet():
-    """Garante que a aba de auditoria exista com os cabeçalhos corretos."""
     sheet_ops = st.session_state.employee_manager.sheet_ops
     data = sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
     
-    # Coluna "id_auditoria" para agrupar os resultados
     columns = [
         "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
         "id_funcionario", "tipo_documento", "norma_auditada", 
-        "item_de_verificacao", "Status", "observacao"
+        "item_verificacao", "status", "observacao"
     ]
     if not data:
-        sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, columns)
+        sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, ["id"] + columns)
     elif data and 'id_auditoria' not in data[0]:
-        st.warning(f"A coluna 'id_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME}. A funcionalidade pode ser limitada.")
+        st.warning(f"A coluna 'id_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME}.")
 
 st.set_page_config(page_title="Auditoria de Conformidade", page_icon="🔍", layout="wide")
 
@@ -57,7 +56,7 @@ if check_admin_permission():
     nr_analyzer = st.session_state.nr_analyzer
 
     st.title("🔍 Auditoria de Conformidade de Documentos")
-    st.markdown("Selecione um documento existente para realizar uma análise profunda contra a base de conhecimento de uma NR.")
+    st.markdown("Selecione um documento para realizar uma análise profunda.")
 
     if not employee_manager.companies_df.empty:
         df_companies = employee_manager.companies_df.astype({'id': 'str'})
@@ -69,12 +68,11 @@ if check_admin_permission():
         )
 
         if selected_company_id:
-            # Lógica para montar a lista de documentos (sem alterações)
             asos = employee_manager.aso_df[employee_manager.aso_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
             trainings = employee_manager.training_df[employee_manager.training_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
             company_docs = docs_manager.get_docs_by_company(selected_company_id)
+            
             docs_list = []
-            # ... (código para preencher docs_list)
             if not trainings.empty:
                 for _, row in trainings.iterrows():
                     employee_name = employee_manager.get_employee_name(row['funcionario_id']) or "Func. Desconhecido"
@@ -113,36 +111,40 @@ if check_admin_permission():
                     st.markdown("---")
                     st.subheader("Resultado da Análise de Conformidade")
                     
-                    styled_df = style_status_table(st.session_state.audit_result_df)
-                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                    audit_df = st.session_state.audit_result_df
+                    
+                    st.dataframe(
+                        style_status_table(audit_df),
+                        column_config={
+                            "item_verificacao": "Item de Verificação",
+                            "status": "Status",
+                            "observacao": "Observação da IA",
+                        },
+                        use_container_width=True, 
+                        hide_index=True
+                    )
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        # --- LÓGICA DE SALVAMENTO ATUALIZADA ---
                         if st.button("Salvar Resultado da Auditoria", disabled=st.session_state.get('saved_audit', False)):
                             with st.spinner("Salvando auditoria na planilha..."):
-                                audit_df = st.session_state.audit_result_df
                                 saved_count = 0
                                 data_auditoria_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                                
-                                # 1. Gera um ID único para TODA esta auditoria
                                 audit_run_id = random.randint(10000, 99999)
 
                                 for _, row in audit_df.iterrows():
-                                    # 2. Prepara a linha de dados com o ID de auditoria repetido
                                     new_audit_row = [
-                                        audit_run_id, # ID único para agrupar esta análise
+                                        audit_run_id,
                                         data_auditoria_atual,
                                         selected_company_id,
                                         selected_doc.get('doc_id', 'N/A'),
                                         selected_doc.get('employee_id', 'N/A'),
                                         selected_doc.get('type', 'N/A'),
                                         norma_para_analise,
-                                        row.get('item_de_verificacao', ''),
-                                        row.get('Status', ''),
+                                        row.get('item_verificacao', ''),
+                                        row.get('status', ''),
                                         row.get('observacao', '')
                                     ]
-                                    # 3. Usa o método adc_dados_aba que já gera um ID único para a LINHA
                                     save_id = employee_manager.sheet_ops.adc_dados_aba(AUDIT_RESULTS_SHEET_NAME, new_audit_row)
                                     if save_id:
                                         saved_count += 1
