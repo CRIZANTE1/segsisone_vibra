@@ -129,7 +129,7 @@ class NRAnalyzer:
                     continue
         
         if not data:
-            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result}])
+            return pd.DataFrame([{"item_de_verificacao": "Análise Geral", "Status": "Não Estruturado", "observacao": analysis_result}])
             
         return pd.DataFrame(data)
 
