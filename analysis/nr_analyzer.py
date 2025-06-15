@@ -1,34 +1,47 @@
-# /mount/src/segsisone/analysis/nr_analyzer.py
-
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
 import os
 import gdown
-import pygsheets
 import pandas as pd
 import re
 from gdrive.config import get_credentials_dict
+import gspread # <-- Nova importação
+from google.oauth2.service_account import Credentials # <-- Nova importação
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> str:
     """
-    Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena.
+    Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena usando gspread.
     """
     try:
-        # Pega as credenciais usando a função que já sabemos que funciona.
+        # --- CORREÇÃO DEFINITIVA USANDO GSPREAD ---
+        # 1. Pega as credenciais
         creds_dict = get_credentials_dict()
-     
-        gc = pygsheets.authorize(service_account_data=creds_dict)
         
+        # 2. Define o escopo necessário para o gspread
+        scopes = [
+            'https://www.googleapis.com/auth/spreadsheets',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        # 3. Cria as credenciais para o gspread
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        
+        # 4. Autoriza o gspread com as credenciais
+        gc = gspread.authorize(creds)
+        
+        # 5. Abre a planilha e lê os dados
         spreadsheet = gc.open_by_key(sheet_id)
         
         full_text = ""
         for worksheet in spreadsheet.worksheets():
             sheet_text = "\n".join([" ".join(map(str, row)) for row in worksheet.get_all_values()])
             full_text += f"\n\n--- Início da {worksheet.title} ---\n{sheet_text}\n--- Fim da {worksheet.title} ---"
+        
         return full_text
-    except pygsheets.exceptions.SpreadsheetNotFound:
+        
+    except gspread.exceptions.SpreadsheetNotFound:
         st.error(f"Planilha de NR com ID '{sheet_id}' não encontrada. Verifique o ID no secrets.toml e as permissões de compartilhamento.")
         return ""
     except Exception as e:
@@ -40,31 +53,31 @@ class NRAnalyzer:
     def __init__(self):
         self.pdf_analyzer = PDFQA()
         try:
-            # Lê os IDs da seção [app_settings] dos secrets
             self.nr_sheets_map = {
                 "NR-01": st.secrets.app_settings.get("rag_nr01_id"),
                 "NR-07": st.secrets.app_settings.get("rag_nr07_id"),
                 "NR-34": st.secrets.app_settings.get("rag_nr34_id"),
                 "NR-35": st.secrets.app_settings.get("rag_nr35_id"),
             }
-            # Remove entradas que não foram encontradas nos secrets
             self.nr_sheets_map = {k: v for k, v in self.nr_sheets_map.items() if v}
         except (AttributeError, KeyError):
-            st.error("A seção [app_settings] não foi encontrada no seu arquivo secrets.toml.")
+            st.error("A seção [app_settings] ou as chaves rag_nrXX_id não foram encontradas no seu arquivo secrets.toml.")
             self.nr_sheets_map = {}
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str) -> str:
-        """Retorna o prompt apropriado com base no tipo de documento."""
-        
         # Prompt para Programas (PGR, PCMSO)
         if doc_type in ["PGR", "PCMSO"]:
             return f"""
             Você é um auditor de Segurança do Trabalho. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com a base de conhecimento da {norma_analisada}.
+
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
+            
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
+            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
+            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Estrutura Mínima do Documento | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Inventário de Riscos Ocupacionais | STATUS: [] | OBSERVAÇÃO: []
@@ -77,11 +90,15 @@ class NRAnalyzer:
         elif doc_type == "Treinamento":
             return f"""
             Você é um especialista em Segurança do Trabalho e sua tarefa é auditar um certificado de treinamento.
+            
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
+            
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
+            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
+            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Conteúdo Programático Mínimo | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Carga Horária Mínima | STATUS: [] | OBSERVAÇÃO: []
@@ -92,15 +109,19 @@ class NRAnalyzer:
             """
             
         # Prompt padrão para outros tipos de documentos (como ASO)
-        else:
+        else: # Inclui 'ASO'
             return f"""
             Você é um especialista em Segurança do Trabalho. Analise o documento em PDF fornecido.
             Use a base de conhecimento da {norma_analisada} abaixo para verificar a conformidade do documento.
+            
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
+
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
+            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
+            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Identificação do Tipo de Exame (Admissional, Periódico, etc.) | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Indicação dos Riscos Ocupacionais | STATUS: [] | OBSERVAÇÃO: []
@@ -123,10 +144,8 @@ class NRAnalyzer:
                     data.append({"Item de Verificação": item, "Status": status, "Observação": obs})
                 except ValueError:
                     continue
-        
         if not data:
             return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result}])
-            
         return pd.DataFrame(data)
 
     def analyze_document_compliance(self, document_url: str, doc_info: dict) -> pd.DataFrame | None:
@@ -167,6 +186,9 @@ class NRAnalyzer:
                 return self._parse_analysis_to_dataframe(analysis_result)
             else:
                 st.warning("A IA não conseguiu gerar uma análise.")
+                return None
+        except Exception as e:
+            st.error(f"Ocorreu um erro durante a análise profunda: {e}"); return None
                 return None
         except Exception as e:
             st.error(f"Ocorreu um erro durante a análise profunda: {e}"); return None
