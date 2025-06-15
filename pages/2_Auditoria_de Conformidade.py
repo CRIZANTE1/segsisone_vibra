@@ -138,9 +138,9 @@ if check_admin_permission():
                                         selected_doc.get('employee_id', 'N/A'),
                                         selected_doc.get('type', 'N/A'),
                                         norma_para_analise,
-                                        row.get('Item de Verificação', ''),
+                                        row.get('item_de_verificacao', ''),
                                         row.get('Status', ''),
-                                        row.get('Observação', '')
+                                        row.get('observacao', '')
                                     ]
                                     # 3. Usa o método adc_dados_aba que já gera um ID único para a LINHA
                                     save_id = employee_manager.sheet_ops.adc_dados_aba(AUDIT_RESULTS_SHEET_NAME, new_audit_row)
