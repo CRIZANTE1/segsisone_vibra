@@ -92,7 +92,7 @@ class NRAnalyzer:
         **Tarefa:**
         Verifique os seguintes itens de conformidade no documento. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 4 partes, separadas por '|':
         
-        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa] | REFERÊNCIA: [Cite o número da Referência Normativa usada, ex: 'Referência Normativa 34.5.1' ou 'N/A']`
+        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa] | REFERÊNCIA: [Cite o número da Referência Normativa usada, ex: 'Referência Normativa Exemplo NR 34 Item 34.5.1']`
         
         **Itens de Verificação para {doc_type}:**
         - ITEM: Conformidade com o conteúdo programático/estrutura mínima | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
