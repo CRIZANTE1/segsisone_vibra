@@ -1,5 +1,3 @@
-# /mount/src/segsisone/analysis/nr_analyzer.py
-
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
@@ -10,10 +8,13 @@ from gdrive.config import get_credentials_dict # Importa a função correta
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> str:
-    """Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena."""
+    """
+    Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena.
+    """
     try:
         creds_dict = get_credentials_dict()
         gc = pygsheets.authorize(service_account_data=creds_dict)
+        
         spreadsheet = gc.open_by_key(sheet_id)
         full_text = ""
         for worksheet in spreadsheet.worksheets():
@@ -25,6 +26,7 @@ def load_nr_knowledge_base(sheet_id: str) -> str:
         return ""
     except Exception as e:
         st.error(f"Falha ao carregar a base de conhecimento da planilha com ID {sheet_id}: {e}")
+        st.warning("Verifique se o e-mail da conta de serviço tem permissão de 'Leitor' nesta planilha de NR.")
         return ""
 
 class NRAnalyzer:
@@ -36,7 +38,7 @@ class NRAnalyzer:
             "NR-07": "1SY4XB7MtbvgienYzE12_GiBFx3ArEdo3N_ovtZQCOUk",
             "NR-34": "1STAeNSoTMfXGAkW1c--1uyXZAJTuY34WydoVq0N9-lc",
             "NR-35": "1ApGGwkKqWi_RSLt34SLdvb_-TQFj2R5KLABYBkwFzng",
-            # Adicione outras NRs e seus IDs de planilha aqui
+            # Adicione outras NRs e seus IDs de planilha aqui, se tiver
         }
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str) -> str:
@@ -75,7 +77,7 @@ class NRAnalyzer:
             4.  **Resumo da Auditoria:** Forneça um resumo final sobre a conformidade do certificado, apontando possíveis falhas.
             """
             
-        # Prompt padrão para outros tipos de documentos
+        # Prompt padrão para outros tipos de documentos (como ASO)
         else:
             return f"""
             Você é um especialista em Segurança do Trabalho. Analise o documento em PDF fornecido.
@@ -115,7 +117,6 @@ class NRAnalyzer:
             if 'temp_path' in locals() and os.path.exists(temp_path): os.unlink(temp_path)
             return "Erro no download do documento."
 
-        # Seleciona o prompt correto
         prompt = self._get_analysis_prompt(doc_type, norma_analisada, nr_knowledge_base)
 
         try:
