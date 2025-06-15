@@ -1,3 +1,5 @@
+# /mount/src/segsisone/analysis/nr_analyzer.py
+
 import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
@@ -14,11 +16,9 @@ def load_nr_knowledge_base(sheet_id: str) -> str:
     Carrega o conteúdo de TODAS as abas de uma planilha específica e concatena.
     """
     try:
-        # Pega as credenciais usando a função que já existe e funciona.
+        # Pega as credenciais usando a função que já sabemos que funciona.
         creds_dict = get_credentials_dict()
-        
-        # Diz explicitamente para o pygsheets usar as credenciais da conta de serviço.
-        # Isso impede que ele procure pelo arquivo 'client_secret.json'.
+     
         gc = pygsheets.authorize(service_account_data=creds_dict)
         
         spreadsheet = gc.open_by_key(sheet_id)
@@ -39,20 +39,18 @@ def load_nr_knowledge_base(sheet_id: str) -> str:
 class NRAnalyzer:
     def __init__(self):
         self.pdf_analyzer = PDFQA()
-        # Carrega o mapeamento de NRs diretamente da seção [app_settings] dos secrets
         try:
+            # Lê os IDs da seção [app_settings] dos secrets
             self.nr_sheets_map = {
                 "NR-01": st.secrets.app_settings.get("rag_nr01_id"),
                 "NR-07": st.secrets.app_settings.get("rag_nr07_id"),
                 "NR-34": st.secrets.app_settings.get("rag_nr34_id"),
                 "NR-35": st.secrets.app_settings.get("rag_nr35_id"),
-                # Adicione outras NRs aqui, lendo dos secrets
-                # Ex: "NR-10": st.secrets.app_settings.get("rag_nr10_id"),
             }
-            # Filtra entradas que não foram encontradas nos secrets (retornam None)
+            # Remove entradas que não foram encontradas nos secrets
             self.nr_sheets_map = {k: v for k, v in self.nr_sheets_map.items() if v}
         except (AttributeError, KeyError):
-            st.error("A seção [app_settings] ou as chaves rag_nrXX_id não foram encontradas no seu arquivo secrets.toml.")
+            st.error("A seção [app_settings] não foi encontrada no seu arquivo secrets.toml.")
             self.nr_sheets_map = {}
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str) -> str:
@@ -62,15 +60,11 @@ class NRAnalyzer:
         if doc_type in ["PGR", "PCMSO"]:
             return f"""
             Você é um auditor de Segurança do Trabalho. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com a base de conhecimento da {norma_analisada}.
-
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
-            
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
-            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
-            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Estrutura Mínima do Documento | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Inventário de Riscos Ocupacionais | STATUS: [] | OBSERVAÇÃO: []
@@ -83,15 +77,11 @@ class NRAnalyzer:
         elif doc_type == "Treinamento":
             return f"""
             Você é um especialista em Segurança do Trabalho e sua tarefa é auditar um certificado de treinamento.
-            
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
-            
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
-            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
-            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Conteúdo Programático Mínimo | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Carga Horária Mínima | STATUS: [] | OBSERVAÇÃO: []
@@ -102,19 +92,15 @@ class NRAnalyzer:
             """
             
         # Prompt padrão para outros tipos de documentos (como ASO)
-        else: # Inclui 'ASO'
+        else:
             return f"""
             Você é um especialista em Segurança do Trabalho. Analise o documento em PDF fornecido.
             Use a base de conhecimento da {norma_analisada} abaixo para verificar a conformidade do documento.
-            
             **Base de Conhecimento (Texto da {norma_analisada}):**
             {nr_knowledge_base}
-
             **Tarefa:**
             Verifique cada um dos itens de conformidade listados abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO:
-            
             `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa ou observação]`
-            
             **Itens de Verificação para o documento ({doc_type}):**
             - ITEM: Identificação do Tipo de Exame (Admissional, Periódico, etc.) | STATUS: [] | OBSERVAÇÃO: []
             - ITEM: Indicação dos Riscos Ocupacionais | STATUS: [] | OBSERVAÇÃO: []
@@ -124,7 +110,6 @@ class NRAnalyzer:
             """
 
     def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
-        """Converte a resposta em texto da IA em um DataFrame do Pandas."""
         lines = analysis_result.strip().split('\n')
         data = []
         for line in lines:
