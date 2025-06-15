@@ -31,7 +31,7 @@ class CompanyDocsManager:
     def initialize_sheets(self):
         try:
             docs_columns = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
+            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "Item se Verificação", "Status", "Observação"]
             
             if not self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME):
                 self.sheet_ops.criar_aba(COMPANY_DOCS_SHEET_NAME, docs_columns)
@@ -55,7 +55,7 @@ class CompanyDocsManager:
 
             # Carrega e limpa os dados da auditoria
             audit_data = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
-            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
+            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "Item de Verificaçãoo", "Status", "Observacão"]
             
             if audit_data and len(audit_data) > 1:
                 # Usa o cabeçalho real da planilha para o DataFrame inicial
