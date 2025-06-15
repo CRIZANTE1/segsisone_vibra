@@ -13,7 +13,6 @@ import io
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
-    """Carrega a planilha de RAG em um DataFrame do Pandas usando gspread."""
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds_dict = get_credentials_dict()
@@ -63,9 +62,7 @@ class NRAnalyzer:
             status, done = downloader.next_chunk()
         return file_buffer.getvalue()
 
-  
     def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
-        """Busca por palavras-chave e retorna os trechos com a referência da seção."""
         if rag_df.empty: return "Base de conhecimento indisponível."
         regex_pattern = '|'.join(map(re.escape, keywords))
         rag_df['Keywords'] = rag_df['Keywords'].astype(str)
@@ -73,61 +70,66 @@ class NRAnalyzer:
         
         if relevant_rows.empty: return "Nenhum trecho relevante encontrado para as palavras-chave."
             
-       
-        knowledge_text = "\n\n".join(
-            f"Referência Normativa {row.get('Section_Number', '')}: {row.get('Answer_Chunk', '')}" 
-            for _, row in relevant_rows.iterrows()
-        )
+        knowledge_text = "\n\n".join(relevant_rows['Answer_Chunk'].tolist())
         return knowledge_text
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str, keywords: list[str]) -> str:
-        """Retorna o prompt aprimorado que exige a referência normativa."""
-        return f"""
-        Você é um auditor de Segurança do Trabalho altamente detalhista. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com os trechos relevantes da {norma_analisada}.
+        if doc_type == "Treinamento":
+            return f"""
+            Você é um auditor de Segurança do Trabalho detalhista. Sua tarefa é auditar o certificado de treinamento em PDF e compará-lo com os trechos da {norma_analisada}.
 
-        **Base de Conhecimento Relevante (Trechos da {norma_analisada} sobre {', '.join(keywords)}):**
-        {nr_knowledge_base}
-        
-        **Tarefa:**
-        Verifique os seguintes itens de conformidade no documento. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 4 partes, separadas por '|':
-        
-        `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa] | REFERÊNCIA: [Cite o número da Referência Normativa usada, ex: 'Referência Normativa Exemplo NR 34 Item 34.5.1']`
-        
-        **Itens de Verificação para {doc_type}:**
-        - ITEM: Conformidade com o conteúdo programático/estrutura mínima | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
-        - ITEM: Conformidade com carga horária e validade | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
-        - ITEM: Presença de informações obrigatórias (responsáveis, assinaturas, etc.) | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
-        - ITEM: Pontos de atenção ou não conformidades específicas | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
-        - ITEM: Resumo geral da conformidade | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
-        """
+            **Base de Conhecimento Relevante (Trechos da {norma_analisada}):**
+            {nr_knowledge_base}
+            
+            **Tarefa:**
+            Verifique os itens de conformidade abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 3 partes, separadas por '|':
+            
+            `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa detalhada]`
+            
+            **Itens de Verificação para o Certificado de {norma_analisada}:**
+            - ITEM: Assinaturas Obrigatórias | STATUS: [] | OBSERVAÇÃO: [Verifique se o certificado possui as assinaturas do trabalhador, instrutor(es) e responsável técnico, conforme exigido. Especifique quais assinaturas estão presentes ou ausentes.]
+            - ITEM: Compatibilidade do Conteúdo Programático | STATUS: [] | OBSERVAÇÃO: [Compare o conteúdo listado no certificado com os requisitos da norma na base de conhecimento. Liste os tópicos obrigatórios e indique se o certificado os cobre.]
+            - ITEM: Carga Horária e Validade | STATUS: [] | OBSERVAÇÃO: [Verifique se a carga horária e a validade do treinamento estão de acordo com a norma.]
+            - ITEM: Informações do Trabalhador | STATUS: [] | OBSERVAÇÃO: [Verifique se o nome completo e o CPF do trabalhador estão presentes e legíveis.]
+            - ITEM: Resumo da Auditoria | STATUS: [] | OBSERVAÇÃO: [Forneça um parecer final sobre a validade e conformidade do certificado.]
+            """
+        else:
+            return f"""
+            Você é um auditor de Segurança do Trabalho. Analise o documento PDF e compare com a base de conhecimento da {norma_analisada}.
 
-  
+            **Base de Conhecimento Relevante (Trechos da {norma_analisada}):**
+            {nr_knowledge_base}
+
+            **Tarefa:**
+            Verifique os itens de conformidade abaixo. Para cada item, responda em uma nova linha usando o seguinte formato ESTRITO de 3 partes, separadas por '|':
+            
+            `ITEM: [Nome do Item] | STATUS: [Conforme/Não Conforme/Não Aplicável] | OBSERVAÇÃO: [Sua justificativa detalhada]`
+            
+            **Itens de Verificação para {doc_type}:**
+            - ITEM: Estrutura e Conteúdo Mínimo | STATUS: [] | OBSERVAÇÃO: []
+            - ITEM: Vigência e Periodicidade | STATUS: [] | OBSERVAÇÃO: []
+            - ITEM: Responsáveis Técnicos | STATUS: [] | OBSERVAÇÃO: []
+            - ITEM: Resumo da Conformidade | STATUS: [] | OBSERVAÇÃO: []
+            """
+
     def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
-        """Converte a resposta em texto da IA em um DataFrame do Pandas, agora com 4 colunas."""
         lines = analysis_result.strip().split('\n')
         data = []
         for line in lines:
             line = line.strip()
-            # Procura por uma linha que contenha os 4 marcadores
-            if all(marker in line for marker in ["ITEM:", "STATUS:", "OBSERVAÇÃO:", "REFERÊNCIA:"]):
+            if line.startswith("ITEM:") and "STATUS:" in line and "OBSERVAÇÃO:" in line:
                 try:
-                    parts = line.split('|', 3) # Divide no máximo 3 vezes para obter 4 partes
-                    if len(parts) == 4:
+                    parts = line.split('|', 2)
+                    if len(parts) == 3:
                         item = parts[0].replace("ITEM:", "").strip()
                         status = parts[1].replace("STATUS:", "").strip()
                         obs = parts[2].replace("OBSERVAÇÃO:", "").strip()
-                        ref = parts[3].replace("REFERÊNCIA:", "").strip()
-                        data.append({
-                            "Item de Verificação": item, 
-                            "Status": status, 
-                            "Observação": obs,
-                            "Referência Normativa": ref
-                        })
+                        data.append({"Item de Verificação": item, "Status": status, "Observação": obs})
                 except Exception:
                     continue
         
         if not data:
-            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result, "Referência Normativa": "N/A"}])
+            return pd.DataFrame([{"Item de Verificação": "Análise Geral", "Status": "Não Estruturado", "Observação": analysis_result}])
             
         return pd.DataFrame(data)
 
@@ -151,7 +153,7 @@ class NRAnalyzer:
         if doc_type == "PGR": keywords = ["PGR", "Gerenciamento de Riscos", "Inventário", "Plano de ação"]
         elif doc_type == "PCMSO": keywords = ["PCMSO", "Exames médicos", "ASO", "Relatório analítico"]
         elif doc_type == "ASO": keywords = ["ASO", "Atestado de Saúde", "Exame", "Médico"]
-        elif doc_type == "Treinamento": keywords = ["Treinamento", "Capacitação", "Carga horária", "Certificado", norma_analisada]
+        elif doc_type == "Treinamento": keywords = ["Treinamento", "Capacitação", "Carga horária", "Certificado", "Conteúdo programático", "Assinatura"]
             
         with st.spinner("Buscando informações relevantes na base de conhecimento..."):
             relevant_knowledge = self._find_relevant_chunks(rag_df, keywords)
