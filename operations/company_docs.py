@@ -31,7 +31,7 @@ class CompanyDocsManager:
     def initialize_sheets(self):
         try:
             docs_columns = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "Item se Verificação", "Status", "Observação"]
+            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "Item de Verificação", "Status", "Observação"]
             
             if not self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME):
                 self.sheet_ops.criar_aba(COMPANY_DOCS_SHEET_NAME, docs_columns)
