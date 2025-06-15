@@ -13,6 +13,7 @@ def init_managers():
         st.session_state.nr_analyzer = NRAnalyzer()
 
 def style_status_table(df: pd.DataFrame):
+    """Aplica cores à coluna 'Status' de um DataFrame."""
     def highlight_status(val):
         color = ''
         val_lower = str(val).lower()
@@ -23,10 +24,12 @@ def style_status_table(df: pd.DataFrame):
         return color
     
     if 'Status' in df.columns:
-        return df.style.applymap(highlight_status, subset=['Status'])
-    return df.style
+        # Substitui o 'applymap' obsoleto por 'map'
+        return df.style.map(highlight_status, subset=['Status'])
+    return df.style # Retorna o Styler sem formatação se a coluna não existir
 
-st.set_page_config(page_title="Auditoria de Conformidade", page_icon="🔍", layout="wide")
+
+st.set_page_config(page_title="Auditoria de Conformidade", layout="wide")
 init_managers()
 
 employee_manager = st.session_state.employee_manager
