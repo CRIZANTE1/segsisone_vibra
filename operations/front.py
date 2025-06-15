@@ -41,19 +41,12 @@ def highlight_expired(row):
             return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
-def style_status_table(df: pd.DataFrame):
-    def highlight_status(val):
-        color = ''
-        val_lower = str(val).lower()
-        if 'não conforme' in val_lower:
-            color = 'background-color: #FFCDD2'
-        elif 'conforme' in val_lower:
-            color = 'background-color: #C8E6C9'
-        return color
-    
-    if 'status' in df.columns:
-        return df.style.map(highlight_status, subset=['status'])
-    return df.style
+def style_audit_table(row):
+    """Aplica cor à linha inteira se o status for 'Não Conforme'."""
+    status_val = str(row.get('status', '')).lower()
+    if 'não conforme' in status_val:
+        return ['background-color: #FFCDD2'] * len(row)
+    return [''] * len(row)
 
 def process_aso_pdf():
     if st.session_state.get('aso_uploader_tab'):
@@ -176,17 +169,13 @@ def front_page():
                 audit_history = docs_manager.get_audits_by_company(selected_company)
                 
                 if not audit_history.empty:
-                    expected_cols = ["data_auditoria", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
-                    cols_to_display = [col for col in expected_cols if col in audit_history.columns]
-                    
-                    audit_history_display = audit_history[cols_to_display].copy()
-
+                    audit_history_display = audit_history.copy()
                     if 'data_auditoria' in audit_history_display.columns:
                         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                         audit_history_display = audit_history_display.dropna(subset=['data_auditoria']).sort_values(by='data_auditoria', ascending=False)
                     
                     st.dataframe(
-                        style_status_table(audit_history_display),
+                        audit_history_display.style.apply(style_audit_table, axis=1),
                         column_config={
                             "data_auditoria": st.column_config.DatetimeColumn("Data da Análise", format="DD/MM/YYYY HH:mm"),
                             "tipo_documento": "Doc. Analisado",
@@ -194,6 +183,7 @@ def front_page():
                             "item_verificacao": "Item de Verificação",
                             "status": "Status",
                             "observacao": "Observação da IA",
+                            "id": None, "id_auditoria": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
                         },
                         use_container_width=True, hide_index=True
                     )
