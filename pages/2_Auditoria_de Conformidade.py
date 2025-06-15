@@ -1,5 +1,3 @@
-# /mount/src/segsisone/pages/2_Auditoria_de_Conformidade.py
-
 import streamlit as st
 import pandas as pd
 from operations.employee import EmployeeManager
@@ -24,10 +22,9 @@ def style_status_table(df: pd.DataFrame):
             color = 'background-color: #C8E6C9'  # Verde claro
         return color
     
-    # Aplica o estilo apenas à coluna 'Status', se ela existir
     if 'Status' in df.columns:
         return df.style.applymap(highlight_status, subset=['Status'])
-    return df.style # Retorna o Styler sem formatação se a coluna não existir
+    return df.style
 
 st.set_page_config(page_title="Auditoria de Conformidade", page_icon="🔍", layout="wide")
 init_managers()
