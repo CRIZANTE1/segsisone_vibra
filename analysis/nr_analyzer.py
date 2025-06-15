@@ -124,7 +124,7 @@ class NRAnalyzer:
                         item = parts[0].replace("ITEM:", "").strip()
                         status = parts[1].replace("STATUS:", "").strip()
                         obs = parts[2].replace("OBSERVAÇÃO:", "").strip()
-                        data.append({"Item de Verificação": item, "Status": status, "Observação": obs})
+                        data.append({"item_de_verificacao": item, "Status": status, "observacao": obs})
                 except Exception:
                     continue
         
