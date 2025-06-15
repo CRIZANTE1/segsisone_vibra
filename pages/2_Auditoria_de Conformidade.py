@@ -98,9 +98,9 @@ if check_admin_permission():
                 
                 if norma_para_analise in nr_analyzer.nr_sheets_map:
                     if st.button(f"Analisar Conformidade com a {norma_para_analise}", type="primary"):
-                        resultado_df = nr_analyzer.analyze_document_compliance(selected_doc['url'], selected_doc)
+                        with st.spinner("Realizando análise... Isso pode levar alguns instantes."):
+                            resultado_df = nr_analyzer.analyze_document_compliance(selected_doc['url'], selected_doc)
                         st.session_state.audit_result_df = resultado_df
-                        # Limpa o resultado antigo ao iniciar nova análise
                         if 'saved_audit' in st.session_state:
                             del st.session_state.saved_audit
                 else:
@@ -113,16 +113,16 @@ if check_admin_permission():
                     styled_df = style_status_table(st.session_state.audit_result_df)
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
                     
-                    # --- BOTÃO E LÓGICA DE SALVAMENTO RESTAURADOS AQUI ---
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("Salvar Resultado da Auditoria"):
+                        if st.button("Salvar Resultado da Auditoria", disabled=st.session_state.get('saved_audit', False)):
                             with st.spinner("Salvando auditoria na planilha..."):
                                 audit_df = st.session_state.audit_result_df
                                 saved_count = 0
                                 data_auditoria_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
                                 for _, row in audit_df.iterrows():
+                                    # --- ORDEM DOS DADOS CORRIGIDA PARA CORRESPONDER AO CABEÇALHO ---
                                     new_audit_row = [
                                         data_auditoria_atual,
                                         selected_company_id,
@@ -140,8 +140,8 @@ if check_admin_permission():
                                 
                                 if saved_count == len(audit_df):
                                     st.success(f"{saved_count} linha(s) de auditoria foram salvas com sucesso!")
-                                    # Marca que foi salvo para evitar re-salvamento
-                                    st.session_state.saved_audit = True
+                                    st.session_state.saved_audit = True # Desabilita o botão após salvar
+                                    st.rerun()
                                 else:
                                     st.error("Ocorreu um erro ao tentar salvar todos os itens da auditoria.")
                     
