@@ -1,3 +1,4 @@
+
 import streamlit as st
 from datetime import datetime, date
 from operations.employee import EmployeeManager
@@ -50,7 +51,6 @@ def style_status_table(df: pd.DataFrame):
             color = 'background-color: #C8E6C9'
         return color
     
-    # Usa o nome exato da coluna da planilha
     if 'status' in df.columns:
         return df.style.map(highlight_status, subset=['status'])
     return df.style
@@ -176,8 +176,14 @@ def front_page():
                 audit_history = docs_manager.get_audits_by_company(selected_company)
                 
                 if not audit_history.empty:
-                    audit_history['data_auditoria'] = pd.to_datetime(audit_history['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                    audit_history_display = audit_history.sort_values(by='data_auditoria', ascending=False)
+                    expected_cols = ["data_auditoria", "tipo_documento", "norma_auditada", "item_verificacao", "status", "observacao"]
+                    cols_to_display = [col for col in expected_cols if col in audit_history.columns]
+                    
+                    audit_history_display = audit_history[cols_to_display].copy()
+
+                    if 'data_auditoria' in audit_history_display.columns:
+                        audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
+                        audit_history_display = audit_history_display.dropna(subset=['data_auditoria']).sort_values(by='data_auditoria', ascending=False)
                     
                     st.dataframe(
                         style_status_table(audit_history_display),
@@ -188,14 +194,8 @@ def front_page():
                             "item_verificacao": "Item de Verificação",
                             "status": "Status",
                             "observacao": "Observação da IA",
-                            "id": None, 
-                            "id_auditoria": None, 
-                            "id_empresa": None, 
-                            "id_documento_original": None, 
-                            "id_funcionario": None,
                         },
-                        use_container_width=True, 
-                        hide_index=True
+                        use_container_width=True, hide_index=True
                     )
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
@@ -213,9 +213,7 @@ def front_page():
                 st.subheader("Adicionar Documento (PGR, PCMSO, etc.)")
                 company_name = employee_manager.companies_df[employee_manager.companies_df['id'] == selected_company]['nome'].iloc[0]
                 st.info(f"Adicionando documento para a empresa: **{company_name}**")
-                
                 st.file_uploader("Anexar Documento (PDF)", type=['pdf'], key="doc_uploader_tab", on_change=process_company_doc_pdf)
-                
                 if st.session_state.get('doc_info_para_salvar'):
                     doc_info = st.session_state.doc_info_para_salvar
                     if doc_info and doc_info.get('data_emissao'):
@@ -224,20 +222,12 @@ def front_page():
                             st.write(f"**Tipo Identificado:** {doc_info['tipo_documento']}")
                             st.write(f"**Data de Emissão/Vigência:** {doc_info['data_emissao'].strftime('%d/%m/%Y')}")
                             st.success(f"**Vencimento Calculado:** {doc_info['vencimento'].strftime('%d/%m/%Y')}")
-                            
                             if st.button("Confirmar e Salvar Documento", type="primary"):
                                 with st.spinner("Salvando documento..."):
                                     anexo_doc = st.session_state.doc_anexo_para_salvar
                                     arquivo_id = gdrive_uploader.upload_file(anexo_doc, f"{doc_info['tipo_documento']}_{company_name}_{doc_info['data_emissao']}")
-                                    
                                     if arquivo_id:
-                                        doc_id = docs_manager.add_company_document(
-                                            empresa_id=selected_company,
-                                            tipo_documento=doc_info['tipo_documento'],
-                                            data_emissao=doc_info['data_emissao'],
-                                            vencimento=doc_info['vencimento'],
-                                            arquivo_id=arquivo_id
-                                        )
+                                        doc_id = docs_manager.add_company_document(empresa_id=selected_company, tipo_documento=doc_info['tipo_documento'], data_emissao=doc_info['data_emissao'], vencimento=doc_info['vencimento'], arquivo_id=arquivo_id)
                                         if doc_id:
                                             st.success("Documento da empresa salvo com sucesso!")
                                             for key in ['doc_info_para_salvar', 'doc_anexo_para_salvar']:
@@ -259,7 +249,6 @@ def front_page():
                 if not current_employees.empty:
                     st.selectbox("Funcionário", current_employees['id'].tolist(), format_func=employee_manager.get_employee_name, key="aso_employee_add")
                     st.file_uploader("Anexar ASO (PDF)", type=['pdf'], key="aso_uploader_tab", on_change=process_aso_pdf)
-                    
                     if st.session_state.get('aso_info_para_salvar'):
                         aso_info = st.session_state.aso_info_para_salvar
                         if aso_info and aso_info.get('data_aso'):
@@ -270,14 +259,11 @@ def front_page():
                                 vencimento_aso = aso_info.get('vencimento')
                                 if vencimento_aso: st.success(f"**Vencimento:** {vencimento_aso.strftime('%d/%m/%Y')}")
                                 else: st.info("**Vencimento:** N/A (Ex: Demissional)")
-                                
                                 if st.button("Confirmar e Salvar ASO", type="primary"):
                                     with st.spinner("Salvando ASO..."):
                                         anexo_aso = st.session_state.aso_anexo_para_salvar
                                         selected_employee_aso = st.session_state.aso_funcionario_para_salvar
-                                        
                                         arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{selected_employee_aso}_{aso_info['data_aso']}")
-                                        
                                         if arquivo_id:
                                             aso_id = employee_manager.add_aso(id=selected_employee_aso, arquivo_id=arquivo_id, **aso_info)
                                             if aso_id:
@@ -285,10 +271,8 @@ def front_page():
                                                 for key in ['aso_info_para_salvar', 'aso_anexo_para_salvar', 'aso_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
-                                            else:
-                                                st.error("Falha ao salvar os dados na planilha.")
-                                        else:
-                                            st.error("Falha ao fazer o upload do anexo para o Google Drive.")
+                                            else: st.error("Falha ao salvar os dados na planilha.")
+                                        else: st.error("Falha ao fazer o upload do anexo para o Google Drive.")
                         else:
                             st.error("Não foi possível extrair informações válidas do PDF.")
                             if 'aso_info_para_salvar' in st.session_state: del st.session_state.aso_info_para_salvar
@@ -305,7 +289,6 @@ def front_page():
                 if not current_employees.empty:
                     st.selectbox("Funcionário", current_employees['id'].tolist(), format_func=employee_manager.get_employee_name, key="training_employee_add")
                     st.file_uploader("Anexar Certificado (PDF)", type=['pdf'], key="training_uploader_tab", on_change=process_training_pdf)
-                    
                     if st.session_state.get('training_info_para_salvar'):
                         training_info = st.session_state.training_info_para_salvar
                         if training_info and training_info.get('data'):
@@ -317,9 +300,7 @@ def front_page():
                                 modulo = training_info.get('modulo')
                                 tipo_treinamento = training_info.get('tipo_treinamento')
                                 carga_horaria = training_info.get('carga_horaria', 0)
-                                
                                 vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=norma_padronizada, modulo=modulo, tipo_treinamento=tipo_treinamento)
-                                
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
                                 st.write(f"**Módulo:** {modulo or 'N/A'}")
@@ -327,33 +308,24 @@ def front_page():
                                 st.write(f"**Carga Horária:** {carga_horaria} horas")
                                 if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
                                 else: st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada nas configurações.")
-                                
                                 if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
                                     with st.spinner("Salvando Treinamento..."):
                                         anexo_training = st.session_state.training_anexo_para_salvar
                                         selected_employee_training = st.session_state.training_funcionario_para_salvar
-                                        
                                         arquivo_id = gdrive_uploader.upload_file(anexo_training, f"TRAINING_{selected_employee_training}_{norma_padronizada}")
-                                        
                                         if arquivo_id:
                                             training_info.update({'id': selected_employee_training, 'anexo': arquivo_id, 'vencimento': vencimento, 'status': "Válido", 'norma': norma_padronizada})
                                             training_id = employee_manager.add_training(**training_info)
-                                            
                                             if training_id:
                                                 st.success(f"Treinamento adicionado! ID: {training_id}")
                                                 for key in ['training_info_para_salvar', 'training_anexo_para_salvar', 'training_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
-                                            else:
-                                                st.error("Falha ao salvar dados na planilha.")
-                                        else:
-                                            st.error("Falha ao fazer o upload do anexo.")
+                                            else: st.error("Falha ao salvar dados na planilha.")
+                                        else: st.error("Falha ao fazer o upload do anexo.")
                         else:
                             st.error("Não foi possível extrair informações válidas do PDF.")
                             if 'training_info_para_salvar' in st.session_state: del st.session_state.training_info_para_salvar
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
             else: st.error("Você não tem permissão para esta ação.")
         else: st.info("Selecione uma empresa na primeira aba.")
-   
-
-   
