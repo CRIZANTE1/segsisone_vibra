@@ -1,8 +1,6 @@
-# /mount/src/segsisone/pages/2_Auditoria_de_Conformidade.py
-
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, date 
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from analysis.nr_analyzer import NRAnalyzer
@@ -36,6 +34,7 @@ def setup_audit_sheet():
     sheet_ops = st.session_state.employee_manager.sheet_ops
     data = sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
     
+   
     columns = [
         "id", "data_auditoria", "id_empresa", "id_documento_original", 
         "id_funcionario", "tipo_documento", "norma_auditada", 
@@ -44,7 +43,9 @@ def setup_audit_sheet():
     if not data:
         sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, columns)
     elif data and 'data_auditoria' not in data[0]:
-        st.warning(f"A coluna 'data_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME}. Recomenda-se recriar a aba ou adicioná-la manualmente.")
+        st.warning(f"A coluna 'data_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME} e será adicionada.")
+       
+
 
 st.set_page_config(page_title="Auditoria de Conformidade", page_icon="🔍", layout="wide")
 
@@ -69,10 +70,9 @@ if check_admin_permission():
         )
 
         if selected_company_id:
-            asos = employee_manager.aso_df[employee_manager.aso_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
+                asos = employee_manager.aso_df[employee_manager.aso_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
             trainings = employee_manager.training_df[employee_manager.training_df['funcionario_id'].isin(employee_manager.get_employees_by_company(selected_company_id)['id'])]
             company_docs = docs_manager.get_docs_by_company(selected_company_id)
-            
             docs_list = []
             if not trainings.empty:
                 for _, row in trainings.iterrows():
@@ -116,11 +116,13 @@ if check_admin_permission():
                         with st.spinner("Salvando auditoria na planilha..."):
                             audit_df = st.session_state.audit_result_df
                             saved_count = 0
+                            # Pega a data e hora atual UMA VEZ para ser a mesma para todos os itens da auditoria
                             data_auditoria_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
                             for _, row in audit_df.iterrows():
+                                # --- DADO ATUALIZADO AQUI ---
                                 new_audit_row = [
-                                    data_auditoria_atual,
+                                    data_auditoria_atual, # Adiciona a data/hora da auditoria
                                     selected_company_id,
                                     selected_doc.get('doc_id', 'N/A'),
                                     selected_doc.get('employee_id', 'N/A'),
