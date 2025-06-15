@@ -180,9 +180,9 @@ def front_page():
                             "data_auditoria": st.column_config.DatetimeColumn("Data da Análise", format="DD/MM/YYYY HH:mm"),
                             "tipo_documento": "Doc. Analisado",
                             "norma_auditada": "Norma",
-                            "item_verificacao": "Item de Verificação",
-                            "status": "Status",
-                            "observacao": "Observação da IA",
+                            "Item de Verificação": "Item de Verificação",
+                            "Status": "Status",
+                            "Observação": "Observação da IA",
                             "id": None, "id_auditoria": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
                         },
                         use_container_width=True, hide_index=True
