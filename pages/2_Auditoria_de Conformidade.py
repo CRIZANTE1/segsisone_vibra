@@ -39,7 +39,7 @@ def setup_audit_sheet():
     columns = [
         "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
         "id_funcionario", "tipo_documento", "norma_auditada", 
-        "Item de Verificação", "Status", "Observação"
+        "item_de_verificacao", "Status", "observacao"
     ]
     if not data:
         sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, columns)
