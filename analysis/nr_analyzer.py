@@ -2,18 +2,18 @@ import streamlit as st
 from AI.api_Operation import PDFQA
 import tempfile
 import os
-import gdown
 import pandas as pd
 import re
 from gdrive.config import get_credentials_dict
 import gspread
 from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+import io
 
 @st.cache_data(ttl=3600)
 def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
-    """
-    Carrega a planilha de RAG em um DataFrame do Pandas usando gspread.
-    """
+    """Carrega a planilha de RAG em um DataFrame do Pandas usando gspread."""
     try:
         scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         creds_dict = get_credentials_dict()
@@ -32,6 +32,15 @@ def load_nr_knowledge_base(sheet_id: str) -> pd.DataFrame:
 class NRAnalyzer:
     def __init__(self):
         self.pdf_analyzer = PDFQA()
+        # Inicializa o serviço do Drive uma vez para ser reutilizado
+        try:
+            creds_dict = get_credentials_dict()
+            creds = Credentials.from_service_account_info(creds_dict)
+            self.drive_service = build('drive', 'v3', credentials=creds)
+        except Exception as e:
+            st.error(f"Falha ao inicializar o serviço do Google Drive: {e}")
+            self.drive_service = None
+        
         try:
             self.nr_sheets_map = {
                 "NR-01": st.secrets.app_settings.get("rag_nr01_id"),
@@ -44,21 +53,40 @@ class NRAnalyzer:
             st.error("A seção [app_settings] não foi encontrada no seu secrets.toml.")
             self.nr_sheets_map = {}
 
+    def _download_file_from_drive(self, file_id: str) -> bytes:
+        """Faz o download de um arquivo do Drive e retorna seus bytes."""
+        if not self.drive_service:
+            raise Exception("Serviço do Google Drive não inicializado.")
+            
+        request = self.drive_service.files().get_media(fileId=file_id)
+        file_buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(file_buffer, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        return file_buffer.getvalue()
+
     def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
+        """Busca no DataFrame de RAG por linhas que contenham as palavras-chave e retorna os trechos de resposta."""
         if rag_df.empty:
             return "Base de conhecimento indisponível."
         
         regex_pattern = '|'.join(keywords)
+        # Garante que a coluna 'Keywords' seja do tipo string para usar o .str.contains
         rag_df['Keywords'] = rag_df['Keywords'].astype(str)
         relevant_rows = rag_df[rag_df['Keywords'].str.contains(regex_pattern, case=False, na=False)]
         
         if relevant_rows.empty:
             return "Nenhum trecho relevante encontrado para as palavras-chave."
             
+        # Concatena os trechos de resposta relevantes em uma única string
         knowledge_text = "\n\n".join(relevant_rows['Answer_Chunk'].tolist())
         return knowledge_text
 
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str, keywords: list[str]) -> str:
+        """Retorna o prompt apropriado com base no tipo de documento e palavras-chave."""
+        
         return f"""
         Você é um auditor de Segurança do Trabalho. Sua tarefa é analisar o documento em PDF fornecido e compará-lo com os trechos relevantes da {norma_analisada} que encontrei para você.
 
@@ -79,6 +107,7 @@ class NRAnalyzer:
         """
 
     def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
+        """Converte a resposta em texto da IA em um DataFrame do Pandas."""
         lines = analysis_result.strip().split('\n')
         data = []
         for line in lines:
@@ -105,7 +134,7 @@ class NRAnalyzer:
 
         sheet_id = self.nr_sheets_map.get(norma_analisada)
         if not sheet_id:
-            st.error(f"Análise não disponível. Nenhuma planilha de RAG configurada para {norma_analisada}.")
+            st.error(f"Análise não disponível. Nenhuma planilha de RAG configurada para {norma_analisada} no arquivo secrets.toml.")
             return None
         
         with st.spinner(f"Carregando base de conhecimento da {norma_analisada}..."):
@@ -123,27 +152,28 @@ class NRAnalyzer:
         with st.spinner("Buscando informações relevantes na base de conhecimento..."):
             relevant_knowledge = self._find_relevant_chunks(rag_df, keywords)
 
+        temp_path = None
         try:
             # Extrai o FILE_ID da URL de visualização
             file_id_match = re.search(r'/d/([a-zA-Z0-9_-]+)', document_url)
             if not file_id_match:
-                st.error(f"Não foi possível extrair o ID do arquivo da URL do Google Drive: {document_url}")
+                st.error("Não foi possível extrair o ID do arquivo da URL do Google Drive.")
                 return None
             
             file_id = file_id_match.group(1)
             
-            # Constrói a URL de download direto
-            download_url = f'https://drive.google.com/uc?id={file_id}'
-
+            # Usa o método robusto da API para baixar o conteúdo do arquivo
+            with st.spinner("Baixando documento do Google Drive..."):
+                file_content = self._download_file_from_drive(file_id)
+            
+            # Salva o conteúdo em um arquivo temporário para análise
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                with st.spinner("Baixando documento do Google Drive..."):
-                    # Usa a nova URL de download
-                    gdown.download(url=download_url, output=temp_file.name, quiet=True)
+                temp_file.write(file_content)
                 temp_path = temp_file.name
                 
         except Exception as e:
-            st.error(f"Falha ao baixar o documento do Google Drive. Verifique se o link é compartilhável."); st.code(str(e))
-            if 'temp_path' in locals() and os.path.exists(temp_path): os.unlink(temp_path)
+            st.error(f"Falha ao baixar ou processar o arquivo do Google Drive."); st.code(str(e))
+            if temp_path and os.path.exists(temp_path): os.unlink(temp_path)
             return None
 
         prompt = self._get_analysis_prompt(doc_type, norma_analisada, relevant_knowledge, keywords)
@@ -151,7 +181,6 @@ class NRAnalyzer:
         try:
             with st.spinner("IA realizando a análise profunda..."):
                 analysis_result, _ = self.pdf_analyzer.answer_question([temp_path], prompt)
-            os.unlink(temp_path)
             
             if analysis_result:
                 return self._parse_analysis_to_dataframe(analysis_result)
@@ -160,3 +189,7 @@ class NRAnalyzer:
                 return None
         except Exception as e:
             st.error(f"Ocorreu um erro durante a análise profunda: {e}"); return None
+        finally:
+            # Garante que o arquivo temporário seja sempre removido
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
