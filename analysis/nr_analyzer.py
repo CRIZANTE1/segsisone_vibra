@@ -63,7 +63,7 @@ class NRAnalyzer:
             status, done = downloader.next_chunk()
         return file_buffer.getvalue()
 
-    # --- FUNÇÃO ATUALIZADA ---
+  
     def _find_relevant_chunks(self, rag_df: pd.DataFrame, keywords: list[str]) -> str:
         """Busca por palavras-chave e retorna os trechos com a referência da seção."""
         if rag_df.empty: return "Base de conhecimento indisponível."
@@ -73,14 +73,13 @@ class NRAnalyzer:
         
         if relevant_rows.empty: return "Nenhum trecho relevante encontrado para as palavras-chave."
             
-        # Inclui o número da seção na base de conhecimento para a IA poder citá-lo
+       
         knowledge_text = "\n\n".join(
             f"Referência Normativa {row.get('Section_Number', '')}: {row.get('Answer_Chunk', '')}" 
             for _, row in relevant_rows.iterrows()
         )
         return knowledge_text
 
-    # --- FUNÇÃO ATUALIZADA ---
     def _get_analysis_prompt(self, doc_type: str, norma_analisada: str, nr_knowledge_base: str, keywords: list[str]) -> str:
         """Retorna o prompt aprimorado que exige a referência normativa."""
         return f"""
@@ -102,7 +101,7 @@ class NRAnalyzer:
         - ITEM: Resumo geral da conformidade | STATUS: [] | OBSERVAÇÃO: [] | REFERÊNCIA: []
         """
 
-    # --- FUNÇÃO ATUALIZADA ---
+  
     def _parse_analysis_to_dataframe(self, analysis_result: str) -> pd.DataFrame:
         """Converte a resposta em texto da IA em um DataFrame do Pandas, agora com 4 colunas."""
         lines = analysis_result.strip().split('\n')
