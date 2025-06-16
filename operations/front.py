@@ -42,7 +42,7 @@ def highlight_expired(row):
 
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
-    status_val = str(row.get('status', '')).lower()
+    status_val = str(row.get('Status', '')).lower()
     if 'não conforme' in status_val:
         return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
@@ -173,7 +173,7 @@ def front_page():
                         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
                     
-                    resumo_audits = audit_history_display[audit_history_display['item_verificacao'].str.contains("Resumo", case=False, na=False)].copy()
+                    resumo_audits = audit_history_display[audit_history_display['item_de_verificacao'].str.contains("Resumo", case=False, na=False)].copy()
                     resumo_audits = resumo_audits.sort_values(by='data_auditoria', ascending=False)
                     
                     if not resumo_audits.empty:
