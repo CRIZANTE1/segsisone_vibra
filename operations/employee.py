@@ -1,5 +1,3 @@
-# /mount/src/segsisone/operations/employee.py
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -353,18 +351,32 @@ class EmployeeManager:
 
     def calcular_vencimento_treinamento(self, data, norma, modulo=None, tipo_treinamento='formação'):
         if not isinstance(data, date): return None
+        
         norma_padronizada = self._padronizar_norma(norma)
         if not norma_padronizada: return None
         
-        modulo_normalizado = modulo.strip().capitalize() if modulo else None
-        
-        config = self.nr20_config.get(modulo_normalizado) if norma_padronizada == "NR-20" else self.nr_config.get(norma_padronizada)
+        config = None
+        if norma_padronizada == "NR-20":
+            if modulo:
+                
+                modulo_limpo = modulo.strip().lower()
+                for key, value in self.nr20_config.items():
+                    if key.lower() == modulo_limpo:
+                        config = value
+                        break
+        else:
+            config = self.nr_config.get(norma_padronizada)
         
         if config:
             anos_validade = config.get('reciclagem_anos', 1)
             return data + timedelta(days=anos_validade * 365)
         
+       
         return None
+
+    def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
+        return True, ""
+
 
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         return True, ""
