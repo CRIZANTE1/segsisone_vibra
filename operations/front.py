@@ -43,7 +43,7 @@ def highlight_expired(row):
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
     status_val = str(row.get('Status', '')).lower()
-    if 'não conforme' in status_val:
+    if 'Não Conforme' in status_val:
         return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
@@ -174,7 +174,7 @@ def front_page():
                         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
                         audit_history_display = audit_history_display.sort_values(by='data_auditoria', ascending=False)
                     
-                    # Agrupa os resultados por 'id_auditoria'
+                    
                     for audit_id, group in audit_history_display.groupby('id_auditoria'):
                         first_row = group.iloc[0]
                         norma_auditada = first_row.get('norma_auditada', 'N/A')
@@ -201,8 +201,8 @@ def front_page():
                             st.dataframe(
                                 group.style.apply(style_audit_table, axis=1),
                                 column_config={
-                                    "item_verificacao": "Item de Verificação",
-                                    "status": "Status",
+                                    "item_de_verificacao": "Item de Verificação",
+                                    "Status": "Status",
                                     "observacao": "Observação da IA",
                                     "id_auditoria": None, "data_auditoria": None, "id_empresa": None, 
                                     "id_documento_original": None, "id_funcionario": None, 
