@@ -42,9 +42,12 @@ def highlight_expired(row):
 
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
-    status_val = str(row.get('Status', '')).lower()
+    status_val = str(row.get('Status', '')) 
     if 'Não Conforme' in status_val:
-        return ['background-color: #FFCDD2'] * len(row)
+        return ['background-color: #FFCDD2'] * len(row) # Vermelho
+    elif 'Conforme' in status_val:
+        return ['background-color: #C8E6C9'] * len(row) # Verde
+
     return [''] * len(row)
 
 def process_aso_pdf():
