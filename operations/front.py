@@ -16,8 +16,8 @@ def mostrar_info_normas():
         |--------|------------------|----------------------------|--------------------------|
         | Básico | 8 horas          | 3 anos                     | 4 horas                  |
         | Intermediário | 16 horas         | 2 anos                     | 4 horas                  |
-        | Avançado I | 32 horas         | 1 ano                      | 4 horas                  |
-        | Avançado II | 40 horas         | 1 ano                      | 4 horas                  |
+        | Avançado I | 20 horas         | 2 anos                      | 4 horas                  |
+        | Avançado II | 32 horas         | 1 ano                      | 4 horas                  |
         
         ---
 
