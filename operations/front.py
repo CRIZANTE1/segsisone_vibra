@@ -16,7 +16,7 @@ def mostrar_info_normas():
         |--------|------------------|----------------------------|--------------------------|
         | Básico | 8 horas          | 3 anos                     | 4 horas                  |
         | Intermediário | 16 horas         | 2 anos                     | 4 horas                  |
-        | Avançado I | 20 horas         | 2 anos                      | 4 horas                  |
+        | Avançado I | 20 horas         | 2 anos                     | 4 horas                  |
         | Avançado II | 32 horas         | 1 ano                      | 4 horas                  |
         
         ---
@@ -42,12 +42,9 @@ def highlight_expired(row):
 
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
-    status_val = str(row.get('Status', '')) 
-    if 'Não Conforme' in status_val:
-        return ['background-color: #FFCDD2'] * len(row) # Vermelho
-    elif 'Conforme' in status_val:
-        return ['background-color: #C8E6C9'] * len(row) # Verde
-
+    status_val = str(row.get('status', '')).lower()
+    if 'não conforme' in status_val:
+        return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
 def process_aso_pdf():
@@ -176,25 +173,21 @@ def front_page():
                         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
                     
-                    # Filtra para pegar apenas as linhas de resumo de cada auditoria
                     resumo_audits = audit_history_display[audit_history_display['item_verificacao'].str.contains("Resumo", case=False, na=False)].copy()
                     resumo_audits = resumo_audits.sort_values(by='data_auditoria', ascending=False)
                     
                     if not resumo_audits.empty:
                         for index, row in resumo_audits.iterrows():
-                            # Determina o alvo da auditoria
                             target_name = ""
                             emp_id = row.get('id_funcionario')
                             if pd.notna(emp_id) and emp_id != 'N/A':
-                                target_name = employee_manager.get_employee_name(emp_id) or f"ID {emp_id}"
+                                target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
                             else:
                                 target_name = employee_manager.companies_df[employee_manager.companies_df['id'] == row['id_empresa']]['nome'].iloc[0]
 
-                            # Define o título da auditoria
                             audit_title = f"**{row.get('tipo_documento')} ({row.get('norma_auditada')})** para **{target_name}**"
                             audit_date = row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
                             
-                            # Exibe as informações de forma limpa
                             st.markdown(f"**Análise de {audit_title}**")
                             st.caption(f"Realizada em: {audit_date}")
                             
