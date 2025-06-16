@@ -173,41 +173,45 @@ def front_page():
                         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
                         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
                     
-                    resumo_audits = audit_history_display[audit_history_display['item_de_verificacao'].str.contains("Resumo", case=False, na=False)].copy()
-                    resumo_audits = resumo_audits.sort_values(by='data_auditoria', ascending=False)
-                    
-                    if not resumo_audits.empty:
-                        for index, row in resumo_audits.iterrows():
+                    # Agrupa os resultados por 'id_auditoria'
+                    for audit_id, group in audit_history_display.groupby('id_auditoria'):
+                        # Pega a primeira linha do grupo para informações gerais
+                        first_row = group.iloc[0]
+                        
+                        resumo_row = group[group['item_de_verificacao'].str.contains("Resumo da Auditoria", case=False, na=False)]
+                        
+                        if not resumo_row.empty:
+                            resumo_text = resumo_row.iloc[0]['observacao']
+                            status = resumo_row.iloc[0]['Status']
+                            
+                            # Determina o alvo da auditoria (funcionário ou empresa)
                             target_name = ""
-                            emp_id = row.get('id_funcionario')
+                            emp_id = first_row.get('id_funcionario')
                             if pd.notna(emp_id) and emp_id != 'N/A':
                                 target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
                             else:
-                                target_name = employee_manager.companies_df[employee_manager.companies_df['id'] == row['id_empresa']]['nome'].iloc[0]
+                                # Garante que estamos buscando na lista correta de empresas
+                                company_info = employee_manager.companies_df[employee_manager.companies_df['id'] == first_row['id_empresa']]
+                                if not company_info.empty:
+                                    target_name = company_info['nome'].iloc[0]
+                                else:
+                                    target_name = f"Empresa (ID: {first_row['id_empresa']})"
 
-                            audit_title = f"**{row.get('tipo_documento')} ({row.get('norma_auditada')})** para **{target_name}**"
-                            audit_date = row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
+                            # Define o título e a data da auditoria
+                            audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
+                            audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
                             
+                            # Exibe as informações de forma limpa, com cor baseada no status do resumo
                             st.markdown(f"**Análise de {audit_title}**")
                             st.caption(f"Realizada em: {audit_date}")
                             
-                            status = row.get('status', 'N/A')
-                            if 'não conforme' in status.lower():
-                                st.error(f"**Parecer da IA:** {row.get('observacao', 'N/A')}")
+                            if 'não conforme' in str(status).lower():
+                                st.error(f"**Parecer da IA:** {resumo_text}")
                             else:
-                                st.info(f"**Parecer da IA:** {row.get('observacao', 'N/A')}")
+                                st.info(f"**Parecer da IA:** {resumo_text}")
                             st.markdown("---")
-                    else:
-                        st.info("Nenhum resumo de auditoria encontrado no histórico.")
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
-        else:
-            if employee_manager.companies_df.empty:
-                with st.form("cadastro_empresa"):
-                    st.subheader("Cadastrar Nova Empresa"); nome_empresa = st.text_input("Nome"); cnpj = st.text_input("CNPJ")
-                    if st.form_submit_button("Cadastrar") and nome_empresa and cnpj:
-                        _, message = employee_manager.add_company(nome_empresa, cnpj)
-                        st.success(message); st.rerun()
 
     with tab_add_doc_empresa:
         if selected_company:
