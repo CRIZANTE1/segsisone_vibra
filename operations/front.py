@@ -42,7 +42,7 @@ def highlight_expired(row):
 
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
-    status_val = str(row.get('Status', '')).lower()
+    status_val = str(row.get('status', '')).lower()
     if 'não conforme' in status_val:
         return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
@@ -174,20 +174,43 @@ def front_page():
                         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
                         audit_history_display = audit_history_display.sort_values(by='data_auditoria', ascending=False)
                     
-                    st.dataframe(
-                        audit_history_display.style.apply(style_audit_table, axis=1),
-                        column_config={
-                            "data_auditoria": st.column_config.DatetimeColumn("Data da Análise", format="DD/MM/YYYY HH:mm"),
-                            "tipo_documento": "Doc. Analisado",
-                            "norma_auditada": "Norma",
-                            "item_de_verificacao": "Item de Verificação",
-                            "Status": "Status",
-                            "observacao": "Observação da IA",
-                            "id": None, "id_auditoria": None, "id_empresa": None, "id_documento_original": None, "id_funcionario": None,
-                        },
-                        use_container_width=True, 
-                        hide_index=True
-                    )
+                    # Agrupa os resultados por 'id_auditoria'
+                    for audit_id, group in audit_history_display.groupby('id_auditoria'):
+                        first_row = group.iloc[0]
+                        norma_auditada = first_row.get('norma_auditada', 'N/A')
+                        
+                        if norma_auditada == "NR-20":
+                            resumo_row = group[group['item_verificacao'].str.contains("Resumo", case=False, na=False)]
+                            if not resumo_row.empty:
+                                resumo_text = resumo_row.iloc[0]['observacao']
+                                
+                                target_name = ""
+                                emp_id = first_row.get('id_funcionario')
+                                if pd.notna(emp_id) and emp_id != 'N/A':
+                                    target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
+                                else:
+                                    target_name = employee_manager.companies_df[employee_manager.companies_df['id'] == first_row['id_empresa']]['nome'].iloc[0]
+                                
+                                st.markdown(f"**Auditoria de {first_row['tipo_documento']} ({norma_auditada}) - {target_name}** | Data: {first_row['data_auditoria'].strftime('%d/%m/%Y')}")
+                                st.info(f"**Resumo da IA:** {resumo_text}")
+                                st.markdown("---")
+                        
+                        else:
+                            st.markdown(f"**Auditoria ID:** {first_row.get('id_auditoria', 'N/A')} | **Data:** {first_row['data_auditoria'].strftime('%d/%m/%Y %H:%M:%S')}")
+                            
+                            st.dataframe(
+                                group.style.apply(style_audit_table, axis=1),
+                                column_config={
+                                    "item_verificacao": "Item de Verificação",
+                                    "status": "Status",
+                                    "observacao": "Observação da IA",
+                                    "id_auditoria": None, "data_auditoria": None, "id_empresa": None, 
+                                    "id_documento_original": None, "id_funcionario": None, 
+                                    "tipo_documento": None, "norma_auditada": None, "id": None
+                                },
+                                use_container_width=True, hide_index=True
+                            )
+                            st.markdown("---")
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
         else:
