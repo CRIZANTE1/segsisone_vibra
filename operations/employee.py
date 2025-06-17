@@ -183,32 +183,83 @@ class EmployeeManager:
     def analyze_aso_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue()); temp_path = temp_file.name
-            combined_question = "..." # Seu prompt de ASO aqui
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question); os.unlink(temp_path)
-            if not answer: return None
-            lines = answer.strip().split('\n'); results = {}
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            st.info("Iniciando análise geral do ASO...")
+            general_prompt = """
+            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
+            1. Qual a data de emissão do ASO? (ex: 25/05/2024)
+            2. Qual a data de vencimento do ASO? (Se não houver, responda 'N/A')
+            3. Quais são os riscos ocupacionais?
+            4. Qual o cargo do funcionário?
+            5. Qual o tipo de exame médico? (ex: Admissional, Periódico, Demissional)
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], general_prompt)
+            
+            if not answer: 
+                os.unlink(temp_path)
+                return None
+            
+            lines = answer.strip().split('\n')
+            results = {}
             for line in lines:
                 match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
-                if match: key = int(match.group(1)); value = match.group(2).strip(); results[key] = value
+                if match:
+                    key = int(match.group(1))
+                    value = match.group(2).strip()
+                    results[key] = value
+
             data_aso = self._parse_flexible_date(results.get(1, ''))
-            if not data_aso: st.error(f"Não foi possível extrair uma data de realização válida da resposta: '{results.get(1, '')}'"); return None
+            
+            if data_aso is None:
+                st.warning("Análise geral não encontrou a data. Tentando análise focada...")
+                focused_prompt = "Qual é a data de realização ou emissão do exame clínico neste ASO? Ignore qualquer outra data ou campo de assinatura. Responda APENAS a data no formato DD/MM/AAAA."
+                
+                focused_answer, _ = self.pdf_analyzer.answer_question([temp_path], focused_prompt)
+                
+                if focused_answer:
+                    data_aso = self._parse_flexible_date(focused_answer)
+
+            # Se ainda assim falhar, desiste
+            if not data_aso:
+                st.error("Não foi possível extrair a data de realização, mesmo com a análise focada.")
+                os.unlink(temp_path)
+                return None
+            
+            # Continua o processamento com os resultados da primeira análise (ou data corrigida)
             vencimento = self._parse_flexible_date(results.get(2, ''))
-            tipo_aso_str = results.get(5, '').lower(); tipo_aso = "Não identificado"
+            tipo_aso_str = results.get(5, '').lower()
+            tipo_aso = "Não identificado"
+
             if any(term in tipo_aso_str for term in ['admissional', 'admissão']): tipo_aso = 'Admissional'
             elif 'periódico' in tipo_aso_str: tipo_aso = 'Periódico'
             elif 'demissional' in tipo_aso_str: tipo_aso = 'Demissional'
             elif any(term in tipo_aso_str for term in ['mudança', 'função', 'cargo']): tipo_aso = 'Mudança de Risco'
             elif 'retorno' in tipo_aso_str: tipo_aso = 'Retorno ao Trabalho'
             elif any(term in tipo_aso_str for term in ['monitoramento', 'pontual']): tipo_aso = 'Monitoramento Pontual'
+
             if not vencimento and tipo_aso != 'Demissional':
                 st.info(f"Vencimento não encontrado. Calculando com base no tipo '{tipo_aso}'...")
-                if tipo_aso in ['Admissional', 'Periódico', 'Mudança de Risco', 'Retorno ao Trabalho']: vencimento = data_aso + timedelta(days=365)
-                elif tipo_aso == 'Monitoramento Pontual': vencimento = data_aso + timedelta(days=180)
-                else: vencimento = data_aso + timedelta(days=365); st.warning("Tipo de ASO não identificado, assumindo validade de 1 ano.")
-            return {'data_aso': data_aso, 'vencimento': vencimento, 'riscos': results.get(3, ""), 'cargo': results.get(4, ""), 'tipo_aso': tipo_aso}
+                if tipo_aso in ['Admissional', 'Periódico', 'Mudança de Risco', 'Retorno ao Trabalho']:
+                    vencimento = data_aso + timedelta(days=365)
+                elif tipo_aso == 'Monitoramento Pontual':
+                    vencimento = data_aso + timedelta(days=180)
+                else:
+                    vencimento = data_aso + timedelta(days=365)
+                    st.warning("Tipo de ASO não identificado, assumindo validade de 1 ano.")
+            
+            os.unlink(temp_path)
+            return {
+                'data_aso': data_aso, 'vencimento': vencimento, 
+                'riscos': results.get(3, ""), 'cargo': results.get(4, ""),
+                'tipo_aso': tipo_aso
+            }
         except Exception as e:
-            st.error(f"Erro ao analisar o PDF do ASO: {str(e)}"); return None
+            st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+            return None
 
     def add_company(self, nome, cnpj):
         from gdrive.config import EMPLOYEE_SHEET_NAME
