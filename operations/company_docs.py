@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
@@ -31,7 +29,11 @@ class CompanyDocsManager:
     def initialize_sheets(self):
         try:
             docs_columns = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_de_verificacao", "Status", "observacao"]
+            
+            # Usa os nomes exatos que você especificou
+            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
+                             "id_funcionario", "tipo_documento", "norma_auditada", 
+                             "item_de_verificacao", "Status", "observacao"]
             
             if not self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME):
                 self.sheet_ops.criar_aba(COMPANY_DOCS_SHEET_NAME, docs_columns)
@@ -48,22 +50,31 @@ class CompanyDocsManager:
 
     def load_company_data(self):
         try:
-            # Carrega documentos da empresa
             docs_data = self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME)
             docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
             self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0]) if docs_data and len(docs_data) > 0 else pd.DataFrame(columns=docs_cols)
 
-            # Carrega e limpa os dados da auditoria
+            # --- CORREÇÃO APLICADA AQUI ---
             audit_data = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
-            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", "id_funcionario", "tipo_documento", "norma_auditada", "item_de_verificacao", "Status", "observacao"]
+            
+            # Usa os nomes de coluna exatos da sua planilha
+            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
+                          "id_funcionario", "tipo_documento", "norma_auditada", 
+                          "item_de_verificacao", "Status", "observacao"]
             
             if audit_data and len(audit_data) > 1:
                 # Usa o cabeçalho real da planilha para o DataFrame inicial
                 header = audit_data[0]
-                temp_df = pd.DataFrame(audit_data[1:], columns=header)
+                # Pega apenas o número de colunas que temos no cabeçalho lido, ignorando as extras
+                num_valid_cols = len(header)
                 
-                # Seleciona apenas as colunas que existem no nosso modelo `audit_cols`
-                # e que também estão no cabeçalho lido, para evitar erros.
+                # Limpa os dados, garantindo que cada linha tenha o mesmo número de colunas que o cabeçalho
+                cleaned_data = [row[:num_valid_cols] for row in audit_data[1:]]
+                
+                # Cria o DataFrame com os dados e cabeçalhos limpos
+                temp_df = pd.DataFrame(cleaned_data, columns=header)
+                
+                # Isso descarta colunas com nomes vazios ('')
                 final_cols = [col for col in audit_cols if col in temp_df.columns]
                 self.audit_df = temp_df[final_cols]
             else:
@@ -81,7 +92,6 @@ class CompanyDocsManager:
     def get_audits_by_company(self, company_id):
         if self.audit_df.empty:
             return pd.DataFrame()
-        # Garante que a coluna existe antes de filtrar
         if 'id_empresa' in self.audit_df.columns:
             return self.audit_df[self.audit_df['id_empresa'] == str(company_id)]
         return pd.DataFrame()
