@@ -120,55 +120,38 @@ class EmployeeManager:
         if not aso_docs.empty:
             if 'tipo_aso' not in aso_docs.columns:
                 aso_docs['tipo_aso'] = 'Não Identificado'
-            aso_docs['tipo_aso'].fillna('Não Identificado', inplace=True)
+            aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('Não Identificado')
             
             aso_docs['data_aso_dt'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
             aso_docs.dropna(subset=['data_aso_dt'], inplace=True)
-            
             latest_asos = aso_docs.sort_values('data_aso_dt', ascending=False).groupby('tipo_aso').head(1)
-            
             latest_asos['data_aso'] = pd.to_datetime(latest_asos['data_aso'], format='%d/%m/%Y', errors='coerce').dt.date
             latest_asos['vencimento'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-            
             latest_asos = latest_asos.drop(columns=['data_aso_dt'])
-            
             return latest_asos.sort_values('data_aso', ascending=False)
         return pd.DataFrame()
 
-    # --- FUNÇÃO ATUALIZADA ---
     def get_all_trainings_by_employee(self, employee_id):
-        """
-        Obtém os treinamentos mais recentes de CADA TIPO (norma/módulo) para um funcionário.
-        """
         if self.training_df.empty: return pd.DataFrame()
-
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
         if training_docs.empty: return pd.DataFrame()
-
         if 'modulo' not in training_docs.columns:
             training_docs['modulo'] = 'N/A'
-        training_docs['modulo'].fillna('N/A', inplace=True)
+        training_docs['modulo'] = training_docs['modulo'].fillna('N/A')
         
-        if 'norma' not in training_docs.columns:
-            return pd.DataFrame()
-
+        if 'norma' not in training_docs.columns: return pd.DataFrame()
         training_docs['data_dt'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
         training_docs.dropna(subset=['data_dt'], inplace=True)
-        
         latest_trainings = training_docs.sort_values('data_dt', ascending=False).groupby(['norma', 'modulo']).head(1)
-        
         latest_trainings['data'] = pd.to_datetime(latest_trainings['data'], format='%d/%m/%Y', errors='coerce').dt.date
         latest_trainings['vencimento'] = pd.to_datetime(latest_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        
         latest_trainings = latest_trainings.drop(columns=['data_dt'])
-        
         return latest_trainings.sort_values('data', ascending=False)
 
     def analyze_training_pdf(self, pdf_file):
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue()); temp_path = temp_file.name
-            
             combined_question = """
             Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
             1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
@@ -183,10 +166,8 @@ class EmployeeManager:
             for line in lines:
                 match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
                 if match: key = int(match.group(1)); value = match.group(2).strip(); results[key] = value
-            
             data = self._parse_flexible_date(results.get(3, '')); norma = self._padronizar_norma(results.get(1))
             if not data or not norma: st.warning("Não foi possível extrair a data ou a norma do PDF."); return None
-            
             carga_horaria_str = results.get(5, '0'); match_carga = re.search(r'\d+', carga_horaria_str); carga_horaria = int(match_carga.group(0)) if match_carga else 0
             modulo = results.get(2, "").strip(); tipo_treinamento = 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação'
             if norma == "NR-20" and (not modulo or modulo.lower() == 'não se aplica'):
@@ -203,8 +184,7 @@ class EmployeeManager:
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue()); temp_path = temp_file.name
-            
-            combined_question = "..." # Seu prompt aqui
+            combined_question = "..." # Seu prompt de ASO aqui
             answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question); os.unlink(temp_path)
             if not answer: return None
             lines = answer.strip().split('\n'); results = {}
