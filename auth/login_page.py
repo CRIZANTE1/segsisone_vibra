@@ -37,21 +37,24 @@ def show_user_header():
     st.write(f"Bem-vindo, {get_user_display_name()}!")
     
 def show_sidebar():
-    """Mostra e configura toda a barra lateral."""
+    """Mostra e configura toda a barra lateral de forma minimalista."""
     with st.sidebar:
-        st.markdown(f"<h1 style='text-align: center;'>🛡️</h1>", unsafe_allow_html=True)
-        st.markdown(f"<h2 style='text-align: center;'>SSO AI</h2>", unsafe_allow_html=True)
-        st.divider()
+        st.title("SSO AI 🛡️")
         
-        st.write(f"Usuário: **{get_user_display_name()}**")
         st.divider()
 
+        st.write(f"Usuário:")
+        st.info(f"**{get_user_display_name()}**")
+
+        st.write("") 
+        
         if st.button("Sair do Sistema", use_container_width=True):
             try:
                 st.logout()
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao fazer logout: {str(e)}")
+                # Limpa o session_state como um fallback
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
