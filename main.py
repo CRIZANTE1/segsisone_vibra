@@ -32,5 +32,5 @@ st.title("Bem-vindo ao SSO AI 🛡️")
 st.write("Navegue pelas páginas na barra lateral para começar.")
 st.info("O login é necessário para acessar as funcionalidades.")
 
-)
+
 
