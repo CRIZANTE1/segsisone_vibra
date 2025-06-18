@@ -10,5 +10,5 @@ from .auth_utils import (
 from .login_page import (
     show_login_page,
     show_user_header,
-    show_logout_button
+    show_sidebar
 ) 
