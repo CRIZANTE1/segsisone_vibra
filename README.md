@@ -22,7 +22,8 @@ Sistema desenvolvido para gerenciar documentação de empresas contratadas, incl
   - Validação de cargas horárias e periodicidades
   - Controle de vencimentos
 
-### Normas Regulamentadoras Suportadas
+### Normas Regulamentadoras Suportadas para uma instalação especifica. 
+Ajustes podem ser realizados de acordo com cada particularidade.
 
 #### NR-20
 ##### Reciclagem:
@@ -30,7 +31,7 @@ Sistema desenvolvido para gerenciar documentação de empresas contratadas, incl
 |--------|---------------|---------------------|
 | Básico | 3 anos | 4 horas |
 | Intermediário | 2 anos | 4 horas |
-| Avançado I | 1 ano | 4 horas |
+| Avançado I | 2 anos | 4 horas |
 | Avançado II | 1 ano | 4 horas |
 
 ##### Formação Inicial:
@@ -38,8 +39,8 @@ Sistema desenvolvido para gerenciar documentação de empresas contratadas, incl
 |--------|---------------------|
 | Básico | 8 horas |
 | Intermediário | 16 horas |
-| Avançado I | 32 horas |
-| Avançado II | 40 horas |
+| Avançado I | 20 horas |
+| Avançado II | 32 horas |
 
 #### Outras NRs
 | Norma | Carga Horária Inicial | Carga Horária Reciclagem | Periodicidade Reciclagem |
@@ -55,7 +56,7 @@ Sistema desenvolvido para gerenciar documentação de empresas contratadas, incl
 - **Backend**: Python
 - **Banco de Dados**: Google Sheets
 - **Armazenamento**: Google Drive
-- **IA**: Modelo Gemini para análise de documentos
+- **IA**: Modelo Gemini 
 
 ## Requisitos
 
