@@ -2,9 +2,7 @@ import streamlit as st
 from .auth_utils import is_oidc_available, is_user_logged_in, get_user_display_name
 
 def show_login_page():
-    """Mostra a página de login"""
-    st.title("Login do Sistema SSO AI") 
-    
+        
     if not is_oidc_available():
         st.error("O sistema OIDC não está disponível!")
         st.markdown("""
