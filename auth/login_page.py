@@ -2,7 +2,9 @@ import streamlit as st
 from .auth_utils import is_oidc_available, is_user_logged_in, get_user_display_name
 
 def show_login_page():
-        
+    """Mostra a página de login"""
+    st.title("Login do Sistema")
+    
     if not is_oidc_available():
         st.error("O sistema OIDC não está disponível!")
         st.markdown("""
@@ -22,6 +24,8 @@ def show_login_page():
     if not is_user_logged_in():
         st.markdown("### Acesso ao Sistema")
         st.write("Por favor, faça login para acessar o sistema.")
+        
+        # Botão de login
         if st.button("Fazer Login com Google"):
             try:
                 st.login()
@@ -35,25 +39,16 @@ def show_login_page():
 def show_user_header():
     """Mostra o cabeçalho com informações do usuário"""
     st.write(f"Bem-vindo, {get_user_display_name()}!")
-    
-def show_sidebar():
-    """Mostra e configura toda a barra lateral de forma minimalista."""
+
+def show_logout_button():
+    """Mostra o botão de logout no sidebar"""
     with st.sidebar:
-
-        st.write(f"Usuário:")
-        st.info(f"**{get_user_display_name()}**")
-
-        st.write("") 
-        
-        if st.button("Sair do Sistema", use_container_width=True):
+        if st.button("Sair do Sistema"):
             try:
                 st.logout()
                 st.rerun()
             except Exception as e:
                 st.error(f"Erro ao fazer logout: {str(e)}")
-                # Limpa o session_state como um fallback
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
-                st.rerun()
-
-        st.caption("v1.0.1")
+                st.rerun() 
