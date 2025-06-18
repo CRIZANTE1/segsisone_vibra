@@ -27,17 +27,16 @@ st.set_page_config(
 )
 
 
-hide_main_nav_link = """
+hide_main_nav_link_style = """
     <style>
-    a[href="/"] {
+    div[data-testid="stSidebarNav"] > ul > li:first-child {
         display: none;
     }
     </style>
 """
-st.markdown(hide_main_nav_link, unsafe_allow_html=True)
+st.markdown(hide_main_nav_link_style, unsafe_allow_html=True)
 
-
-
+# Lógica de roteamento
 if is_user_logged_in():
     st.switch_page("pages/1_Visão_Geral.py")
 else:
