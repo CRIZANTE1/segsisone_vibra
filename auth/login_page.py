@@ -3,7 +3,7 @@ from .auth_utils import is_oidc_available, is_user_logged_in, get_user_display_n
 
 def show_login_page():
     """Mostra a página de login"""
-    st.title("Login do Sistema")
+    st.title("Login do Sistema SSO AI") 
     
     if not is_oidc_available():
         st.error("O sistema OIDC não está disponível!")
@@ -24,8 +24,6 @@ def show_login_page():
     if not is_user_logged_in():
         st.markdown("### Acesso ao Sistema")
         st.write("Por favor, faça login para acessar o sistema.")
-        
-        # Botão de login
         if st.button("Fazer Login com Google"):
             try:
                 st.login()
@@ -39,11 +37,18 @@ def show_login_page():
 def show_user_header():
     """Mostra o cabeçalho com informações do usuário"""
     st.write(f"Bem-vindo, {get_user_display_name()}!")
-
-def show_logout_button():
-    """Mostra o botão de logout no sidebar"""
+    
+def show_sidebar():
+    """Mostra e configura toda a barra lateral."""
     with st.sidebar:
-        if st.button("Sair do Sistema"):
+        st.markdown(f"<h1 style='text-align: center;'>🛡️</h1>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center;'>SSO AI</h2>", unsafe_allow_html=True)
+        st.divider()
+        
+        st.write(f"Usuário: **{get_user_display_name()}**")
+        st.divider()
+
+        if st.button("Sair do Sistema", use_container_width=True):
             try:
                 st.logout()
                 st.rerun()
@@ -51,4 +56,6 @@ def show_logout_button():
                 st.error(f"Erro ao fazer logout: {str(e)}")
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
-                st.rerun() 
+                st.rerun()
+
+        st.caption("v1.0.1")
