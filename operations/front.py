@@ -84,7 +84,7 @@ def front_page():
     
     gdrive_uploader = GoogleDriveUploader()
     
-    st.title("Gestão de Documentação de Contratada")
+    st.title("SSO AI - Análise Inteligente de Documentos")
     
     selected_company = None
     if not employee_manager.companies_df.empty:
