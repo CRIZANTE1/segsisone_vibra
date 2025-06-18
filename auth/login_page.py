@@ -39,9 +39,6 @@ def show_user_header():
 def show_sidebar():
     """Mostra e configura toda a barra lateral de forma minimalista."""
     with st.sidebar:
-        st.title("SSO AI 🛡️")
-        
-        st.divider()
 
         st.write(f"Usuário:")
         st.info(f"**{get_user_display_name()}**")
