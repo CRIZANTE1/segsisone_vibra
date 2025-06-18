@@ -24,7 +24,7 @@ def configurar_pagina():
         }
     )
 
-a
+
 configurar_pagina()
 
 
