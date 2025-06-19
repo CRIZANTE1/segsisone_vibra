@@ -14,8 +14,6 @@ class PDFQA:
         load_api()  # Carrega a API
         self.model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
 
-
-    #-----------------Função para limpar o texto-------------------------
    
     #----------------- Função para fazer perguntas ao modelo Gemini----------------------
     def ask_gemini(self, pdf_files, question):
