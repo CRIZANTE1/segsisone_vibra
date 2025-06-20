@@ -8,6 +8,7 @@ import tempfile
 import os
 import re
 import locale
+import json  
 
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
@@ -107,15 +108,16 @@ class EmployeeManager:
                 else:
                     header = data[0]
                     if sheet_name == ASO_SHEET_NAME and 'tipo_aso' not in header:
-                         st.warning(f"A coluna 'tipo_aso' não foi encontrada na aba {ASO_SHEET_NAME} e será adicionada. Verifique sua planilha.")
-                         self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns)
+                        st.warning(f"A coluna 'tipo_aso' não foi encontrada na aba {ASO_SHEET_NAME} e será adicionada. Verifique sua planilha.")
+                        self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns)
             return True
         except Exception as e:
             st.error(f"Erro ao inicializar as abas: {str(e)}")
             return False
 
     def get_latest_aso_by_employee(self, employee_id):
-        if self.aso_df.empty: return pd.DataFrame()
+        if self.aso_df.empty:
+            return pd.DataFrame()
         aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
         if not aso_docs.empty:
             if 'tipo_aso' not in aso_docs.columns:
@@ -132,14 +134,17 @@ class EmployeeManager:
         return pd.DataFrame()
 
     def get_all_trainings_by_employee(self, employee_id):
-        if self.training_df.empty: return pd.DataFrame()
+        if self.training_df.empty:
+            return pd.DataFrame()
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
-        if training_docs.empty: return pd.DataFrame()
+        if training_docs.empty:
+            return pd.DataFrame()
         if 'modulo' not in training_docs.columns:
             training_docs['modulo'] = 'N/A'
         training_docs['modulo'] = training_docs['modulo'].fillna('N/A')
         
-        if 'norma' not in training_docs.columns: return pd.DataFrame()
+        if 'norma' not in training_docs.columns:
+            return pd.DataFrame()
         training_docs['data_dt'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
         training_docs.dropna(subset=['data_dt'], inplace=True)
         latest_trainings = training_docs.sort_values('data_dt', ascending=False).groupby(['norma', 'modulo']).head(1)
@@ -149,188 +154,271 @@ class EmployeeManager:
         return latest_trainings.sort_values('data', ascending=False)
 
     def analyze_training_pdf(self, pdf_file):
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue()); temp_path = temp_file.name
-            combined_question = """
-            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual é a norma regulamentadora (NR) deste treinamento? (ex: NR-10)
-            2. Qual é o módulo do treinamento? (ex: Básico, ou 'Não se aplica')
-            3. Qual é a data de realização do treinamento? (ex: 25/05/2024)
-            4. Este documento é um certificado de reciclagem? (Responda 'sim' ou 'não')
-            5. Qual é a carga horária total do treinamento em horas? (Responda apenas o número)
-            """
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question); os.unlink(temp_path)
-            if not answer: return None
-            lines = answer.strip().split('\n'); results = {}
-            for line in lines:
-                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
-                if match: key = int(match.group(1)); value = match.group(2).strip(); results[key] = value
-            data = self._parse_flexible_date(results.get(3, '')); norma = self._padronizar_norma(results.get(1))
-            if not data or not norma: st.warning("Não foi possível extrair a data ou a norma do PDF."); return None
-            carga_horaria_str = results.get(5, '0'); match_carga = re.search(r'\d+', carga_horaria_str); carga_horaria = int(match_carga.group(0)) if match_carga else 0
-            modulo = results.get(2, "").strip(); tipo_treinamento = 'reciclagem' if 'sim' in results.get(4, '').lower() else 'formação'
-            if norma == "NR-20" and (not modulo or modulo.lower() == 'não se aplica'):
-                st.info("Módulo da NR-20 não encontrado, tentando inferir pela carga horária...")
-                for mod, config in self.nr20_config.items():
-                    key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
-                    if carga_horaria == config.get(key_ch):
-                        modulo = mod; st.success(f"Módulo inferido como '{mod}' com base na carga horária de {carga_horaria}h."); break
-            return {'data': data, 'norma': norma, 'modulo': modulo, 'tipo_treinamento': tipo_treinamento, 'carga_horaria': carga_horaria}
-        except Exception as e:
-            st.error(f"Erro ao analisar o PDF de treinamento: {str(e)}"); return None
-
-    def analyze_aso_pdf(self, pdf_file):
+        """
+        Analisa um PDF de certificado de treinamento usando um prompt JSON estruturado para extrair informações.
+        """
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue())
                 temp_path = temp_file.name
             
-            st.info("Iniciando análise geral do ASO...")
-            general_prompt = """
-            Por favor, analise o documento e responda as seguintes perguntas, uma por linha:
-            1. Qual a data de emissão do ASO? (ex: 25/05/2024)
-            2. Qual a data de vencimento do ASO? (Se não houver, responda 'N/A')
-            3. Quais são os riscos ocupacionais?
-            4. Qual o cargo do funcionário?
-            5. Qual o tipo de exame médico? (ex: Admissional, Periódico, Demissional)
+            structured_prompt = """
+            Você é um especialista em análise de documentos de Saúde e Segurança do Trabalho. Sua tarefa é analisar o certificado de treinamento em PDF e extrair as informações abaixo.
+
+            **REGRAS OBRIGATÓRIAS:**
+            1.  Responda **APENAS com um bloco de código JSON válido**. Não inclua a palavra "json" ou qualquer outro texto antes ou depois do bloco JSON.
+            2.  Para a chave de data, use ESTRITAMENTE o formato **DD/MM/AAAA**.
+            3.  Se uma informação não for encontrada de forma clara, o valor da chave correspondente no JSON deve ser **null** (sem aspas).
+            4.  Para a chave "norma", retorne o nome padronizado (ex: 'NR-10', 'NR-35').
+            5.  Para a chave "carga_horaria", retorne apenas o número inteiro de horas.
+            6.  **IMPORTANTE:** Os valores das chaves no JSON **NÃO DEVEM** conter o nome da chave.
+                -   **ERRADO:** `"norma": "Norma: NR-35"`
+                -   **CORRETO:** `"norma": "NR-35"`
+
+            **JSON a ser preenchido:**
+            ```json
+            {
+            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20').",
+            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado I'). Se não for aplicável, use 'N/A'.",
+            "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
+            "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem'.",
+            "carga_horaria": "A carga horária total do treinamento, apenas o número."
+            }
+
             """
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], general_prompt)
-            
-            if not answer: 
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
+
+        except Exception as e:
+            st.error(f"Erro ao processar o arquivo PDF de treinamento: {str(e)}")
+            return None
+        finally:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
                 os.unlink(temp_path)
+
+        if not answer:
+            st.error("A IA não retornou nenhuma resposta para o certificado de treinamento.")
+            return None
+
+        try:
+            cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
+            data = json.loads(cleaned_answer)
+
+            data_realizacao = self._parse_flexible_date(data.get('data_realizacao'))
+            norma_bruta = data.get('norma')
+            
+            if not data_realizacao or not norma_bruta:
+                st.error("Não foi possível extrair a data de realização ou a norma do certificado a partir da resposta da IA.")
+                st.code(f"Resposta recebida da IA:\n{answer}")
                 return None
-            
-            lines = answer.strip().split('\n')
-            results = {}
-            for line in lines:
-                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
-                if match:
-                    key = int(match.group(1))
-                    value = match.group(2).strip()
-                    results[key] = value
-
-            data_aso = self._parse_flexible_date(results.get(1, ''))
-            
-            if data_aso is None:
-                st.warning("Análise geral não encontrou a data. Tentando análise focada...")
-                focused_prompt = "Qual é a data de realização ou emissão do exame clínico neste ASO? Ignore qualquer outra data ou campo de assinatura. Responda APENAS a data no formato DD/MM/AAAA."
                 
-                focused_answer, _ = self.pdf_analyzer.answer_question([temp_path], focused_prompt)
-                
-                if focused_answer:
-                    data_aso = self._parse_flexible_date(focused_answer)
+            norma_padronizada = self._padronizar_norma(norma_bruta)
+            carga_horaria = int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
+            modulo = data.get('modulo', "N/A")
+            tipo_treinamento = str(data.get('tipo_treinamento', 'formação')).lower()
+            
+            if norma_padronizada == "NR-20" and (not modulo or modulo.lower() == 'n/a'):
+                st.info("Módulo da NR-20 não encontrado, tentando inferir pela carga horária...")
+                key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
+                for mod, config in self.nr20_config.items():
+                    if carga_horaria == config.get(key_ch):
+                        modulo = mod
+                        st.success(f"Módulo inferido como '{mod}' com base na carga horária de {carga_horaria}h.")
+                        break
+            
+            return {
+                'data': data_realizacao, 
+                'norma': norma_padronizada, 
+                'modulo': modulo, 
+                'tipo_treinamento': tipo_treinamento, 
+                'carga_horaria': carga_horaria
+            }
 
-            # Se ainda assim falhar, desiste
+        except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as e:
+            st.error(f"Erro ao processar a resposta da IA para o treinamento. A resposta pode não ser um JSON válido ou os dados estão incorretos: {e}")
+            st.code(f"Resposta recebida da IA:\n{answer}")
+            return None
+
+    def analyze_aso_pdf(self, pdf_file):
+        """
+        Analisa um PDF de ASO usando um prompt JSON estruturado para extrair informações.
+        """
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            st.info("Iniciando análise do ASO com prompt estruturado...")
+            
+            structured_prompt = """        
+            Você é um assistente de extração de dados para documentos de Saúde e Segurança do Trabalho. Sua tarefa é analisar o ASO em PDF e extrair as informações abaixo.
+            REGRAS OBRIGATÓRIAS:
+            1.Responda APENAS com um bloco de código JSON válido. Não inclua a palavra "json" ou qualquer outro texto antes ou depois do bloco JSON.
+            2.Para todas as chaves de data, use ESTRITAMENTE o formato DD/MM/AAAA.
+            3.Se uma informação não for encontrada de forma clara e inequívoca, o valor da chave correspondente no JSON deve ser null (sem aspas).
+            4.IMPORTANTE: Os valores das chaves no JSON NÃO DEVEM conter o nome da chave.
+            ERRADO: "cargo": "Cargo: Operador"
+            CORRETO: "cargo": "Operador"
+            JSON a ser preenchido:
+
+            {
+            "data_aso": "A data de emissão ou realização do exame clínico. Formato: DD/MM/AAAA.",
+            "vencimento_aso": "A data de vencimento explícita no ASO, se houver. Formato: DD/MM/AAAA.",
+            "riscos": "Uma string contendo os riscos ocupacionais listados, separados por vírgula.",
+            "cargo": "O cargo ou função do trabalhador.",
+            "tipo_aso": "O tipo de exame. Identifique como um dos seguintes: 'Admissional', 'Periódico', 'Demissional', 'Mudança de Risco', 'Retorno ao Trabalho', 'Monitoramento Pontual'."
+            }
+
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
+        
+        except Exception as e:
+            st.error(f"Erro ao processar o arquivo PDF do ASO: {str(e)}")
+            return None
+        finally:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+        if not answer:
+            st.error("A IA não retornou nenhuma resposta para o ASO.")
+            return None
+
+        try:
+            cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
+            data = json.loads(cleaned_answer)
+
+            data_aso = self._parse_flexible_date(data.get('data_aso'))
+            vencimento = self._parse_flexible_date(data.get('vencimento_aso'))
+            
             if not data_aso:
-                st.error("Não foi possível extrair a data de realização, mesmo com a análise focada.")
-                os.unlink(temp_path)
+                st.error("Não foi possível extrair a data de emissão do ASO a partir da resposta da IA.")
+                st.code(f"Resposta recebida da IA:\n{answer}")
                 return None
-            
-            # Continua o processamento com os resultados da primeira análise (ou data corrigida)
-            vencimento = self._parse_flexible_date(results.get(2, ''))
-            tipo_aso_str = results.get(5, '').lower()
-            tipo_aso = "Não identificado"
-
-            if any(term in tipo_aso_str for term in ['admissional', 'admissão']): tipo_aso = 'Admissional'
-            elif 'periódico' in tipo_aso_str: tipo_aso = 'Periódico'
-            elif 'demissional' in tipo_aso_str: tipo_aso = 'Demissional'
-            elif any(term in tipo_aso_str for term in ['mudança', 'função', 'cargo']): tipo_aso = 'Mudança de Risco'
-            elif 'retorno' in tipo_aso_str: tipo_aso = 'Retorno ao Trabalho'
-            elif any(term in tipo_aso_str for term in ['monitoramento', 'pontual']): tipo_aso = 'Monitoramento Pontual'
+                
+            tipo_aso = str(data.get('tipo_aso', 'Não identificado'))
 
             if not vencimento and tipo_aso != 'Demissional':
-                st.info(f"Vencimento não encontrado. Calculando com base no tipo '{tipo_aso}'...")
+                st.info(f"Vencimento não encontrado explicitamente. Calculando com base no tipo '{tipo_aso}'...")
                 if tipo_aso in ['Admissional', 'Periódico', 'Mudança de Risco', 'Retorno ao Trabalho']:
                     vencimento = data_aso + timedelta(days=365)
                 elif tipo_aso == 'Monitoramento Pontual':
                     vencimento = data_aso + timedelta(days=180)
                 else:
                     vencimento = data_aso + timedelta(days=365)
-                    st.warning("Tipo de ASO não identificado, assumindo validade de 1 ano.")
+                    st.warning(f"Tipo de ASO '{tipo_aso}' não mapeado para cálculo de vencimento, assumindo validade de 1 ano.")
             
-            os.unlink(temp_path)
             return {
-                'data_aso': data_aso, 'vencimento': vencimento, 
-                'riscos': results.get(3, ""), 'cargo': results.get(4, ""),
+                'data_aso': data_aso, 
+                'vencimento': vencimento, 
+                'riscos': data.get('riscos', ""), 
+                'cargo': data.get('cargo', ""),
                 'tipo_aso': tipo_aso
             }
-        except Exception as e:
-            st.error(f"Erro ao analisar o PDF do ASO: {str(e)}")
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.unlink(temp_path)
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            st.error(f"Erro ao processar a resposta da IA para o ASO. A resposta não era um JSON válido: {e}")
+            st.code(f"Resposta recebida da IA:\n{answer}")
             return None
 
     def add_company(self, nome, cnpj):
         from gdrive.config import EMPLOYEE_SHEET_NAME
-        if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values: return None, "CNPJ já cadastrado"
+        if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
+            return None, "CNPJ já cadastrado"
         new_data = [nome, cnpj]
         try:
             company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
-            if company_id: st.cache_data.clear(); self.load_data(); return company_id, "Empresa cadastrada com sucesso"
+            if company_id:
+                st.cache_data.clear()
+                self.load_data()
+                return company_id, "Empresa cadastrada com sucesso"
             return None, "Falha ao obter ID da empresa."
-        except Exception as e: return None, f"Erro ao cadastrar empresa: {str(e)}"
-    
+        except Exception as e:
+            return None, f"Erro ao cadastrar empresa: {str(e)}"
+
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
         from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
         new_data = [nome, empresa_id, cargo, data_admissao.strftime("%d/%m/%Y")]
         try:
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
-            if employee_id: st.cache_data.clear(); self.load_data(); return employee_id, "Funcionário adicionado com sucesso"
+            if employee_id:
+                st.cache_data.clear()
+                self.load_data()
+                return employee_id, "Funcionário adicionado com sucesso"
             return None, "Erro ao adicionar funcionário na planilha"
-        except Exception as e: return None, f"Erro ao adicionar funcionário: {str(e)}"
+        except Exception as e:
+            return None, f"Erro ao adicionar funcionário: {str(e)}"
 
     def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo, tipo_aso="Não identificado"):
         from gdrive.config import ASO_SHEET_NAME
-        if not all([id, data_aso, arquivo_id, cargo]): st.error("Dados essenciais para o ASO (ID, Data, Arquivo, Cargo) estão faltando."); return None
+        if not all([id, data_aso, arquivo_id, cargo]):
+            st.error("Dados essenciais para o ASO (ID, Data, Arquivo, Cargo) estão faltando.")
+            return None
         vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
         new_data = [str(id), data_aso.strftime("%d/%m/%Y"), vencimento_str, str(arquivo_id), str(riscos), str(cargo), str(tipo_aso)]
         try:
             aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
-            if aso_id: st.cache_data.clear(); self.load_data(); return aso_id
+            if aso_id:
+                st.cache_data.clear()
+                self.load_data()
+                return aso_id
             return None
-        except Exception as e: st.error(f"Erro ao adicionar ASO: {str(e)}"); return None
+        except Exception as e:
+            st.error(f"Erro ao adicionar ASO: {str(e)}")
+            return None
 
     def _padronizar_norma(self, norma):
-        if not norma: return None
+        if not norma:
+            return None
         norma = str(norma).strip().upper().replace("NR ", "NR-")
         parts = norma.split('-')
-        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit() and len(parts[1]) == 1: return f"NR-0{parts[1]}"
+        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit() and len(parts[1]) == 1:
+            return f"NR-0{parts[1]}"
         return norma
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
         from gdrive.config import TRAINING_SHEET_NAME
-        if not all([data, norma, vencimento]): st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando."); return None
+        if not all([data, norma, vencimento]):
+            st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando.")
+            return None
         new_data = [str(id), data.strftime("%d/%m/%Y"), vencimento.strftime("%d/%m/%Y"), self._padronizar_norma(norma), str(modulo), str(status), str(anexo), str(tipo_treinamento), str(carga_horaria)]
         try:
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
-            if training_id: st.cache_data.clear(); self.load_data(); return training_id
+            if training_id:
+                st.cache_data.clear()
+                self.load_data()
+                return training_id
             return None
-        except Exception as e: st.error(f"Erro ao adicionar treinamento: {str(e)}"); return None
+        except Exception as e:
+            st.error(f"Erro ao adicionar treinamento: {str(e)}")
+            return None
 
     def get_company_name(self, company_id):
-        if self.companies_df.empty: return None
+        if self.companies_df.empty:
+            return None
         company = self.companies_df[self.companies_df['id'] == str(company_id)]
         return company.iloc[0]['nome'] if not company.empty else None
-    
+
     def get_employee_name(self, employee_id):
-        if self.employees_df.empty: return None
+        if self.employees_df.empty:
+            return None
         employee = self.employees_df[self.employees_df['id'] == str(employee_id)]
         return employee.iloc[0]['nome'] if not employee.empty else None
-    
+
     def get_employees_by_company(self, company_id):
-        if self.employees_df.empty or 'empresa_id' not in self.employees_df.columns: return pd.DataFrame()
+        if self.employees_df.empty or 'empresa_id' not in self.employees_df.columns:
+            return pd.DataFrame()
         return self.employees_df[self.employees_df['empresa_id'] == str(company_id)]
-    
+
     def get_employee_docs(self, employee_id):
         latest_aso = self.get_latest_aso_by_employee(employee_id)
         latest_trainings = self.get_all_trainings_by_employee(employee_id)
         return latest_aso, latest_trainings
 
     def calcular_vencimento_treinamento(self, data, norma, modulo=None, tipo_treinamento='formação'):
-        if not isinstance(data, date): return None
+        if not isinstance(data, date):
+            return None
         norma_padronizada = self._padronizar_norma(norma)
-        if not norma_padronizada: return None
+        if not norma_padronizada:
+            return None
         
         modulo_normalizado = modulo.strip().capitalize() if modulo else None
         
