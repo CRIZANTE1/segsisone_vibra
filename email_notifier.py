@@ -21,7 +21,7 @@ def get_smtp_config_from_env():
         "smtp_server": "smtp.gmail.com", 
         "smtp_port": 465, 
         "sender_email": os.getenv("SENDER_EMAIL"),
-        "sender_password": os.getenv("sender_password"),
+        "sender_password": os.getenv("SENDER_PASSWORD"),
         "receiver_email": os.getenv("RECEIVER_EMAIL")
     }
     
