@@ -59,7 +59,8 @@ class EmployeeManager:
             'NR-06': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3},
             'NR-6': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 3},
             'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
-            'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1}
+            'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
+            'NR-33': {'reciclagem_anos': 1}
         }
 
     @property
@@ -179,7 +180,7 @@ class EmployeeManager:
             ```json
             {
             "norma": "A norma regulamentadora do treinamento (ex: 'NR-20').",
-            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado I'). Se não for aplicável, use 'N/A'.",
+            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado I', 'Supervisor', 'Trabalhador Autorizado'). Se não for aplicável, use 'N/A'.",
             "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
             "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem'.",
             "carga_horaria": "A carga horária total do treinamento, apenas o número."
@@ -438,5 +439,30 @@ class EmployeeManager:
         
         return None
 
-    def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
-        return True, ""
+        def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
+                norma_padronizada = self._padronizar_norma(norma)
+                
+                if norma_padronizada == "NR-33":
+                    modulo_normalizado = ""
+                    if modulo:
+                        # Normaliza o módulo para verificação
+                        if "supervisor" in modulo.lower():
+                            modulo_normalizado = "supervisor"
+                        elif "trabalhador" in modulo.lower() or "autorizado" in modulo.lower():
+                            modulo_normalizado = "trabalhador"
+        
+                    # Validação da Formação
+                    if tipo_treinamento == 'formação':
+                        if modulo_normalizado == "supervisor" and carga_horaria < 40:
+                            return False, f"Carga horária para formação de Supervisor (NR-33) deve ser de 40h, mas foi de {carga_horaria}h."
+                        if modulo_normalizado == "trabalhador" and carga_horaria < 16:
+                            return False, f"Carga horária para formação de Trabalhador Autorizado (NR-33) deve ser de 16h, mas foi de {carga_horaria}h."
+                    
+                    # Validação da Reciclagem
+                    elif tipo_treinamento == 'reciclagem':
+                        if carga_horaria < 8:
+                            return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
+        
+               ### Adicionar a lógica para outras NRs ####
+                
+                return True, "Carga horária conforme."
