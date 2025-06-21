@@ -3,7 +3,6 @@ import sys
 import os
 from operations.front import front_page
 from auth.login_page import show_login_page, show_user_header, show_logout_button
-from pages.3_Notificações import not_gat
 
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -37,7 +36,7 @@ def main():
         
         # Chama a página principal que já contém as abas
         front_page()
-        not_gat()
+        
         
 if __name__ == "__main__":
     main()
