@@ -6,27 +6,29 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
-from operations.employee import EmployeeManager
 
+# Adiciona o diretório raiz ao PYTHONPATH para encontrar os módulos do projeto
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
+# A importação do EmployeeManager é a única dependência de código do seu projeto
+from operations.employee import EmployeeManager
 
-
+# --- FUNÇÕES DE LÓGICA ---
 
 def get_smtp_config_from_env():
     """Lê a configuração SMTP a partir de variáveis de ambiente."""
     
     config = {
-        "smtp_server": "smtp.gmail.com", 
-        "smtp_port": 465, 
+        "smtp_server": "smtp.gmail.com", # Fixo para o Gmail
+        "smtp_port": 465, # Porta para conexão SSL
         "sender_email": os.getenv("SENDER_EMAIL"),
         "sender_password": os.getenv("SENDER_PASSWORD"),
         "receiver_email": os.getenv("RECEIVER_EMAIL")
     }
     
-    # Valida se as credenciais foram encontradas
+    # Valida se as credenciais de e-mail foram encontradas no ambiente
     if not all([config["sender_email"], config["sender_password"], config["receiver_email"]]):
         missing = [key for key, value in config.items() if not value and "email" in key or "password" in key]
         raise ValueError(f"Variáveis de ambiente de e-mail ausentes: {', '.join(missing)}. Verifique os Secrets do GitHub.")
@@ -106,9 +108,9 @@ def categorize_expirations(employee_manager: EmployeeManager):
         company_docs_df['vencimento_dt'] = pd.to_datetime(company_docs_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         company_docs_df.dropna(subset=['vencimento_dt'], inplace=True)
 
-        vence_30_docs = company_docs_df[(company_docs_df['vencimento_dt'] >= today) & (company_docs_df['vencimento_dt'] <= today + timedelta(days=30))]
         vencidos_docs = company_docs_df[company_docs_df['vencimento_dt'] < today]
-
+        vence_30_docs = company_docs_df[(company_docs_df['vencimento_dt'] >= today) & (company_docs_df['vencimento_dt'] <= today + timedelta(days=30))]
+        
         for df in [vencidos_docs, vence_30_docs]:
             if not df.empty:
                 df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name)
@@ -118,19 +120,19 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
         }
 
+    # Combina todos os resultados em um único dicionário para o e-mail
     all_categorized_data = {**categorized_trainings, **categorized_asos, **categorized_company_docs}
-    return all_categorized_data
-    
     return all_categorized_data
 
 def format_email_body(categorized_data: dict) -> str:
-    """Cria o corpo do e-mail em HTML com as novas categorias de vencimento, incluindo documentos da empresa."""
+    """Cria o corpo do e-mail em HTML com todas as categorias de vencimento."""
     html = """
     <html><head><style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; }
-        h1 { color: #0d47a1; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+        .container { padding: 20px; }
+        h1 { color: #0d47a1; text-align: center; }
         h2 { color: #1565c0; border-bottom: 2px solid #90caf9; padding-bottom: 5px; margin-top: 30px;}
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; box-shadow: 0 2px 3px rgba(0,0,0,0.1); }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; box-shadow: 0 2px 3px rgba(0,0,0,0.1); background-color: white; }
         th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
         th { background-color: #1e88e5; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
@@ -139,41 +141,31 @@ def format_email_body(categorized_data: dict) -> str:
         .vence-30 { color: #f57c00; font-weight: bold; }
         .vence-60 { color: #fbc02d; }
         .vence-90 { color: #7cb342; }
-    </style></head><body>
+    </style></head><body><div class="container">
     <h1>Relatório de Vencimentos - SEGMA-SIS</h1>
-    <p>Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
+    <p style="text-align: center;">Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
     """
     has_content = False
     
-    # Configuração de relatórios atualizada com as novas categorias
     report_configs = {
-        # Documentos da Empresa
         "Documentos da Empresa Vencidos": {"class": "vencido", "cols": ['empresa', 'tipo_documento', 'vencimento']},
         "Documentos da Empresa que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'tipo_documento', 'vencimento']},
-        # Treinamentos
         "Treinamentos Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem entre 31 e 60 dias": {"class": "vence-60", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
         "Treinamentos que vencem entre 61 e 90 dias": {"class": "vence-90", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        # ASOs
-        "ASOs Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
-        "ASOs que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
-        "ASOs que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
     }
 
-    # Ordem de exibição no e-mail, dos mais urgentes para os menos urgentes
     display_order = [
-        "Documentos da Empresa Vencidos",
-        "Treinamentos Vencidos",
-        "ASOs Vencidos",
+        "Documentos da Empresa Vencidos", "Treinamentos Vencidos", "ASOs Vencidos",
         "Documentos da Empresa que vencem nos próximos 30 dias",
-        "Treinamentos que vencem em até 15 dias",
-        "ASOs que vencem em até 15 dias",
-        "Treinamentos que vencem entre 16 e 30 dias",
-        "ASOs que vencem entre 16 e 30 dias",
-        "Treinamentos que vencem entre 31 e 60 dias",
-        "Treinamentos que vencem entre 61 e 90 dias",
+        "Treinamentos que vencem em até 15 dias", "ASOs que vencem em até 15 dias",
+        "Treinamentos que vencem entre 16 e 30 dias", "ASOs que vencem entre 16 e 30 dias",
+        "Treinamentos que vencem entre 31 e 60 dias", "Treinamentos que vencem entre 61 e 90 dias",
     ]
 
     for title in display_order:
@@ -181,18 +173,15 @@ def format_email_body(categorized_data: dict) -> str:
             has_content = True
             df = categorized_data[title]
             config = report_configs[title]
-            
             html += f'<h2 class="{config["class"]}">{title} ({len(df)})</h2>'
-            
             cols_to_show = [col for col in config["cols"] if col in df.columns]
             df_display = df[cols_to_show]
-            
-            html += df_display.to_html(index=False, border=0, classes='table table-striped')
+            html += df_display.to_html(index=False, border=0, na_rep='N/A', classes='table table-striped')
     
     if not has_content:
         html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia para os próximos 90 dias.</p>"
         
-    html += "</body></html>"
+    html += "</div></body></html>"
     return html
 
 def send_smtp_email(html_body: str, config: dict):
@@ -202,12 +191,11 @@ def send_smtp_email(html_body: str, config: dict):
     message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
     message["From"] = config["sender_email"]
     message["To"] = config["receiver_email"]
-    message.attach(MIMEText(html_body, "html"))
+    message.attach(MIMEText(html_body, "html", "utf-8"))
 
-    # Cria a conexão segura com o servidor SMTP do Gmail
     context = ssl.create_default_context()
     try:
-        print(f"Conectando ao servidor {config['smtp_server']}...")
+        print(f"Conectando ao servidor SMTP {config['smtp_server']}...")
         with smtplib.SMTP_SSL(config["smtp_server"], config["smtp_port"], context=context) as server:
             print("Fazendo login...")
             server.login(config["sender_email"], config["sender_password"])
@@ -224,6 +212,8 @@ def main():
     try:
         config = get_smtp_config_from_env()
         
+        # A inicialização do EmployeeManager aciona a cadeia de dependências
+        # que lê as credenciais do Google Sheets a partir das variáveis de ambiente.
         employee_manager = EmployeeManager()
         categorized_data = categorize_expirations(employee_manager)
 
@@ -237,6 +227,7 @@ def main():
 
     except Exception as e:
         print(f"Erro fatal no script: {e}")
+        # Termina com código de erro 1 para a GitHub Action falhar e notificar o erro
         sys.exit(1) 
 
 if __name__ == "__main__":
