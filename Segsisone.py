@@ -37,6 +37,7 @@ def main():
         
         # Chama a página principal que já contém as abas
         front_page()
+        not_gat()
         
 if __name__ == "__main__":
     main()
