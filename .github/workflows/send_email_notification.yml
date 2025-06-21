@@ -7,7 +7,7 @@ on:
     # 11:00 UTC corresponde a 08:00 no Horário de Brasília (BRT / GMT-3).
     # Use um site como "crontab.guru" para encontrar o horário UTC correto para você.
     # Formato: (minuto hora dia-do-mês mês dia-da-semana)
-    - cron: '0 11 * * *'
+    - cron: '0 9 * * *'
   
   # Gatilho 2: Manual (workflow_dispatch)
   # Isso adiciona um botão "Run workflow" na aba "Actions" para você testar
