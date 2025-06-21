@@ -36,7 +36,7 @@ def get_config_from_env():
     return config
 
 def categorize_expirations(employee_manager: EmployeeManager):
-    """Carrega e categoriza TODOS os documentos (treinamentos e ASOs) por data de vencimento."""
+    """Carrega e categoriza TODOS os documentos com alertas de 90, 60, 30, 15 dias e vencidos."""
     
     today = date.today()
     
@@ -47,11 +47,16 @@ def categorize_expirations(employee_manager: EmployeeManager):
         trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         trainings_df.dropna(subset=['vencimento_dt'], inplace=True)
         
+        # Filtros de data atualizados
         vencidos_tr = trainings_df[trainings_df['vencimento_dt'] < today]
-        vence_30_tr = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
+        vence_15_tr = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=15))]
+        vence_30_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=15)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
         vence_60_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=30)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=60))]
+        vence_90_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=60)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=90))]
         
-        for df in [vencidos_tr, vence_30_tr, vence_60_tr]:
+        # Agrupa os dataframes para adicionar os nomes
+        dfs_to_process_tr = [vencidos_tr, vence_15_tr, vence_30_tr, vence_60_tr, vence_90_tr]
+        for df in dfs_to_process_tr:
             if not df.empty:
                 df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
                 df['empresa'] = df['funcionario_id'].apply(
@@ -62,8 +67,10 @@ def categorize_expirations(employee_manager: EmployeeManager):
         
         categorized_trainings = {
             "Treinamentos Vencidos": vencidos_tr,
-            "Treinamentos que vencem nos próximos 30 dias": vence_30_tr,
+            "Treinamentos que vencem em até 15 dias": vence_15_tr,
+            "Treinamentos que vencem entre 16 e 30 dias": vence_30_tr,
             "Treinamentos que vencem entre 31 e 60 dias": vence_60_tr,
+            "Treinamentos que vencem entre 61 e 90 dias": vence_90_tr,
         }
 
     # --- Processamento de ASOs ---
@@ -73,18 +80,25 @@ def categorize_expirations(employee_manager: EmployeeManager):
         asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         asos_df.dropna(subset=['vencimento_dt'], inplace=True)
 
-        vence_30_aso = asos_df[(asos_df['vencimento_dt'] >= today) & (asos_df['vencimento_dt'] <= today + timedelta(days=30))]
-
-        if not vence_30_aso.empty:
-            vence_30_aso['nome_funcionario'] = vence_30_aso['funcionario_id'].apply(employee_manager.get_employee_name)
-            vence_30_aso['empresa'] = vence_30_aso['funcionario_id'].apply(
-                lambda fid: employee_manager.get_company_name(
-                    employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
-                ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
-            )
+        # Filtros de data atualizados para ASOs
+        vencidos_aso = asos_df[asos_df['vencimento_dt'] < today]
+        vence_15_aso = asos_df[(asos_df['vencimento_dt'] >= today) & (asos_df['vencimento_dt'] <= today + timedelta(days=15))]
+        vence_30_aso = asos_df[(asos_df['vencimento_dt'] > today + timedelta(days=15)) & (asos_df['vencimento_dt'] <= today + timedelta(days=30))]
+        
+        dfs_to_process_aso = [vencidos_aso, vence_15_aso, vence_30_aso]
+        for df in dfs_to_process_aso:
+             if not df.empty:
+                df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
+                df['empresa'] = df['funcionario_id'].apply(
+                    lambda fid: employee_manager.get_company_name(
+                        employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
+                    ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
+                )
         
         categorized_asos = {
-            "ASOs que vencem nos próximos 30 dias": vence_30_aso
+            "ASOs Vencidos": vencidos_aso,
+            "ASOs que vencem em até 15 dias": vence_15_aso,
+            "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
         }
 
     # Combina os resultados dos dois dicionários
@@ -93,7 +107,7 @@ def categorize_expirations(employee_manager: EmployeeManager):
     return all_categorized_data
 
 def format_email_body(categorized_data: dict) -> str:
-    """Cria o corpo do e-mail em HTML a partir dos dados categorizados."""
+    """Cria o corpo do e-mail em HTML com as novas categorias de vencimento."""
     html = """
     <html><head><style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; }
@@ -103,27 +117,39 @@ def format_email_body(categorized_data: dict) -> str:
         th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
         th { background-color: #1e88e5; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        .vencidos { color: #d32f2f; font-weight: bold; }
-        .vence-30 { color: #f57c00; font-weight: bold; }
-        .vence-60 { color: #fbc02d; }
+        .vencido { color: #d32f2f; font-weight: bold; }      /* Vermelho para vencidos */
+        .vence-15 { color: #e65100; font-weight: bold; }    /* Laranja escuro para 15 dias */
+        .vence-30 { color: #f57c00; }                       /* Laranja para 30 dias */
+        .vence-60 { color: #fbc02d; }                       /* Amarelo para 60 dias */
+        .vence-90 { color: #7cb342; }                       /* Verde claro para 90 dias */
     </style></head><body>
     <h1>Relatório de Vencimentos - SEGMA-SIS</h1>
     <p>Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
     """
     has_content = False
     
+    # Configuração de relatórios atualizada com as novas categorias
     report_configs = {
-        "Treinamentos Vencidos": {"class": "vencidos", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        "Treinamentos que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        "ASOs que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "Treinamentos Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "Treinamentos que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "Treinamentos que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem entre 31 e 60 dias": {"class": "vence-60", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "Treinamentos que vencem entre 61 e 90 dias": {"class": "vence-90", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
     }
 
+    # Ordem de exibição no e-mail, dos mais urgentes para os menos urgentes
     display_order = [
-        "Treinamentos Vencidos", 
-        "Treinamentos que vencem nos próximos 30 dias", 
-        "ASOs que vencem nos próximos 30 dias",
-        "Treinamentos que vencem entre 31 e 60 dias"
+        "Treinamentos Vencidos",
+        "ASOs Vencidos",
+        "Treinamentos que vencem em até 15 dias",
+        "ASOs que vencem em até 15 dias",
+        "Treinamentos que vencem entre 16 e 30 dias",
+        "ASOs que vencem entre 16 e 30 dias",
+        "Treinamentos que vencem entre 31 e 60 dias",
+        "Treinamentos que vencem entre 61 e 90 dias",
     ]
 
     for title in display_order:
@@ -140,7 +166,7 @@ def format_email_body(categorized_data: dict) -> str:
             html += df_display.to_html(index=False, border=0, classes='table table-striped')
     
     if not has_content:
-        html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia.</p>"
+        html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia para os próximos 90 dias.</p>"
         
     html += "</body></html>"
     return html
