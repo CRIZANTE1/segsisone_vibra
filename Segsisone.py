@@ -28,15 +28,14 @@ def configurar_pagina():
     )
 
 def main():
-    check_and_send_notification_trigger()
-    
+      
     configurar_pagina()
     if show_login_page():
+        
         st.session_state.user = st.session_state.user if 'user' in st.session_state else None
+        
         show_user_header()
         show_logout_button()
-        
-        # Chama a página principal que já contém as abas
         front_page()
         
         
