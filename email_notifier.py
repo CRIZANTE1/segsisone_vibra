@@ -15,17 +15,12 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# Importa o EmployeeManager do seu projeto.
-# Este import deve ocorrer APÓS a configuração do sys.path.
 from operations.employee import EmployeeManager
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# Carrega as variáveis de ambiente (para execução local, se houver um .env)
-load_dotenv()
 
-# --- FUNÇÕES DE LÓGICA ---
 
 def load_email_config():
     """Carrega a configuração de e-mail a partir dos Secrets do Streamlit."""
@@ -118,7 +113,6 @@ def send_notification_email(html_body: str, config: dict):
     SCOPES = ['https://www.googleapis.com/auth/gmail.send']
     
     try:
-        # Reutiliza as credenciais do gsheets, que é a mesma conta de serviço
         creds_dict = st.secrets.connections.gsheets
         
         creds = Credentials.from_service_account_info(
@@ -159,11 +153,11 @@ def check_and_send_notification_trigger():
         query_params = st.query_params
         trigger_secret = st.secrets.get("scheduler", {}).get("trigger_secret")
 
-        # Se o trigger_secret não estiver configurado ou não for correspondente, não faz nada.
+       
         if not trigger_secret or query_params.get("trigger") != trigger_secret:
             return
 
-        # --- GATILHO ACIONADO ---
+    
         st.set_page_config(layout="centered") # Configura uma página mínima para a resposta
         st.success("Gatilho de notificação recebido! Processando...")
 
@@ -178,10 +172,8 @@ def check_and_send_notification_trigger():
             send_notification_email(email_body, config)
             st.info("E-mail de relatório enviado com sucesso!")
 
-        # Para a execução para não renderizar a UI normal para o robô
         st.stop()
 
     except Exception as e:
-        # Em caso de erro, exibe o erro e para.
         st.error(f"Erro durante a execução do gatilho de notificação: {e}")
         st.stop()
