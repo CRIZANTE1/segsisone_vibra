@@ -4,7 +4,7 @@ name: Envio Diário do Relatório de Vencimentos
 on:
   schedule:
     # Executa todos os dias às 11:00 UTC (08:00 no Horário de Brasília).
-    - cron: '0 11 * * *'
+    - cron: '0 09 * * *'
   
   # Permite a execução manual pela interface do GitHub
   workflow_dispatch:
