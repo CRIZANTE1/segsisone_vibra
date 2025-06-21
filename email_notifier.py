@@ -36,7 +36,7 @@ def get_config_from_env():
     return config
 
 def categorize_expirations(employee_manager: EmployeeManager):
-    """Carrega e categoriza TODOS os documentos com alertas de 90, 60, 30, 15 dias e vencidos."""
+    """Carrega e categoriza TODOS os documentos (treinamentos, ASOs e docs da empresa) por data de vencimento."""
     
     today = date.today()
     
@@ -47,14 +47,12 @@ def categorize_expirations(employee_manager: EmployeeManager):
         trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         trainings_df.dropna(subset=['vencimento_dt'], inplace=True)
         
-        # Filtros de data atualizados
         vencidos_tr = trainings_df[trainings_df['vencimento_dt'] < today]
         vence_15_tr = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=15))]
         vence_30_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=15)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
         vence_60_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=30)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=60))]
         vence_90_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=60)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=90))]
         
-        # Agrupa os dataframes para adicionar os nomes
         dfs_to_process_tr = [vencidos_tr, vence_15_tr, vence_30_tr, vence_60_tr, vence_90_tr]
         for df in dfs_to_process_tr:
             if not df.empty:
@@ -80,7 +78,6 @@ def categorize_expirations(employee_manager: EmployeeManager):
         asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         asos_df.dropna(subset=['vencimento_dt'], inplace=True)
 
-        # Filtros de data atualizados para ASOs
         vencidos_aso = asos_df[asos_df['vencimento_dt'] < today]
         vence_15_aso = asos_df[(asos_df['vencimento_dt'] >= today) & (asos_df['vencimento_dt'] <= today + timedelta(days=15))]
         vence_30_aso = asos_df[(asos_df['vencimento_dt'] > today + timedelta(days=15)) & (asos_df['vencimento_dt'] <= today + timedelta(days=30))]
@@ -100,14 +97,39 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "ASOs que vencem em até 15 dias": vence_15_aso,
             "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
         }
+        
+    # --- NOVO: Processamento de Documentos da Empresa (PGR, PCMSO, etc.) ---
+    # Para isso, precisamos instanciar o CompanyDocsManager também
+    from operations.company_docs import CompanyDocsManager
+    docs_manager = CompanyDocsManager()
+    company_docs_df = docs_manager.docs_df.copy()
+    categorized_company_docs = {}
+    
+    if not company_docs_df.empty:
+        company_docs_df['vencimento_dt'] = pd.to_datetime(company_docs_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        company_docs_df.dropna(subset=['vencimento_dt'], inplace=True)
 
-    # Combina os resultados dos dois dicionários
-    all_categorized_data = {**categorized_trainings, **categorized_asos}
+        # Filtra documentos que vencem nos próximos 30 dias
+        vence_30_docs = company_docs_df[(company_docs_df['vencimento_dt'] >= today) & (company_docs_df['vencimento_dt'] <= today + timedelta(days=30))]
+        vencidos_docs = company_docs_df[company_docs_df['vencimento_dt'] < today]
+
+        # Adiciona o nome da empresa
+        for df in [vencidos_docs, vence_30_docs]:
+            if not df.empty:
+                df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name) # Reutiliza o método do employee_manager
+        
+        categorized_company_docs = {
+            "Documentos da Empresa Vencidos": vencidos_docs,
+            "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
+        }
+
+    # Combina os resultados de TODOS os dicionários
+    all_categorized_data = {**categorized_trainings, **categorized_asos, **categorized_company_docs}
     
     return all_categorized_data
 
 def format_email_body(categorized_data: dict) -> str:
-    """Cria o corpo do e-mail em HTML com as novas categorias de vencimento."""
+    """Cria o corpo do e-mail em HTML com as novas categorias de vencimento, incluindo documentos da empresa."""
     html = """
     <html><head><style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; }
@@ -117,11 +139,11 @@ def format_email_body(categorized_data: dict) -> str:
         th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
         th { background-color: #1e88e5; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        .vencido { color: #d32f2f; font-weight: bold; }      /* Vermelho para vencidos */
-        .vence-15 { color: #e65100; font-weight: bold; }    /* Laranja escuro para 15 dias */
-        .vence-30 { color: #f57c00; }                       /* Laranja para 30 dias */
-        .vence-60 { color: #fbc02d; }                       /* Amarelo para 60 dias */
-        .vence-90 { color: #7cb342; }                       /* Verde claro para 90 dias */
+        .vencido { color: #d32f2f; font-weight: bold; }
+        .vence-15 { color: #e65100; font-weight: bold; }
+        .vence-30 { color: #f57c00; font-weight: bold; }
+        .vence-60 { color: #fbc02d; }
+        .vence-90 { color: #7cb342; }
     </style></head><body>
     <h1>Relatório de Vencimentos - SEGMA-SIS</h1>
     <p>Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
@@ -130,20 +152,27 @@ def format_email_body(categorized_data: dict) -> str:
     
     # Configuração de relatórios atualizada com as novas categorias
     report_configs = {
+        # Documentos da Empresa
+        "Documentos da Empresa Vencidos": {"class": "vencido", "cols": ['empresa', 'tipo_documento', 'vencimento']},
+        "Documentos da Empresa que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'tipo_documento', 'vencimento']},
+        # Treinamentos
         "Treinamentos Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        "ASOs Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        "ASOs que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
-        "ASOs que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
         "Treinamentos que vencem entre 31 e 60 dias": {"class": "vence-60", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
         "Treinamentos que vencem entre 61 e 90 dias": {"class": "vence-90", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        # ASOs
+        "ASOs Vencidos": {"class": "vencido", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "ASOs que vencem em até 15 dias": {"class": "vence-15", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "ASOs que vencem entre 16 e 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
     }
 
     # Ordem de exibição no e-mail, dos mais urgentes para os menos urgentes
     display_order = [
+        "Documentos da Empresa Vencidos",
         "Treinamentos Vencidos",
         "ASOs Vencidos",
+        "Documentos da Empresa que vencem nos próximos 30 dias",
         "Treinamentos que vencem em até 15 dias",
         "ASOs que vencem em até 15 dias",
         "Treinamentos que vencem entre 16 e 30 dias",
