@@ -2,15 +2,35 @@ name: Envio Diário do Relatório de Vencimentos
 
 on:
   schedule:
-    - cron: '0 11 * * *'
+    - cron: '0 11 * * *' # 11:00 UTC
   workflow_dispatch:
 
 jobs:
-  send_notification_request:
+  run-python-script:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Chamar o webhook do app Streamlit
+      # 1. Baixa o código do seu repositório para a máquina da Action
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Configura o ambiente Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11' # Use a mesma versão do seu ambiente Streamlit
+
+      # 3. Instala as dependências do seu projeto
+      - name: Install dependencies
         run: |
-        
-          curl -sSL --fail "${{ secrets.STREAMLIT_APP_URL }}/webhook_handler"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. Executa o seu script de notificação
+      - name: Run email notifier script
+        # Passa os secrets do GitHub como variáveis de ambiente para o script
+        env:
+          GCP_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCP_SERVICE_ACCOUNT_CREDENTIALS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python email_notifier.py
