@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
 from operations.employee import EmployeeManager
+from datetime import date 
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
@@ -136,25 +137,92 @@ def categorize_expirations(employee_manager: EmployeeManager):
     return all_categorized_data
 
 def format_email_body(categorized_data: dict) -> str:
-    """Cria o corpo do e-mail em HTML com todas as categorias de vencimento."""
-    html = """
-    <html><head><style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
-        .container { padding: 20px; }
-        h1 { color: #0d47a1; text-align: center; }
-        h2 { color: #1565c0; border-bottom: 2px solid #90caf9; padding-bottom: 5px; margin-top: 30px;}
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; box-shadow: 0 2px 3px rgba(0,0,0,0.1); background-color: white; }
-        th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; }
-        th { background-color: #1e88e5; color: white; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .vencido { color: #d32f2f; font-weight: bold; }
-        .vence-15 { color: #e65100; font-weight: bold; }
-        .vence-30 { color: #f57c00; font-weight: bold; }
-        .vence-60 { color: #fbc02d; }
-        .vence-90 { color: #7cb342; }
-    </style></head><body><div class="container">
+    """Cria o corpo do e-mail em HTML com um tema moderno, fontes menores e tabelas em tons de cinza."""
+    
+    html_style = """
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            margin: 0; 
+            padding: 0; 
+            background-color: #f7f7f7; 
+        }
+        .container { 
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h1 { 
+            font-size: 24px;
+            color: #2c3e50; 
+            text-align: center;
+            border-bottom: 1px solid #ecf0f1;
+            padding-bottom: 15px;
+            margin-bottom: 10px;
+        }
+        h2 { 
+            font-size: 18px;
+            color: #34495e; 
+            margin-top: 35px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 12px;
+            margin-bottom: 30px;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin-bottom: 25px;
+            font-size: 13px; /* Fonte da tabela menor */
+        }
+        th, td { 
+            border: 1px solid #dddddd; 
+            padding: 8px 12px; /* Espaçamento interno da célula */
+            text-align: left; 
+        }
+        th { 
+            background-color: #f2f2f2; /* Cabeçalho cinza claro */
+            color: #333;
+            font-weight: 600; /* Fonte do cabeçalho semi-bold */
+        }
+        tr:nth-child(even) { 
+            background-color: #fafafa; 
+        }
+        /* Estilos de Alerta com cores e ícones */
+        .vencido { color: #c0392b; }
+        .vence-15 { color: #d35400; }
+        .vence-30 { color: #f39c12; }
+        .vence-60 { color: #7f8c8d; }
+        .vence-90 { color: #95a5a6; }
+
+        h2::before {
+            display: inline-block;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        h2.vencido::before { content: '🔴'; }
+        h2.vence-15::before { content: '🟠'; }
+        h2.vence-30::before { content: '🟡'; }
+        h2.vence-60::before { content: '🔵'; }
+        h2.vence-90::before { content: '⚪'; }
+
+    </style>
+    """
+
+    html_body = f"""
+    <html><head>{html_style}</head><body><div class="container">
     <h1>Relatório de Vencimentos - SEGMA-SIS</h1>
-    <p style="text-align: center;">Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
+    <p class="subtitle">Relatório automático gerado em {date.today().strftime('%d/%m/%Y')}</p>
     """
     has_content = False
     
@@ -176,7 +244,8 @@ def format_email_body(categorized_data: dict) -> str:
         "Documentos da Empresa que vencem nos próximos 30 dias",
         "Treinamentos que vencem em até 15 dias", "ASOs que vencem em até 15 dias",
         "Treinamentos que vencem entre 16 e 30 dias", "ASOs que vencem entre 16 e 30 dias",
-        "Treinamentos que vencem entre 31 e 60 dias", "Treinamentos que vencem entre 61 e 90 dias",
+        "Treinamentos que vencem entre 31 e 60 dias",
+        "Treinamentos que vencem entre 61 e 90 dias",
     ]
 
     for title in display_order:
@@ -184,39 +253,21 @@ def format_email_body(categorized_data: dict) -> str:
             has_content = True
             df = categorized_data[title]
             config = report_configs[title]
-            html += f'<h2 class="{config["class"]}">{title} ({len(df)})</h2>'
+            
+            html_body += f'<h2 class="{config["class"]}">{title} ({len(df)})</h2>'
+            
             cols_to_show = [col for col in config["cols"] if col in df.columns]
             df_display = df[cols_to_show]
-            html += df_display.to_html(index=False, border=0, na_rep='N/A', classes='table table-striped')
+            
+            # Adiciona o método to_html com o render_links=True para transformar URLs em links clicáveis
+            html_body += df_display.to_html(index=False, border=0, na_rep='N/A', classes='table', render_links=True)
     
     if not has_content:
-        html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia para os próximos 90 dias.</p>"
+        html_body += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia para os próximos 90 dias.</p>"
         
-    html += "</div></body></html>"
-    return html
-
-def send_smtp_email(html_body: str, config: dict):
-    """Envia o e-mail formatado usando SMTP e Senha de App."""
+    html_body += "</div></body></html>"
+    return html_body
     
-    message = MIMEMultipart("alternative")
-    message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
-    message["From"] = config["sender_email"]
-    message["To"] = config["receiver_email"]
-    message.attach(MIMEText(html_body, "html", "utf-8"))
-
-    context = ssl.create_default_context()
-    try:
-        print(f"Conectando ao servidor SMTP {config['smtp_server']}...")
-        with smtplib.SMTP_SSL(config["smtp_server"], config["smtp_port"], context=context) as server:
-            print("Fazendo login...")
-            server.login(config["sender_email"], config["sender_password"])
-            print("Enviando e-mail...")
-            server.sendmail(config["sender_email"], config["receiver_email"], message.as_string())
-            print("E-mail enviado com sucesso!")
-    except Exception as e:
-        print(f"Falha ao enviar e-mail via SMTP: {e}")
-        raise
-
 def main():
     """Função principal do script, executada pela GitHub Action."""
     print("Iniciando script de notificação...")
