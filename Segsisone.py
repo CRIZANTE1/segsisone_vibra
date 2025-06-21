@@ -3,7 +3,7 @@ import sys
 import os
 from operations.front import front_page
 from auth.login_page import show_login_page, show_user_header, show_logout_button
-
+from email_notifier import check_and_send_notification_trigger
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
