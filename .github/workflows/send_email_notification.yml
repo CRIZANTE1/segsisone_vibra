@@ -12,6 +12,5 @@ jobs:
     steps:
       - name: Chamar o webhook do app Streamlit
         run: |
-          # A URL agora aponta para /webhook_handler
-          # E não precisamos mais do trigger secreto na URL, pois o arquivo é o próprio segredo.
+        
           curl -sSL --fail "${{ secrets.STREAMLIT_APP_URL }}/webhook_handler"
