@@ -1,5 +1,3 @@
-import smtplib
-import ssl
 import os
 import sys
 import base64
@@ -7,7 +5,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
-from dotenv import load_dotenv
 import streamlit as st
 import json
 
@@ -15,12 +12,11 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
+# Imports do seu projeto
 from operations.employee import EmployeeManager
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
-
 
 def load_email_config():
     """Carrega a configuração de e-mail a partir dos Secrets do Streamlit."""
@@ -38,39 +34,67 @@ def load_email_config():
         raise ValueError(f"Estrutura de Secrets para e-mail inválida. Verifique [email] em seu secrets.toml. Erro: {e}")
 
 
-def categorize_trainings(employee_manager: EmployeeManager):
-    """Carrega e categoriza os treinamentos por data de vencimento."""
-    trainings_df = employee_manager.training_df.copy()
-    if trainings_df.empty:
-        return {}
-
-    trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-    trainings_df.dropna(subset=['vencimento_dt'], inplace=True)
-
+def categorize_expirations(employee_manager: EmployeeManager):
+    """Carrega e categoriza TODOS os documentos (treinamentos e ASOs) por data de vencimento."""
+    
     today = date.today()
     
-    vencidos = trainings_df[trainings_df['vencimento_dt'] < today]
-    vence_30_dias = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
-    vence_60_dias = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=30)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=60))]
+    # --- Processamento de Treinamentos ---
+    trainings_df = employee_manager.training_df.copy()
+    categorized_trainings = {}
+    if not trainings_df.empty:
+        trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        trainings_df.dropna(subset=['vencimento_dt'], inplace=True)
+        
+        vencidos_tr = trainings_df[trainings_df['vencimento_dt'] < today]
+        vence_30_tr = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
+        vence_60_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=30)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=60))]
+        
+        for df in [vencidos_tr, vence_30_tr, vence_60_tr]:
+            if not df.empty:
+                df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
+                df['empresa'] = df['funcionario_id'].apply(
+                    lambda fid: employee_manager.get_company_name(
+                        employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
+                    ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
+                )
+        
+        categorized_trainings = {
+            "Treinamentos Vencidos": vencidos_tr,
+            "Treinamentos que vencem nos próximos 30 dias": vence_30_tr,
+            "Treinamentos que vencem entre 31 e 60 dias": vence_60_tr,
+        }
 
-    for df in [vencidos, vence_30_dias, vence_60_dias]:
-        if not df.empty:
-            df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
-            df['empresa'] = df['funcionario_id'].apply(
+    # --- Processamento de ASOs ---
+    asos_df = employee_manager.aso_df.copy()
+    categorized_asos = {}
+    if not asos_df.empty:
+        asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        asos_df.dropna(subset=['vencimento_dt'], inplace=True)
+
+        # Filtra apenas os ASOs que vencem nos próximos 30 dias
+        vence_30_aso = asos_df[(asos_df['vencimento_dt'] >= today) & (asos_df['vencimento_dt'] <= today + timedelta(days=30))]
+
+        if not vence_30_aso.empty:
+            vence_30_aso['nome_funcionario'] = vence_30_aso['funcionario_id'].apply(employee_manager.get_employee_name)
+            vence_30_aso['empresa'] = vence_30_aso['funcionario_id'].apply(
                 lambda fid: employee_manager.get_company_name(
                     employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
                 ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
             )
+        
+        categorized_asos = {
+            "ASOs que vencem nos próximos 30 dias": vence_30_aso
+        }
 
-    return {
-        "Vencidos": vencidos,
-        "Vencem nos próximos 30 dias": vence_30_dias,
-        "Vencem entre 31 e 60 dias": vence_60_dias,
-    }
+    # Combina os resultados dos dois dicionários
+    all_categorized_data = {**categorized_trainings, **categorized_asos}
+    
+    return all_categorized_data
 
 
 def format_email_body(categorized_data: dict) -> str:
-    """Cria o corpo do e-mail em HTML a partir dos dados categorizados."""
+    """Cria o corpo do e-mail em HTML a partir dos dados categorizados (Treinamentos e ASOs)."""
     html = """
     <html><head><style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; }
@@ -81,26 +105,44 @@ def format_email_body(categorized_data: dict) -> str:
         th { background-color: #1e88e5; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
         .vencidos { color: #d32f2f; font-weight: bold; }
-        .vence-30 { color: #f57c00; }
+        .vence-30 { color: #f57c00; font-weight: bold; } /* Destaque para 30 dias */
         .vence-60 { color: #fbc02d; }
     </style></head><body>
-    <h1>Relatório de Vencimento de Treinamentos</h1>
+    <h1>Relatório de Vencimentos - SEGMA-SIS</h1>
     <p>Relatório automático gerado em """ + date.today().strftime('%d/%m/%Y') + """.</p>
     """
     has_content = False
-    color_map = {"Vencidos": "vencidos", "Vencem nos próximos 30 dias": "vence-30", "Vencem entre 31 e 60 dias": "vence-60"}
-    cols_to_show = ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']
+    
+    report_configs = {
+        "Treinamentos Vencidos": {"class": "vencidos", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "Treinamentos que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+        "ASOs que vencem nos próximos 30 dias": {"class": "vence-30", "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'cargo', 'vencimento']},
+        "Treinamentos que vencem entre 31 e 60 dias": {"class": "vence-60", "cols": ['empresa', 'nome_funcionario', 'norma', 'modulo', 'vencimento']},
+    }
 
-    for title, df in categorized_data.items():
-        if not df.empty:
+    # Garante uma ordem de exibição lógica no e-mail
+    display_order = [
+        "Treinamentos Vencidos", 
+        "Treinamentos que vencem nos próximos 30 dias", 
+        "ASOs que vencem nos próximos 30 dias",
+        "Treinamentos que vencem entre 31 e 60 dias"
+    ]
+
+    for title in display_order:
+        if title in categorized_data and not categorized_data[title].empty:
             has_content = True
-            color_class = color_map.get(title, "")
-            html += f'<h2 class="{color_class}">{title} ({len(df)})</h2>'
-            df_display = df[[col for col in cols_to_show if col in df.columns]]
+            df = categorized_data[title]
+            config = report_configs[title]
+            
+            html += f'<h2 class="{config["class"]}">{title} ({len(df)})</h2>'
+            
+            cols_to_show = [col for col in config["cols"] if col in df.columns]
+            df_display = df[cols_to_show]
+            
             html += df_display.to_html(index=False, border=0, classes='table table-striped')
     
     if not has_content:
-        html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os treinamentos estão em dia.</p>"
+        html += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia.</p>"
         
     html += "</body></html>"
     return html
@@ -113,6 +155,7 @@ def send_notification_email(html_body: str, config: dict):
     SCOPES = ['https://www.googleapis.com/auth/gmail.send']
     
     try:
+        # Reutiliza as credenciais da conta de serviço já configuradas para o gsheets
         creds_dict = st.secrets.connections.gsheets
         
         creds = Credentials.from_service_account_info(
@@ -125,7 +168,7 @@ def send_notification_email(html_body: str, config: dict):
         message = MIMEMultipart("alternative")
         message["To"] = receiver_email
         message["From"] = sender_email
-        message["Subject"] = f"Alerta de Vencimentos de Treinamentos - {date.today().strftime('%d/%m/%Y')}"
+        message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
         message.attach(MIMEText(html_body, "html"))
 
         encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
@@ -137,12 +180,13 @@ def send_notification_email(html_body: str, config: dict):
 
     except HttpError as error:
         print(f'Ocorreu um erro na API do Gmail: {error}')
-        st.error(f'Ocorreu um erro na API do Gmail: {error}') # Mostra no log do Streamlit
+        st.error(f'Ocorreu um erro na API do Gmail: {error}')
         raise
     except Exception as e:
         print(f"Falha ao enviar e-mail: {e}")
-        st.error(f"Falha ao enviar e-mail: {e}") # Mostra no log do Streamlit
+        st.error(f"Falha ao enviar e-mail: {e}")
         raise
+
 
 def check_and_send_notification_trigger():
     """
@@ -152,18 +196,16 @@ def check_and_send_notification_trigger():
     try:
         query_params = st.query_params
         trigger_secret = st.secrets.get("scheduler", {}).get("trigger_secret")
-
        
         if not trigger_secret or query_params.get("trigger") != trigger_secret:
             return
 
-    
-        st.set_page_config(layout="centered") # Configura uma página mínima para a resposta
+        st.set_page_config(layout="centered")
         st.success("Gatilho de notificação recebido! Processando...")
 
         config = load_email_config()
         employee_manager = EmployeeManager()
-        categorized_data = categorize_trainings(employee_manager)
+        categorized_data = categorize_expirations(employee_manager)
 
         if not any(not df.empty for df in categorized_data.values()):
             st.info("Nenhuma pendência encontrada. E-mail não será enviado.")
