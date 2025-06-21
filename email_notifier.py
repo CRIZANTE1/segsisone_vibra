@@ -1,37 +1,37 @@
 import os
 import sys
-import base64
+import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
-import json
 
-# Adiciona o diretório raiz ao PYTHONPATH para encontrar os módulos do projeto
+# Adiciona o diretório raiz ao PYTHONPATH
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
+# A importação do EmployeeManager continua a mesma
 from operations.employee import EmployeeManager
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
-def get_config_from_env():
-    """Lê a configuração a partir de variáveis de ambiente."""
-    
-    gcp_credentials_json = os.getenv("GCP_SERVICE_ACCOUNT_CREDENTIALS")
-    if not gcp_credentials_json:
-        raise ValueError("Variável de ambiente GCP_SERVICE_ACCOUNT_CREDENTIALS não encontrada.")
+# --- Funções de Lógica ---
+
+def get_smtp_config_from_env():
+    """Lê a configuração SMTP a partir de variáveis de ambiente."""
     
     config = {
+        "smtp_server": "smtp.gmail.com", # Fixo para o Gmail
+        "smtp_port": 465, # Porta SSL
         "sender_email": os.getenv("SENDER_EMAIL"),
-        "receiver_email": os.getenv("RECEIVER_EMAIL"),
-        "gcp_creds_dict": json.loads(gcp_credentials_json)
+        "sender_password": os.getenv("SENDER_PASSWORD"),
+        "receiver_email": os.getenv("RECEIVER_EMAIL")
     }
     
-    if not all([config["sender_email"], config["receiver_email"]]):
-        raise ValueError("Variáveis de ambiente SENDER_EMAIL ou RECEIVER_EMAIL não encontradas.")
+    # Valida se as credenciais foram encontradas
+    if not all([config["sender_email"], config["sender_password"], config["receiver_email"]]):
+        missing = [key for key, value in config.items() if not value and "email" in key or "password" in key]
+        raise ValueError(f"Variáveis de ambiente de e-mail ausentes: {', '.join(missing)}. Verifique os Secrets do GitHub.")
         
     return config
 
@@ -97,9 +97,8 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "ASOs que vencem em até 15 dias": vence_15_aso,
             "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
         }
-        
-    # --- NOVO: Processamento de Documentos da Empresa (PGR, PCMSO, etc.) ---
-    # Para isso, precisamos instanciar o CompanyDocsManager também
+
+    # --- Processamento de Documentos da Empresa ---
     from operations.company_docs import CompanyDocsManager
     docs_manager = CompanyDocsManager()
     company_docs_df = docs_manager.docs_df.copy()
@@ -109,22 +108,20 @@ def categorize_expirations(employee_manager: EmployeeManager):
         company_docs_df['vencimento_dt'] = pd.to_datetime(company_docs_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         company_docs_df.dropna(subset=['vencimento_dt'], inplace=True)
 
-        # Filtra documentos que vencem nos próximos 30 dias
         vence_30_docs = company_docs_df[(company_docs_df['vencimento_dt'] >= today) & (company_docs_df['vencimento_dt'] <= today + timedelta(days=30))]
         vencidos_docs = company_docs_df[company_docs_df['vencimento_dt'] < today]
 
-        # Adiciona o nome da empresa
         for df in [vencidos_docs, vence_30_docs]:
             if not df.empty:
-                df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name) # Reutiliza o método do employee_manager
+                df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name)
         
         categorized_company_docs = {
             "Documentos da Empresa Vencidos": vencidos_docs,
             "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
         }
 
-    # Combina os resultados de TODOS os dicionários
     all_categorized_data = {**categorized_trainings, **categorized_asos, **categorized_company_docs}
+    return all_categorized_data
     
     return all_categorized_data
 
@@ -200,47 +197,35 @@ def format_email_body(categorized_data: dict) -> str:
     html += "</body></html>"
     return html
 
-def send_notification_email(html_body: str, config: dict):
-    """Envia o e-mail usando a API do Gmail."""
-    sender_email = config["sender_email"]
-    receiver_email = config["receiver_email"]
-    creds_dict = config["gcp_creds_dict"]
-    SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+def send_smtp_email(html_body: str, config: dict):
+    """Envia o e-mail formatado usando SMTP e Senha de App."""
     
+    message = MIMEMultipart("alternative")
+    message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
+    message["From"] = config["sender_email"]
+    message["To"] = config["receiver_email"]
+    message.attach(MIMEText(html_body, "html"))
+
+    # Cria a conexão segura com o servidor SMTP do Gmail
+    context = ssl.create_default_context()
     try:
-        creds = Credentials.from_service_account_info(
-            creds_dict, 
-            scopes=SCOPES,
-            subject=sender_email
-        )
-        service = build('gmail', 'v1', credentials=creds)
-        message = MIMEMultipart("alternative")
-        message["To"] = receiver_email
-        message["From"] = sender_email
-        message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
-        message.attach(MIMEText(html_body, "html"))
-        encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
-        create_message = {'raw': encoded_message}
-
-        print("Enviando e-mail via API do Gmail...")
-        send_message = (service.users().messages().send(userId="me", body=create_message).execute())
-        print(f'E-mail enviado com sucesso. Message Id: {send_message["id"]}')
-
-    except HttpError as error:
-        print(f'Ocorreu um erro na API do Gmail: {error}')
-        raise
+        print(f"Conectando ao servidor {config['smtp_server']}...")
+        with smtplib.SMTP_SSL(config["smtp_server"], config["smtp_port"], context=context) as server:
+            print("Fazendo login...")
+            server.login(config["sender_email"], config["sender_password"])
+            print("Enviando e-mail...")
+            server.sendmail(config["sender_email"], config["receiver_email"], message.as_string())
+            print("E-mail enviado com sucesso!")
     except Exception as e:
-        print(f"Falha ao enviar e-mail: {e}")
+        print(f"Falha ao enviar e-mail via SMTP: {e}")
         raise
 
 def main():
     """Função principal do script, executada pela GitHub Action."""
     print("Iniciando script de notificação...")
     try:
-        config = get_config_from_env()
+        config = get_smtp_config_from_env()
         
-        # A inicialização do EmployeeManager vai acionar a cadeia de dependências
-        # que lê as credenciais do Google Sheets a partir das variáveis de ambiente.
         employee_manager = EmployeeManager()
         categorized_data = categorize_expirations(employee_manager)
 
@@ -248,13 +233,12 @@ def main():
             print("Nenhuma pendência encontrada. E-mail não será enviado.")
         else:
             email_body = format_email_body(categorized_data)
-            send_notification_email(email_body, config)
+            send_smtp_email(email_body, config)
         
         print("Script finalizado com sucesso.")
 
     except Exception as e:
         print(f"Erro fatal no script: {e}")
-        # Termina com código de erro 1 para a GitHub Action falhar e te notificar
         sys.exit(1) 
 
 if __name__ == "__main__":
