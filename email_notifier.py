@@ -33,88 +33,106 @@ def get_smtp_config_from_env():
     return config
 
 def categorize_expirations(employee_manager: EmployeeManager):
-    """Carrega e categoriza TODOS os documentos (treinamentos, ASOs e docs da empresa) por data de vencimento."""
+    """
+    Carrega e categoriza os documentos mais recentes, alertando sobre vencimentos
+    apenas se não houver um substituto válido.
+    """
     
     today = date.today()
     
+    # --- Processamento Inteligente de Treinamentos ---
     trainings_df = employee_manager.training_df.copy()
-    categorized_trainings = {}
+    latest_trainings = pd.DataFrame()
     if not trainings_df.empty:
-        trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        trainings_df.dropna(subset=['vencimento_dt'], inplace=True)
+        # Garante que a coluna 'modulo' exista para o agrupamento
+        if 'modulo' not in trainings_df.columns:
+            trainings_df['modulo'] = 'N/A'
+        trainings_df['modulo'] = trainings_df['modulo'].fillna('N/A')
         
-        vencidos_tr = trainings_df[trainings_df['vencimento_dt'] < today]
-        vence_15_tr = trainings_df[(trainings_df['vencimento_dt'] >= today) & (trainings_df['vencimento_dt'] <= today + timedelta(days=15))]
-        vence_30_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=15)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=30))]
-        vence_60_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=30)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=60))]
-        vence_90_tr = trainings_df[(trainings_df['vencimento_dt'] > today + timedelta(days=60)) & (trainings_df['vencimento_dt'] <= today + timedelta(days=90))]
+        trainings_df['data_dt'] = pd.to_datetime(trainings_df['data'], format='%d/%m/%Y', errors='coerce')
+        trainings_df.dropna(subset=['data_dt'], inplace=True)
         
-        dfs_to_process_tr = [vencidos_tr, vence_15_tr, vence_30_tr, vence_60_tr, vence_90_tr]
-        for df in dfs_to_process_tr:
-            if not df.empty:
-                df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
-                df['empresa'] = df['funcionario_id'].apply(
-                    lambda fid: employee_manager.get_company_name(
-                        employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
-                    ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
-                )
+        # Agrupa por funcionário e tipo de treinamento, e pega apenas o mais recente de cada grupo
+        latest_trainings = trainings_df.sort_values('data_dt', ascending=False).groupby(['funcionario_id', 'norma', 'modulo']).head(1)
+        latest_trainings['vencimento_dt'] = pd.to_datetime(latest_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        latest_trainings.dropna(subset=['vencimento_dt'], inplace=True)
         
-        categorized_trainings = {
-            "Treinamentos Vencidos": vencidos_tr,
-            "Treinamentos que vencem em até 15 dias": vence_15_tr,
-            "Treinamentos que vencem entre 16 e 30 dias": vence_30_tr,
-            "Treinamentos que vencem entre 31 e 60 dias": vence_60_tr,
-            "Treinamentos que vencem entre 61 e 90 dias": vence_90_tr,
-        }
-
+    # --- Processamento Inteligente de ASOs ---
     asos_df = employee_manager.aso_df.copy()
-    categorized_asos = {}
+    latest_asos = pd.DataFrame()
     if not asos_df.empty:
-        asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        asos_df.dropna(subset=['vencimento_dt'], inplace=True)
+        if 'tipo_aso' not in asos_df.columns:
+            asos_df['tipo_aso'] = 'N/A'
+        asos_df['tipo_aso'] = asos_df['tipo_aso'].fillna('N/A')
 
-        vencidos_aso = asos_df[asos_df['vencimento_dt'] < today]
-        vence_15_aso = asos_df[(asos_df['vencimento_dt'] >= today) & (asos_df['vencimento_dt'] <= today + timedelta(days=15))]
-        vence_30_aso = asos_df[(asos_df['vencimento_dt'] > today + timedelta(days=15)) & (asos_df['vencimento_dt'] <= today + timedelta(days=30))]
+        asos_df['data_aso_dt'] = pd.to_datetime(asos_df['data_aso'], format='%d/%m/%Y', errors='coerce')
+        asos_df.dropna(subset=['data_aso_dt'], inplace=True)
         
-        dfs_to_process_aso = [vencidos_aso, vence_15_aso, vence_30_aso]
-        for df in dfs_to_process_aso:
-             if not df.empty:
-                df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
-                df['empresa'] = df['funcionario_id'].apply(
-                    lambda fid: employee_manager.get_company_name(
-                        employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
-                    ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
-                )
-        
-        categorized_asos = {
-            "ASOs Vencidos": vencidos_aso,
-            "ASOs que vencem em até 15 dias": vence_15_aso,
-            "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
-        }
+        # Agrupa por funcionário e tipo de ASO, e pega apenas o mais recente de cada grupo
+        latest_asos = asos_df.sort_values('data_aso_dt', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
+        latest_asos['vencimento_dt'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        latest_asos.dropna(subset=['vencimento_dt'], inplace=True)
 
+    # --- Processamento Inteligente de Documentos da Empresa ---
     from operations.company_docs import CompanyDocsManager
     docs_manager = CompanyDocsManager()
     company_docs_df = docs_manager.docs_df.copy()
-    categorized_company_docs = {}
-    
+    latest_company_docs = pd.DataFrame()
     if not company_docs_df.empty:
-        company_docs_df['vencimento_dt'] = pd.to_datetime(company_docs_df['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        company_docs_df.dropna(subset=['vencimento_dt'], inplace=True)
+        company_docs_df['data_emissao_dt'] = pd.to_datetime(company_docs_df['data_emissao'], format='%d/%m/%Y', errors='coerce')
+        company_docs_df.dropna(subset=['data_emissao_dt'], inplace=True)
 
-        vencidos_docs = company_docs_df[company_docs_df['vencimento_dt'] < today]
-        vence_30_docs = company_docs_df[(company_docs_df['vencimento_dt'] >= today) & (company_docs_df['vencimento_dt'] <= today + timedelta(days=30))]
-        
-        for df in [vencidos_docs, vence_30_docs]:
-            if not df.empty:
-                df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name)
-        
-        categorized_company_docs = {
-            "Documentos da Empresa Vencidos": vencidos_docs,
-            "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
-        }
+        # Agrupa por empresa e tipo de documento, e pega apenas o mais recente de cada grupo
+        latest_company_docs = company_docs_df.sort_values('data_emissao_dt', ascending=False).groupby(['empresa_id', 'tipo_documento']).head(1)
+        latest_company_docs['vencimento_dt'] = pd.to_datetime(latest_company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        latest_company_docs.dropna(subset=['vencimento_dt'], inplace=True)
 
-    all_categorized_data = {**categorized_trainings, **categorized_asos, **categorized_company_docs}
+    # --- Agora, filtramos os vencimentos APENAS dos documentos mais recentes ---
+    
+    # Filtros de Treinamentos
+    vencidos_tr = latest_trainings[latest_trainings['vencimento_dt'] < today]
+    vence_15_tr = latest_trainings[(latest_trainings['vencimento_dt'] >= today) & (latest_trainings['vencimento_dt'] <= today + timedelta(days=15))]
+    vence_30_tr = latest_trainings[(latest_trainings['vencimento_dt'] > today + timedelta(days=15)) & (latest_trainings['vencimento_dt'] <= today + timedelta(days=30))]
+    vence_60_tr = latest_trainings[(latest_trainings['vencimento_dt'] > today + timedelta(days=30)) & (latest_trainings['vencimento_dt'] <= today + timedelta(days=60))]
+    vence_90_tr = latest_trainings[(latest_trainings['vencimento_dt'] > today + timedelta(days=60)) & (latest_trainings['vencimento_dt'] <= today + timedelta(days=90))]
+    
+    # Filtros de ASOs
+    vencidos_aso = latest_asos[latest_asos['vencimento_dt'] < today]
+    vence_15_aso = latest_asos[(latest_asos['vencimento_dt'] >= today) & (latest_asos['vencimento_dt'] <= today + timedelta(days=15))]
+    vence_30_aso = latest_asos[(latest_asos['vencimento_dt'] > today + timedelta(days=15)) & (latest_asos['vencimento_dt'] <= today + timedelta(days=30))]
+
+    # Filtros de Documentos da Empresa
+    vencidos_docs = latest_company_docs[latest_company_docs['vencimento_dt'] < today]
+    vence_30_docs = latest_company_docs[(latest_company_docs['vencimento_dt'] >= today) & (latest_company_docs['vencimento_dt'] <= today + timedelta(days=30))]
+
+    # --- Adiciona informações de nome/empresa aos dataframes filtrados ---
+    for df in [vencidos_tr, vence_15_tr, vence_30_tr, vence_60_tr, vence_90_tr, vencidos_aso, vence_15_aso, vence_30_aso]:
+        if not df.empty:
+            df['nome_funcionario'] = df['funcionario_id'].apply(employee_manager.get_employee_name)
+            df['empresa'] = df['funcionario_id'].apply(
+                lambda fid: employee_manager.get_company_name(
+                    employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)]['empresa_id'].iloc[0]
+                ) if not employee_manager.employees_df[employee_manager.employees_df['id'] == str(fid)].empty else 'N/A'
+            )
+            
+    for df in [vencidos_docs, vence_30_docs]:
+        if not df.empty:
+            df['empresa'] = df['empresa_id'].apply(employee_manager.get_company_name)
+
+    # --- Monta o dicionário final para o e-mail ---
+    all_categorized_data = {
+        "Treinamentos Vencidos": vencidos_tr,
+        "Treinamentos que vencem em até 15 dias": vence_15_tr,
+        "Treinamentos que vencem entre 16 e 30 dias": vence_30_tr,
+        "Treinamentos que vencem entre 31 e 60 dias": vence_60_tr,
+        "Treinamentos que vencem entre 61 e 90 dias": vence_90_tr,
+        "ASOs Vencidos": vencidos_aso,
+        "ASOs que vencem em até 15 dias": vence_15_aso,
+        "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
+        "Documentos da Empresa Vencidos": vencidos_docs,
+        "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
+    }
+    
     return all_categorized_data
 
 def format_email_body(categorized_data: dict) -> str:
