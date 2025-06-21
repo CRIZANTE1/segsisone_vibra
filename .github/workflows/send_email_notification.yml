@@ -40,6 +40,6 @@ jobs:
           # Credenciais para o envio de e-mail via SMTP
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
-          SENDER_PASSWORD: ${{ secrets.sender_password }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
           
         run: python email_notifier.py
