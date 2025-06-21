@@ -19,33 +19,44 @@ AUDIT_RESULTS_SHEET_NAME = "auditorias"
 COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
 
 def get_credentials_dict():
-    """Retorna as credenciais do serviço do Google, seja do arquivo local ou do Streamlit Cloud."""
-    if st.runtime.exists():
-        # Se estiver rodando no Streamlit Cloud ou com secrets configurados
+    """
+    Retorna as credenciais do serviço do Google, seja do Streamlit Cloud,
+    do GitHub Actions ou de um arquivo local.
+    """
+ 
+    if hasattr(st, 'runtime') and st.runtime.exists():
         try:
-            return {
-                "type": st.secrets.connections.gsheets.type,
-                "project_id": st.secrets.connections.gsheets.project_id,
-                "private_key_id": st.secrets.connections.gsheets.private_key_id,
-                "private_key": st.secrets.connections.gsheets.private_key,
-                "client_email": st.secrets.connections.gsheets.client_email,
-                "client_id": st.secrets.connections.gsheets.client_id,
-                "auth_uri": st.secrets.connections.gsheets.auth_uri,
-                "token_uri": st.secrets.connections.gsheets.token_uri,
-                "auth_provider_x509_cert_url": st.secrets.connections.gsheets.auth_provider_x509_cert_url,
-                "client_x509_cert_url": st.secrets.connections.gsheets.client_x509_cert_url,
-                "universe_domain": st.secrets.connections.gsheets.universe_domain
-            }
-        except Exception as e:
-            st.error("Erro ao carregar credenciais do Google do Streamlit Secrets. Certifique-se de que as credenciais estão configuradas corretamente em [connections.gsheets].")
-            raise e
+           
+            return dict(st.secrets.connections.gsheets)
+        except (AttributeError, KeyError) as e:
+            st.error("Erro: As credenciais [connections.gsheets] não foram encontradas nos Secrets do Streamlit.")
+            raise
+    
+    
     else:
-        # Se estiver rodando localmente
+        gcp_credentials_json = os.getenv("GCP_SERVICE_ACCOUNT_CREDENTIALS")
+        if gcp_credentials_json:
+            print("INFO: Credenciais encontradas na variável de ambiente (modo GitHub Actions).")
+            try:
+                return json.loads(gcp_credentials_json)
+            except json.JSONDecodeError:
+               
+                print("ERRO: A variável de ambiente GCP_SERVICE_ACCOUNT_CREDENTIALS não contém um JSON válido.")
+                raise
+
+        print("INFO: Tentando carregar credenciais do arquivo local 'credentials.json' (modo de desenvolvimento).")
         credentials_path = os.path.join(os.path.dirname(__file__), 'credentials.json')
         try:
             with open(credentials_path, 'r') as f:
                 return json.load(f)
+        except FileNotFoundError:
+            
+            raise FileNotFoundError(
+                "Credenciais não encontradas. Para rodar fora do Streamlit Cloud, "
+                "configure a variável de ambiente 'GCP_SERVICE_ACCOUNT_CREDENTIALS' "
+                "ou coloque um arquivo 'credentials.json' na pasta 'gdrive/'."
+            )
         except Exception as e:
-            st.error(f"Erro ao carregar credenciais do arquivo local: {str(e)}")
-            raise e
-
+           
+            print(f"Erro ao carregar credenciais do arquivo local: {str(e)}")
+            raise
