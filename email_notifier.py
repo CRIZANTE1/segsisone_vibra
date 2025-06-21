@@ -6,23 +6,20 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
+from operations.employee import EmployeeManager
 
-# Adiciona o diretório raiz ao PYTHONPATH para encontrar os módulos do projeto
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# A importação do EmployeeManager é a única dependência de código do seu projeto
-from operations.employee import EmployeeManager
 
-# --- FUNÇÕES DE LÓGICA ---
 
 def get_smtp_config_from_env():
     """Lê a configuração SMTP a partir de variáveis de ambiente."""
     
     config = {
-        "smtp_server": "smtp.gmail.com", # Fixo para o Gmail
-        "smtp_port": 465, # Porta para conexão SSL
+        "smtp_server": "smtp.gmail.com", 
+        "smtp_port": 465, 
         "sender_email": os.getenv("SENDER_EMAIL"),
         "sender_password": os.getenv("SENDER_PASSWORD"),
         "receiver_email": os.getenv("RECEIVER_EMAIL")
@@ -40,7 +37,6 @@ def categorize_expirations(employee_manager: EmployeeManager):
     
     today = date.today()
     
-    # --- Processamento de Treinamentos ---
     trainings_df = employee_manager.training_df.copy()
     categorized_trainings = {}
     if not trainings_df.empty:
@@ -71,7 +67,6 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "Treinamentos que vencem entre 61 e 90 dias": vence_90_tr,
         }
 
-    # --- Processamento de ASOs ---
     asos_df = employee_manager.aso_df.copy()
     categorized_asos = {}
     if not asos_df.empty:
@@ -98,7 +93,6 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "ASOs que vencem entre 16 e 30 dias": vence_30_aso,
         }
 
-    # --- Processamento de Documentos da Empresa ---
     from operations.company_docs import CompanyDocsManager
     docs_manager = CompanyDocsManager()
     company_docs_df = docs_manager.docs_df.copy()
@@ -120,7 +114,6 @@ def categorize_expirations(employee_manager: EmployeeManager):
             "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
         }
 
-    # Combina todos os resultados em um único dicionário para o e-mail
     all_categorized_data = {**categorized_trainings, **categorized_asos, **categorized_company_docs}
     return all_categorized_data
 
@@ -212,8 +205,6 @@ def main():
     try:
         config = get_smtp_config_from_env()
         
-        # A inicialização do EmployeeManager aciona a cadeia de dependências
-        # que lê as credenciais do Google Sheets a partir das variáveis de ambiente.
         employee_manager = EmployeeManager()
         categorized_data = categorize_expirations(employee_manager)
 
@@ -227,7 +218,6 @@ def main():
 
     except Exception as e:
         print(f"Erro fatal no script: {e}")
-        # Termina com código de erro 1 para a GitHub Action falhar e notificar o erro
         sys.exit(1) 
 
 if __name__ == "__main__":
