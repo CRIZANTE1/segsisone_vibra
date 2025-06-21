@@ -6,23 +6,21 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
+from operations.employee import EmployeeManager
 
-# Adiciona o diretório raiz ao PYTHONPATH
 root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# A importação do EmployeeManager continua a mesma
-from operations.employee import EmployeeManager
 
-# --- Funções de Lógica ---
+
 
 def get_smtp_config_from_env():
     """Lê a configuração SMTP a partir de variáveis de ambiente."""
     
     config = {
-        "smtp_server": "smtp.gmail.com", # Fixo para o Gmail
-        "smtp_port": 465, # Porta SSL
+        "smtp_server": "smtp.gmail.com", 
+        "smtp_port": 465, 
         "sender_email": os.getenv("SENDER_EMAIL"),
         "sender_password": os.getenv("SENDER_PASSWORD"),
         "receiver_email": os.getenv("RECEIVER_EMAIL")
