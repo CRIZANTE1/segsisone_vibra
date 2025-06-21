@@ -61,6 +61,8 @@ class EmployeeManager:
             'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
             'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
             'NR-33': {'reciclagem_anos': 1}
+            'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1}
+}
         }
 
     @property
@@ -179,8 +181,8 @@ class EmployeeManager:
             **JSON a ser preenchido:**
             ```json
             {
-            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20').",
-            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado I', 'Supervisor', 'Trabalhador Autorizado'). Se não for aplicável, use 'N/A'.",
+            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'Brigada de Incêndio', 'IT-17').",
+            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A'.",
             "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
             "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem'.",
             "carga_horaria": "A carga horária total do treinamento, apenas o número."
@@ -369,11 +371,21 @@ class EmployeeManager:
     def _padronizar_norma(self, norma):
         if not norma:
             return None
-        norma = str(norma).strip().upper().replace("NR ", "NR-")
-        parts = norma.split('-')
-        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit() and len(parts[1]) == 1:
-            return f"NR-0{parts[1]}"
-        return norma
+        
+        norma_upper = str(norma).strip().upper()
+    
+        if "BRIGADA" in norma_upper or "INCÊNDIO" in norma_upper or "IT-17" in norma_upper or "IT 17" in norma_upper or "NR-23" in norma_upper or "NR 23" in norma_upper:
+            return "BRIGADA DE INCÊNDIO"
+            
+        norma_padronizada = norma_upper.replace("NR ", "NR-")
+        parts = norma_padronizada.split('-')
+        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit():
+            num_str = parts[1]
+            if len(num_str) == 1:
+                return f"NR-0{num_str}"
+            return norma_padronizada
+            
+        return norma_upper 
 
     def add_training(self, id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
         from gdrive.config import TRAINING_SHEET_NAME
@@ -439,30 +451,40 @@ class EmployeeManager:
         
         return None
 
-        def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
-                norma_padronizada = self._padronizar_norma(norma)
-                
-                if norma_padronizada == "NR-33":
-                    modulo_normalizado = ""
-                    if modulo:
-                        # Normaliza o módulo para verificação
-                        if "supervisor" in modulo.lower():
-                            modulo_normalizado = "supervisor"
-                        elif "trabalhador" in modulo.lower() or "autorizado" in modulo.lower():
-                            modulo_normalizado = "trabalhador"
+    def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
+        norma_padronizada = self._padronizar_norma(norma)
         
-                    # Validação da Formação
-                    if tipo_treinamento == 'formação':
-                        if modulo_normalizado == "supervisor" and carga_horaria < 40:
-                            return False, f"Carga horária para formação de Supervisor (NR-33) deve ser de 40h, mas foi de {carga_horaria}h."
-                        if modulo_normalizado == "trabalhador" and carga_horaria < 16:
-                            return False, f"Carga horária para formação de Trabalhador Autorizado (NR-33) deve ser de 16h, mas foi de {carga_horaria}h."
+        # Lógica para NR-33
+        if norma_padronizada == "NR-33":
+            modulo_normalizado = ""
+            if modulo:
+                if "supervisor" in modulo.lower():
+                    modulo_normalizado = "supervisor"
+                elif "trabalhador" in modulo.lower() or "autorizado" in modulo.lower():
+                    modulo_normalizado = "trabalhador"
+            
+            if tipo_treinamento == 'formação':
+                if modulo_normalizado == "supervisor" and carga_horaria < 40:
+                    return False, f"Carga horária para formação de Supervisor (NR-33) deve ser de 40h, mas foi de {carga_horaria}h."
+                if modulo_normalizado == "trabalhador" and carga_horaria < 16:
+                    return False, f"Carga horária para formação de Trabalhador Autorizado (NR-33) deve ser de 16h, mas foi de {carga_horaria}h."
+            
+            elif tipo_treinamento == 'reciclagem':
+                if carga_horaria < 8:
+                    return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
                     
-                    # Validação da Reciclagem
-                    elif tipo_treinamento == 'reciclagem':
-                        if carga_horaria < 8:
-                            return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
-        
-               ### Adicionar a lógica para outras NRs ####
-                
-                return True, "Carga horária conforme."
+        elif norma_padronizada == "BRIGADA DE INCÊNDIO":
+            # Considera qualquer menção a "avançado" no módulo
+            is_avancado = "avançado" in str(modulo).lower()
+            
+            if is_avancado:
+                if tipo_treinamento == 'formação' and carga_horaria < 24:
+                    return False, f"Carga horária para formação de Brigada Avançada deve ser de 24h, mas foi de {carga_horaria}h."
+                elif tipo_treinamento == 'reciclagem' and carga_horaria < 16:
+                    return False, f"Carga horária para reciclagem de Brigada Avançada deve ser de 16h, mas foi de {carga_horaria}h."
+            # Você pode adicionar lógica para outros níveis (básico, intermediário) aqui se precisar
+            # else:
+            #     # Lógica para Básico/Intermediário
+            #     pass
+
+        return True, "Carga horária conforme."
