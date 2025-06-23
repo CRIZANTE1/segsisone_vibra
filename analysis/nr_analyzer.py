@@ -48,6 +48,7 @@ class NRAnalyzer:
             self.nr_sheets_map = {
                 "NR-01": st.secrets.app_settings.get("rag_nr01_id"),
                 "NR-07": st.secrets.app_settings.get("rag_nr07_id"),
+                "NR-20": st.secrets.app_settings.get("rag_nr20_id"),
                 "NR-34": st.secrets.app_settings.get("rag_nr34_id"),
                 "NR-35": st.secrets.app_settings.get("rag_nr35_id"),
             }
