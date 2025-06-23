@@ -183,7 +183,7 @@ class EmployeeManager:
             ```json
             {
             "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'Brigada de Incêndio', 'IT-17').",
-            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A'.",
+            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo.",
             "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
             "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem' se não estiver descrito será 'formação'.",
             "carga_horaria": "A carga horária total do treinamento, apenas o número."
