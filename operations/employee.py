@@ -61,8 +61,8 @@ class EmployeeManager:
             'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 5},
             'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
             'NR-33': {'reciclagem_anos': 1},
-            'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1}
-
+            'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1},
+            'NR-11': {'reciclagem_anos': 3, 'reciclagem_horas': 16}
         }
         
 
@@ -182,8 +182,8 @@ class EmployeeManager:
             **JSON a ser preenchido:**
             ```json
             {
-            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'Brigada de Incêndio', 'IT-17').",
-            "modulo": "O módulo específico do treinamento (ex: 'Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo ex se vier 'Intermediário Nível III' considere apenas 'Intermediário'.",
+            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'Brigada de Incêndio', 'IT-17','NR-11', 'NR-35').",
+            "modulo": "O módulo específico do treinamento (ex: 'Operador de Empilhadeira', 'Munck', 'Guindauto','Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo ex se vier 'Intermediário Nível III' considere apenas 'Intermediário'.",
             "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
             "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem' se não estiver descrito será 'formação'.",
             "carga_horaria": "A carga horária total do treinamento, apenas o número."
@@ -474,18 +474,24 @@ class EmployeeManager:
                 if carga_horaria < 8:
                     return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
                     
+        # Lógica para Brigada de Incêndio
         elif norma_padronizada == "BRIGADA DE INCÊNDIO":
-            # Considera qualquer menção a "avançado" no módulo
             is_avancado = "avançado" in str(modulo).lower()
-            
             if is_avancado:
                 if tipo_treinamento == 'formação' and carga_horaria < 24:
                     return False, f"Carga horária para formação de Brigada Avançada deve ser de 24h, mas foi de {carga_horaria}h."
                 elif tipo_treinamento == 'reciclagem' and carga_horaria < 16:
                     return False, f"Carga horária para reciclagem de Brigada Avançada deve ser de 16h, mas foi de {carga_horaria}h."
-            # Você pode adicionar lógica para outros níveis (básico, intermediário) aqui se precisar
-            # else:
-            #     # Lógica para Básico/Intermediário
-            #     pass
 
+        # --- NOVA LÓGICA PARA NR-11 ---
+        elif norma_padronizada == "NR-11":
+            # A carga horária da formação inicial pode variar, então focamos na reciclagem
+            if tipo_treinamento == 'reciclagem' and carga_horaria < 16:
+                 return False, f"Carga horária para reciclagem (NR-11) deve ser de 16h, mas foi de {carga_horaria}h."
+            
+            # Validação opcional da formação, se você quiser definir um mínimo
+            if tipo_treinamento == 'formação' and carga_horaria < 16:
+                # A norma não especifica, mas 16h é um mínimo comum. Ajuste se necessário.
+                return False, f"Carga horária para formação (NR-11) parece baixa ({carga_horaria}h). O mínimo comum é 16h."
+        
         return True, "Carga horária conforme."
