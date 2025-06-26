@@ -155,13 +155,49 @@ def front_page():
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
-                            for col in training_display_cols:
-                                if col not in all_trainings.columns: all_trainings[col] = "N/A"
-                            training_reordered_df = all_trainings[training_display_cols]
-                            st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
-                        else: st.info("Nenhum treinamento encontrado.")
-            else:
-                st.info("Nenhum funcionário cadastrado para esta empresa.")
+                            
+                            for index, row in all_trainings.iterrows():
+                                # Usa colunas para alinhar os botões
+                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                                
+                                doc_info = f"**{row['norma']}** ({row['modulo']}) - Vence em: {row['vencimento'].strftime('%d/%m/%Y')}"
+                                col1.markdown(doc_info)
+                                
+                                # Link para o arquivo
+                                col2.link_button("Abrir Anexo", row['arquivo_id'])
+                        
+                                # Botão de Arquivar
+                                is_archived = row.get('status') == 'Arquivado'
+                                archive_text = "Desarquivar" if is_archived else "Arquivar"
+                                if col3.button(archive_text, key=f"archive_train_{row['id']}"):
+                                    if employee_manager.archive_training(row['id'], archive=not is_archived):
+                                        st.success(f"Treinamento '{row['norma']}' atualizado!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Falha ao arquivar.")
+                        
+                                # Botão de Excluir com confirmação
+                                if col4.button("🗑️ Excluir", key=f"delete_train_{row['id']}", type="primary"):
+                                    # Lógica de confirmação
+                                    if f"confirm_delete_{row['id']}" not in st.session_state:
+                                        st.session_state[f"confirm_delete_{row['id']}"] = True
+                                        st.rerun()
+                        
+                                if st.session_state.get(f"confirm_delete_{row['id']}", False):
+                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o treinamento '{row['norma']}'?** Esta ação não pode ser desfeita.")
+                                    c1, c2 = st.columns(2)
+                                    if c1.button("Sim, excluir agora", key=f"confirm_del_btn_{row['id']}"):
+                                        if employee_manager.delete_training(row['id'], row['arquivo_id']):
+                                            st.success("Treinamento excluído com sucesso.")
+                                            del st.session_state[f"confirm_delete_{row['id']}"]
+                                            st.rerun()
+                                        else:
+                                            st.error("Falha ao excluir.")
+                                    if c2.button("Cancelar", key=f"cancel_del_btn_{row['id']}"):
+                                        del st.session_state[f"confirm_delete_{row['id']}"]
+                                        st.rerun()
+                        else:
+                                st.info("Nenhum treinamento encontrado."
 
             st.markdown("---")
             with st.expander("📖 Histórico de Auditorias de Conformidade"):
