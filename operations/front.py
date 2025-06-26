@@ -237,18 +237,19 @@ def front_page():
                         
                                 # Botão de Excluir com confirmação
                                 with row_cols[5]:
+                                    # Verificando se todos os parênteses estão fechados aqui
                                     if st.button("🗑️", key=f"delete_aso_{row['id']}", help="Excluir ASO permanentemente", type="secondary"):
-                                        # Ativa o estado de confirmação para este ASO específico
                                         st.session_state[f"confirm_delete_aso_{row['id']}"] = True
                                         st.rerun()
                         
                                 # Lógica de confirmação que aparece abaixo da linha
                                 if st.session_state.get(f"confirm_delete_aso_{row['id']}", False):
-                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o ASO de '{row['tipo_aso']}'?** Esta ação não pode ser desfeita.")
+                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o ASO de '{row.get('tipo_aso', 'N/A')}'?** Esta ação não pode ser desfeita.")
                                     
                                     # Colunas para os botões de Sim/Não
-                                    confirm_cols = st.columns([1, 1, 4]) # Alinha os botões à esquerda
+                                    confirm_cols = st.columns([1, 1, 4]) 
                                     with confirm_cols[0]:
+                                        # Verificando se todos os parênteses estão fechados aqui
                                         if st.button("Sim, excluir", key=f"confirm_del_aso_btn_{row['id']}", type="primary"):
                                             with st.spinner("Excluindo ASO e arquivo..."):
                                                 if employee_manager.delete_aso(row['id'], row['arquivo_id']):
@@ -259,14 +260,16 @@ def front_page():
                                                     st.error("Falha ao excluir o ASO.")
                                     
                                     with confirm_cols[1]:
+                                        # Verificando se todos os parênteses estão fechados aqui
                                         if st.button("Cancelar", key=f"cancel_del_aso_btn_{row['id']}"):
                                             del st.session_state[f"confirm_delete_aso_{row['id']}"]
                                             st.rerun()
                                 
-                                st.divider() # Adiciona uma linha separadora entre os ASOs
+                                st.divider()
                         
                         else:
                             st.info("Nenhum ASO encontrado.")
+                            
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
