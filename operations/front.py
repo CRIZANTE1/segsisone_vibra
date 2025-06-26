@@ -29,7 +29,7 @@ def mostrar_info_normas():
         | NR-18 | 8 horas                   | 8 horas               | 1 ano                    |
         | NR-34 | 8 horas                   | 8 horas               | 1 ano                    |
         | NR-12 | 8 horas                   | 8 horas               | 2 anos                   |
-        | NR-06 | 3 horas                   | 3 horas               | 3 anos                   |
+        | NR-06 | 3 horas                   | 3 horas               | 10 anos                   |
         | NR-11 | 16-32 horas               | 16 horas              | 3 anos                   |
         | NR-33 | 16-40 horas               | 8 horas               | 1 ano                    |
         | Brigada | 24 horas (Avançado)     | 16 horas (Avançado)   | 1 ano                    |
