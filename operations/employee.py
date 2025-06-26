@@ -474,7 +474,6 @@ class EmployeeManager:
                 if carga_horaria < 8:
                     return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
                     
-        # Lógica para Brigada de Incêndio
         elif norma_padronizada == "BRIGADA DE INCÊNDIO":
             is_avancado = "avançado" in str(modulo).lower()
             if is_avancado:
@@ -483,15 +482,55 @@ class EmployeeManager:
                 elif tipo_treinamento == 'reciclagem' and carga_horaria < 16:
                     return False, f"Carga horária para reciclagem de Brigada Avançada deve ser de 16h, mas foi de {carga_horaria}h."
 
-        # --- NOVA LÓGICA PARA NR-11 ---
         elif norma_padronizada == "NR-11":
-            # A carga horária da formação inicial pode variar, então focamos na reciclagem
             if tipo_treinamento == 'reciclagem' and carga_horaria < 16:
                  return False, f"Carga horária para reciclagem (NR-11) deve ser de 16h, mas foi de {carga_horaria}h."
             
-            # Validação opcional da formação, se você quiser definir um mínimo
             if tipo_treinamento == 'formação' and carga_horaria < 16:
-                # A norma não especifica, mas 16h é um mínimo comum. Ajuste se necessário.
                 return False, f"Carga horária para formação (NR-11) parece baixa ({carga_horaria}h). O mínimo comum é 16h."
         
         return True, "Carga horária conforme."
+
+    def archive_training(self, training_id: str, archive=True):
+        """Marca um treinamento como arquivado ou não arquivado."""
+        from gdrive.config import TRAINING_SHEET_NAME
+        status = "Arquivado" if archive else "Válido" # Ou o status original
+        return self.sheet_ops.update_row_by_id(
+            TRAINING_SHEET_NAME, 
+            training_id, 
+            {'status': status}
+        )
+
+    def delete_training(self, training_id: str, file_url: str):
+        """Deleta permanentemente um treinamento e seu arquivo no Drive."""
+        from gdrive.config import TRAINING_SHEET_NAME
+        uploader = GoogleDriveUploader()
+        
+        # 1. Deleta o arquivo do Drive
+        if not uploader.delete_file_by_url(file_url):
+            st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo para deletar o registro.")
+        
+        # 2. Deleta a linha da planilha
+        if self.sheet_ops.excluir_dados_aba(TRAINING_SHEET_NAME, training_id):
+            st.cache_data.clear() # Limpa o cache para atualizar a UI
+            self.load_data()
+            return True
+        return False
+    
+    # Repita a mesma lógica para ASOs
+    def archive_aso(self, aso_id: str, archive=True):
+        from gdrive.config import ASO_SHEET_NAME
+        pass
+
+    def delete_aso(self, aso_id: str, file_url: str):
+        """Deleta permanentemente um ASO e seu arquivo no Drive."""
+        from gdrive.config import ASO_SHEET_NAME
+        uploader = GoogleDriveUploader()
+        if not uploader.delete_file_by_url(file_url):
+            st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo para deletar o registro.")
+        
+        if self.sheet_ops.excluir_dados_aba(ASO_SHEET_NAME, aso_id):
+            st.cache_data.clear()
+            self.load_data()
+            return True
+        return False
