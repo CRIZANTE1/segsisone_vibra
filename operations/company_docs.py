@@ -178,3 +178,41 @@ class CompanyDocsManager:
         except Exception as e:
             st.error(f"Erro ao adicionar documento da empresa: {e}")
             return None
+    def archive_company_doc(self, doc_id: str, archive=True):
+        """
+        Marca um documento da empresa como arquivado ou não arquivado.
+        Isso requer uma coluna 'status' na sua planilha 'documentos_empresa'.
+        """
+        from gdrive.config import COMPANY_DOCS_SHEET_NAME
+        status = "Arquivado" if archive else "Ativo"
+        
+        updated = self.sheet_ops.update_row_by_id(
+            COMPANY_DOCS_SHEET_NAME, 
+            doc_id, 
+            {'status': status}
+        )
+
+        if updated:
+            st.cache_data.clear() # Limpa o cache para recarregar os dados
+            self.load_company_data()
+        
+        return updated
+
+    def delete_company_doc(self, doc_id: str, file_url: str):
+        """Deleta permanentemente um documento da empresa e seu arquivo no Drive."""
+        from gdrive.config import COMPANY_DOCS_SHEET_NAME
+        uploader = GoogleDriveUploader()
+        
+        # 1. Deleta o arquivo do Google Drive
+        if not uploader.delete_file_by_url(file_url):
+            st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo para deletar o registro.")
+            # Continuamos mesmo que a exclusão do arquivo falhe para não deixar o registro órfão.
+        
+        # 2. Deleta a linha da planilha
+        deleted_from_sheet = self.sheet_ops.excluir_dados_aba(COMPANY_DOCS_SHEET_NAME, doc_id)
+        if deleted_from_sheet:
+            st.cache_data.clear() # Limpa o cache para recarregar os dados
+            self.load_company_data()
+            return True
+            
+        return False       
