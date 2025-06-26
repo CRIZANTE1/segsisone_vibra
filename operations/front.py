@@ -315,7 +315,7 @@ def front_page():
                                         del st.session_state[f"confirm_delete_{row['id']}"]
                                         st.rerun()
                         else:
-                                st.info("Nenhum treinamento encontrado."
+                                st.info("Nenhum treinamento encontrado.")
 
             st.markdown("---")
             with st.expander("📖 Histórico de Auditorias de Conformidade"):
