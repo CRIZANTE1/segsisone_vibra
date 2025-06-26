@@ -104,81 +104,15 @@ def front_page():
         if selected_company:
             st.subheader("Documentos da Empresa")
             company_docs = docs_manager.get_docs_by_company(selected_company).copy()
-            
             if not company_docs.empty:
-                # Cabeçalho da nossa tabela customizada
-                header_cols = st.columns([3, 2, 2, 1, 1, 1])
-                headers = ["Tipo do Documento", "Emissão", "Vencimento", "Anexo", "Arquivar", "Excluir"]
-                for col, header in zip(header_cols, headers):
-                    col.markdown(f"**{header}**")
-                
-                st.divider()
-            
-                # Loop para criar uma linha para cada documento
-                for index, row in company_docs.iterrows():
-                    # Converte as datas para exibição, tratando possíveis erros
-                    try:
-                        emissao_str = pd.to_datetime(row['data_emissao']).strftime('%d/%m/%Y')
-                    except (ValueError, TypeError):
-                        emissao_str = row['data_emissao']
-                        
-                    try:
-                        vencimento_str = pd.to_datetime(row['vencimento']).strftime('%d/%m/%Y')
-                    except (ValueError, TypeError):
-                        vencimento_str = row['vencimento']
-            
-                    # Define a cor do texto se estiver arquivado
-                    doc_info_html = f"<span style='color: #888;'>{row['tipo_documento']}</span>" if row.get('status') == 'Arquivado' else row['tipo_documento']
-            
-                    # Usa colunas para alinhar os dados e botões
-                    doc_cols = st.columns([3, 2, 2, 1, 1, 1])
-                    
-                    doc_cols[0].markdown(doc_info_html, unsafe_allow_html=True)
-                    doc_cols[1].write(emissao_str)
-                    doc_cols[2].write(vencimento_str)
-                    
-                    # Link para o anexo
-                    with doc_cols[3]:
-                        if pd.notna(row['arquivo_id']):
-                            st.link_button("🔗", row['arquivo_id'], help="Abrir anexo")
-            
-                    # Botão de Arquivar/Desarquivar
-                    with doc_cols[4]:
-                        is_archived = row.get('status') == 'Arquivado'
-                        archive_text = "↩️" if is_archived else "🗄️"
-                        archive_help = "Desarquivar documento" if is_archived else "Arquivar documento"
-                        if st.button(archive_text, key=f"archive_doc_{row['id']}", help=archive_help):
-                            if docs_manager.archive_company_doc(row['id'], archive=not is_archived):
-                                st.success(f"Documento '{row['tipo_documento']}' atualizado!")
-                                st.rerun()
-                            else:
-                                st.error("Falha ao arquivar o documento.")
-                    
-                    # Botão de Excluir com confirmação
-                    with doc_cols[5]:
-                        if st.button("🗑️", key=f"delete_doc_{row['id']}", help="Excluir documento permanentemente"):
-                            st.session_state[f"confirm_delete_doc_{row['id']}"] = True
-                            st.rerun()
-            
-                    # Lógica de confirmação da exclusão
-                    if st.session_state.get(f"confirm_delete_doc_{row['id']}", False):
-                        st.warning(f"**Tem certeza que deseja excluir permanentemente o documento '{row['tipo_documento']}'?** Esta ação não pode ser desfeita.")
-                        
-                        confirm_cols = st.columns([2, 1, 1, 8]) # Alinha os botões
-                        if confirm_cols[0].button("Sim, excluir agora", key=f"confirm_del_doc_btn_{row['id']}", type="primary"):
-                            with st.spinner("Excluindo documento e arquivo..."):
-                                if docs_manager.delete_company_doc(row['id'], row['arquivo_id']):
-                                    st.success("Documento excluído com sucesso.")
-                                    del st.session_state[f"confirm_delete_doc_{row['id']}"]
-                                    st.rerun()
-                                else:
-                                    st.error("Falha ao excluir o documento.")
-                        if confirm_cols[1].button("Cancelar", key=f"cancel_del_doc_btn_{row['id']}"):
-                            del st.session_state[f"confirm_delete_doc_{row['id']}"]
-                            st.rerun()
-                    
-            else:
-                st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+                company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
+                company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
+                for col in company_doc_cols:
+                    if col not in company_docs.columns: company_docs[col] = "N/A"
+                company_docs_reordered = company_docs[company_doc_cols]
+                st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
+            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
             
             st.markdown("---")
             st.subheader("Funcionários")
@@ -212,110 +146,22 @@ def front_page():
                         st.markdown("---")
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
-                            # Cabeçalho da nossa tabela customizada
-                            header_cols = st.columns([2, 2, 2, 3, 1, 1])
-                            headers = ["Tipo", "Data", "Vencimento", "Riscos", "Anexo", "Ação"]
-                            for col, header in zip(header_cols, headers):
-                                col.markdown(f"**{header}**")
-                        
-                            # Loop para criar uma linha para cada ASO
-                            for index, row in latest_aso.iterrows():
-                                # Usa colunas para alinhar os dados e os botões
-                                row_cols = st.columns([2, 2, 2, 3, 1, 1])
-                                
-                                # Exibe as informações do ASO
-                                row_cols[0].write(row.get('tipo_aso', 'N/A'))
-                                row_cols[1].write(row['data_aso'].strftime('%d/%m/%Y') if isinstance(row['data_aso'], date) else 'N/A')
-                                row_cols[2].write(row['vencimento'].strftime('%d/%m/%Y') if isinstance(row['vencimento'], date) else 'N/A')
-                                row_cols[3].write(row.get('riscos', 'N/A'))
-                        
-                                # Link para o arquivo
-                                if pd.notna(row['arquivo_id']):
-                                    row_cols[4].link_button("🔗", row['arquivo_id'], help="Abrir anexo")
-                                else:
-                                    row_cols[4].write("---")
-                        
-                                # Botão de Excluir com confirmação
-                                with row_cols[5]:
-                                    # Verificando se todos os parênteses estão fechados aqui
-                                    if st.button("🗑️", key=f"delete_aso_{row['id']}", help="Excluir ASO permanentemente", type="secondary"):
-                                        st.session_state[f"confirm_delete_aso_{row['id']}"] = True
-                                        st.rerun()
-                        
-                                # Lógica de confirmação que aparece abaixo da linha
-                                if st.session_state.get(f"confirm_delete_aso_{row['id']}", False):
-                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o ASO de '{row.get('tipo_aso', 'N/A')}'?** Esta ação não pode ser desfeita.")
-                                    
-                                    # Colunas para os botões de Sim/Não
-                                    confirm_cols = st.columns([1, 1, 4]) 
-                                    with confirm_cols[0]:
-                                        # Verificando se todos os parênteses estão fechados aqui
-                                        if st.button("Sim, excluir", key=f"confirm_del_aso_btn_{row['id']}", type="primary"):
-                                            with st.spinner("Excluindo ASO e arquivo..."):
-                                                if employee_manager.delete_aso(row['id'], row['arquivo_id']):
-                                                    st.success("ASO excluído com sucesso.")
-                                                    del st.session_state[f"confirm_delete_aso_{row['id']}"]
-                                                    st.rerun()
-                                                else:
-                                                    st.error("Falha ao excluir o ASO.")
-                                    
-                                    with confirm_cols[1]:
-                                        # Verificando se todos os parênteses estão fechados aqui
-                                        if st.button("Cancelar", key=f"cancel_del_aso_btn_{row['id']}"):
-                                            del st.session_state[f"confirm_delete_aso_{row['id']}"]
-                                            st.rerun()
-                                
-                                st.divider()
-                        
-                        else:
-                            st.info("Nenhum ASO encontrado.")
-                            
+                            aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
+                            for col in aso_display_cols:
+                                if col not in latest_aso.columns: latest_aso[col] = "N/A"
+                            aso_reordered_df = latest_aso[aso_display_cols]
+                            st.dataframe(aso_reordered_df.style.apply(highlight_expired, axis=1), column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None,}, hide_index=True, use_container_width=True)
+                        else: st.info("Nenhum ASO encontrado.")
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
-                            
-                            for index, row in all_trainings.iterrows():
-                                # Usa colunas para alinhar os botões
-                                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
-                                
-                                doc_info = f"**{row['norma']}** ({row['modulo']}) - Vence em: {row['vencimento'].strftime('%d/%m/%Y')}"
-                                col1.markdown(doc_info)
-                                
-                                # Link para o arquivo
-                                col2.link_button("Abrir Anexo", row['arquivo_id'])
-                        
-                                # Botão de Arquivar
-                                is_archived = row.get('status') == 'Arquivado'
-                                archive_text = "Desarquivar" if is_archived else "Arquivar"
-                                if col3.button(archive_text, key=f"archive_train_{row['id']}"):
-                                    if employee_manager.archive_training(row['id'], archive=not is_archived):
-                                        st.success(f"Treinamento '{row['norma']}' atualizado!")
-                                        st.rerun()
-                                    else:
-                                        st.error("Falha ao arquivar.")
-                        
-                                # Botão de Excluir com confirmação
-                                if col4.button("🗑️ Excluir", key=f"delete_train_{row['id']}", type="primary"):
-                                    # Lógica de confirmação
-                                    if f"confirm_delete_{row['id']}" not in st.session_state:
-                                        st.session_state[f"confirm_delete_{row['id']}"] = True
-                                        st.rerun()
-                        
-                                if st.session_state.get(f"confirm_delete_{row['id']}", False):
-                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o treinamento '{row['norma']}'?** Esta ação não pode ser desfeita.")
-                                    c1, c2 = st.columns(2)
-                                    if c1.button("Sim, excluir agora", key=f"confirm_del_btn_{row['id']}"):
-                                        if employee_manager.delete_training(row['id'], row['arquivo_id']):
-                                            st.success("Treinamento excluído com sucesso.")
-                                            del st.session_state[f"confirm_delete_{row['id']}"]
-                                            st.rerun()
-                                        else:
-                                            st.error("Falha ao excluir.")
-                                    if c2.button("Cancelar", key=f"cancel_del_btn_{row['id']}"):
-                                        del st.session_state[f"confirm_delete_{row['id']}"]
-                                        st.rerun()
-                        else:
-                                st.info("Nenhum treinamento encontrado.")
+                            for col in training_display_cols:
+                                if col not in all_trainings.columns: all_trainings[col] = "N/A"
+                            training_reordered_df = all_trainings[training_display_cols]
+                            st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
+                        else: st.info("Nenhum treinamento encontrado.")
+            else:
+                st.info("Nenhum funcionário cadastrado para esta empresa.")
 
             st.markdown("---")
             with st.expander("📖 Histórico de Auditorias de Conformidade"):
