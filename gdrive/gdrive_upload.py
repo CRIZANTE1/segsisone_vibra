@@ -154,7 +154,34 @@ class GoogleDriveUploader:
         except Exception as e:
             st.error(f"Erro ao ler dados da planilha '{sheet_name}': {str(e)}")
             raise
-
-
-
-
+#----------------------teste----------------------------------  
+    def delete_file_by_url(self, file_url: str):
+        """
+        Deleta um arquivo do Google Drive usando sua URL de visualização.
+        
+        Args:
+            file_url (str): A URL 'webViewLink' do arquivo.
+        
+        Returns:
+            bool: True se a exclusão foi bem-sucedida, False caso contrário.
+        """
+        if not file_url:
+            return False
+            
+        # Extrai o ID do arquivo da URL
+        try:
+            file_id = file_url.split('/d/')[1].split('/')[0]
+        except IndexError:
+            st.error(f"URL do Google Drive inválida: {file_url}")
+            return False
+            
+        try:
+            print(f"Tentando deletar o arquivo com ID: {file_id}")
+            self.drive_service.files().delete(fileId=file_id).execute()
+            print(f"Arquivo com ID {file_id} deletado com sucesso.")
+            return True
+        except Exception as e:
+            st.error(f"Erro ao deletar arquivo do Google Drive: {e}")
+            return False
+    
+    
