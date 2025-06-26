@@ -51,39 +51,34 @@ class CompanyDocsManager:
     def load_company_data(self):
         try:
             docs_data = self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME)
-            docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0]) if docs_data and len(docs_data) > 0 else pd.DataFrame(columns=docs_cols)
-
-            # --- CORREÇÃO APLICADA AQUI ---
-            audit_data = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
+            # Define as colunas que você REALMENTE espera ter
+            expected_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id', 'status']
             
-            # Usa os nomes de coluna exatos da sua planilha
-            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
-                          "id_funcionario", "tipo_documento", "norma_auditada", 
-                          "item_de_verificacao", "Status", "observacao"]
-            
-            if audit_data and len(audit_data) > 1:
-                # Usa o cabeçalho real da planilha para o DataFrame inicial
-                header = audit_data[0]
-                # Pega apenas o número de colunas que temos no cabeçalho lido, ignorando as extras
-                num_valid_cols = len(header)
+            if docs_data and len(docs_data) > 0:
+                # Pega o cabeçalho real da planilha
+                header = docs_data[0]
+                # Filtra o cabeçalho para remover colunas vazias
+                cleaned_header = [col for col in header if col]
                 
-                # Limpa os dados, garantindo que cada linha tenha o mesmo número de colunas que o cabeçalho
-                cleaned_data = [row[:num_valid_cols] for row in audit_data[1:]]
-                
-                # Cria o DataFrame com os dados e cabeçalhos limpos
-                temp_df = pd.DataFrame(cleaned_data, columns=header)
-                
-                # Isso descarta colunas com nomes vazios ('')
-                final_cols = [col for col in audit_cols if col in temp_df.columns]
-                self.audit_df = temp_df[final_cols]
+                # Pega os dados e ajusta cada linha para ter o mesmo número de colunas do cabeçalho limpo
+                num_cols = len(cleaned_header)
+                cleaned_data = [row[:num_cols] for row in docs_data[1:]]
+    
+                # Cria o DataFrame com os dados e cabeçalho limpos
+                self.docs_df = pd.DataFrame(cleaned_data, columns=cleaned_header)
             else:
-                self.audit_df = pd.DataFrame(columns=audit_cols)
-            
-        except Exception as e:
-            st.error(f"Erro ao carregar dados da empresa: {str(e)}")
-            self.docs_df = pd.DataFrame()
-            self.audit_df = pd.DataFrame()
+                # Se não houver dados, cria um DataFrame vazio com as colunas esperadas
+                self.docs_df = pd.DataFrame(columns=expected_cols)
+    
+            # Garante que todas as colunas esperadas existam no DataFrame, preenchendo com N/A se faltarem
+            for col in expected_cols:
+                if col not in self.docs_df.columns:
+                    self.docs_df[col] = pd.NA
+    
+            # Converte as colunas de data após o carregamento e limpeza
+            if not self.docs_df.empty:
+                self.docs_df['data_emissao'] = pd.to_datetime(self.docs_df['data_emissao'], format='%d/%m/%Y', errors='coerce')
+                self.docs_df['vencimento'] = pd.to_datetime(self.docs_df['vencimento'], format='%d/%m/%Y', errors='coerce')
 
     def get_docs_by_company(self, company_id):
         if self.docs_df.empty: return pd.DataFrame()
