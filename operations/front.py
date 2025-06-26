@@ -104,15 +104,81 @@ def front_page():
         if selected_company:
             st.subheader("Documentos da Empresa")
             company_docs = docs_manager.get_docs_by_company(selected_company).copy()
+            
             if not company_docs.empty:
-                company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
-                company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-                company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
-                for col in company_doc_cols:
-                    if col not in company_docs.columns: company_docs[col] = "N/A"
-                company_docs_reordered = company_docs[company_doc_cols]
-                st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
-            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+                # Cabeçalho da nossa tabela customizada
+                header_cols = st.columns([3, 2, 2, 1, 1, 1])
+                headers = ["Tipo do Documento", "Emissão", "Vencimento", "Anexo", "Arquivar", "Excluir"]
+                for col, header in zip(header_cols, headers):
+                    col.markdown(f"**{header}**")
+                
+                st.divider()
+            
+                # Loop para criar uma linha para cada documento
+                for index, row in company_docs.iterrows():
+                    # Converte as datas para exibição, tratando possíveis erros
+                    try:
+                        emissao_str = pd.to_datetime(row['data_emissao']).strftime('%d/%m/%Y')
+                    except (ValueError, TypeError):
+                        emissao_str = row['data_emissao']
+                        
+                    try:
+                        vencimento_str = pd.to_datetime(row['vencimento']).strftime('%d/%m/%Y')
+                    except (ValueError, TypeError):
+                        vencimento_str = row['vencimento']
+            
+                    # Define a cor do texto se estiver arquivado
+                    doc_info_html = f"<span style='color: #888;'>{row['tipo_documento']}</span>" if row.get('status') == 'Arquivado' else row['tipo_documento']
+            
+                    # Usa colunas para alinhar os dados e botões
+                    doc_cols = st.columns([3, 2, 2, 1, 1, 1])
+                    
+                    doc_cols[0].markdown(doc_info_html, unsafe_allow_html=True)
+                    doc_cols[1].write(emissao_str)
+                    doc_cols[2].write(vencimento_str)
+                    
+                    # Link para o anexo
+                    with doc_cols[3]:
+                        if pd.notna(row['arquivo_id']):
+                            st.link_button("🔗", row['arquivo_id'], help="Abrir anexo")
+            
+                    # Botão de Arquivar/Desarquivar
+                    with doc_cols[4]:
+                        is_archived = row.get('status') == 'Arquivado'
+                        archive_text = "↩️" if is_archived else "🗄️"
+                        archive_help = "Desarquivar documento" if is_archived else "Arquivar documento"
+                        if st.button(archive_text, key=f"archive_doc_{row['id']}", help=archive_help):
+                            if docs_manager.archive_company_doc(row['id'], archive=not is_archived):
+                                st.success(f"Documento '{row['tipo_documento']}' atualizado!")
+                                st.rerun()
+                            else:
+                                st.error("Falha ao arquivar o documento.")
+                    
+                    # Botão de Excluir com confirmação
+                    with doc_cols[5]:
+                        if st.button("🗑️", key=f"delete_doc_{row['id']}", help="Excluir documento permanentemente"):
+                            st.session_state[f"confirm_delete_doc_{row['id']}"] = True
+                            st.rerun()
+            
+                    # Lógica de confirmação da exclusão
+                    if st.session_state.get(f"confirm_delete_doc_{row['id']}", False):
+                        st.warning(f"**Tem certeza que deseja excluir permanentemente o documento '{row['tipo_documento']}'?** Esta ação não pode ser desfeita.")
+                        
+                        confirm_cols = st.columns([2, 1, 1, 8]) # Alinha os botões
+                        if confirm_cols[0].button("Sim, excluir agora", key=f"confirm_del_doc_btn_{row['id']}", type="primary"):
+                            with st.spinner("Excluindo documento e arquivo..."):
+                                if docs_manager.delete_company_doc(row['id'], row['arquivo_id']):
+                                    st.success("Documento excluído com sucesso.")
+                                    del st.session_state[f"confirm_delete_doc_{row['id']}"]
+                                    st.rerun()
+                                else:
+                                    st.error("Falha ao excluir o documento.")
+                        if confirm_cols[1].button("Cancelar", key=f"cancel_del_doc_btn_{row['id']}"):
+                            del st.session_state[f"confirm_delete_doc_{row['id']}"]
+                            st.rerun()
+                    
+            else:
+                st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
             
             st.markdown("---")
             st.subheader("Funcionários")
