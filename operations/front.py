@@ -146,12 +146,61 @@ def front_page():
                         st.markdown("---")
                         st.markdown("##### ASO Mais Recente")
                         if not latest_aso.empty:
-                            aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
-                            for col in aso_display_cols:
-                                if col not in latest_aso.columns: latest_aso[col] = "N/A"
-                            aso_reordered_df = latest_aso[aso_display_cols]
-                            st.dataframe(aso_reordered_df.style.apply(highlight_expired, axis=1), column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None,}, hide_index=True, use_container_width=True)
-                        else: st.info("Nenhum ASO encontrado.")
+                            # Cabeçalho da nossa tabela customizada
+                            header_cols = st.columns([2, 2, 2, 3, 1, 1])
+                            headers = ["Tipo", "Data", "Vencimento", "Riscos", "Anexo", "Ação"]
+                            for col, header in zip(header_cols, headers):
+                                col.markdown(f"**{header}**")
+                        
+                            # Loop para criar uma linha para cada ASO
+                            for index, row in latest_aso.iterrows():
+                                # Usa colunas para alinhar os dados e os botões
+                                row_cols = st.columns([2, 2, 2, 3, 1, 1])
+                                
+                                # Exibe as informações do ASO
+                                row_cols[0].write(row.get('tipo_aso', 'N/A'))
+                                row_cols[1].write(row['data_aso'].strftime('%d/%m/%Y') if isinstance(row['data_aso'], date) else 'N/A')
+                                row_cols[2].write(row['vencimento'].strftime('%d/%m/%Y') if isinstance(row['vencimento'], date) else 'N/A')
+                                row_cols[3].write(row.get('riscos', 'N/A'))
+                        
+                                # Link para o arquivo
+                                if pd.notna(row['arquivo_id']):
+                                    row_cols[4].link_button("🔗", row['arquivo_id'], help="Abrir anexo")
+                                else:
+                                    row_cols[4].write("---")
+                        
+                                # Botão de Excluir com confirmação
+                                with row_cols[5]:
+                                    if st.button("🗑️", key=f"delete_aso_{row['id']}", help="Excluir ASO permanentemente", type="secondary"):
+                                        # Ativa o estado de confirmação para este ASO específico
+                                        st.session_state[f"confirm_delete_aso_{row['id']}"] = True
+                                        st.rerun()
+                        
+                                # Lógica de confirmação que aparece abaixo da linha
+                                if st.session_state.get(f"confirm_delete_aso_{row['id']}", False):
+                                    st.warning(f"**Tem certeza que deseja excluir permanentemente o ASO de '{row['tipo_aso']}'?** Esta ação não pode ser desfeita.")
+                                    
+                                    # Colunas para os botões de Sim/Não
+                                    confirm_cols = st.columns([1, 1, 4]) # Alinha os botões à esquerda
+                                    with confirm_cols[0]:
+                                        if st.button("Sim, excluir", key=f"confirm_del_aso_btn_{row['id']}", type="primary"):
+                                            with st.spinner("Excluindo ASO e arquivo..."):
+                                                if employee_manager.delete_aso(row['id'], row['arquivo_id']):
+                                                    st.success("ASO excluído com sucesso.")
+                                                    del st.session_state[f"confirm_delete_aso_{row['id']}"]
+                                                    st.rerun()
+                                                else:
+                                                    st.error("Falha ao excluir o ASO.")
+                                    
+                                    with confirm_cols[1]:
+                                        if st.button("Cancelar", key=f"cancel_del_aso_btn_{row['id']}"):
+                                            del st.session_state[f"confirm_delete_aso_{row['id']}"]
+                                            st.rerun()
+                                
+                                st.divider() # Adiciona uma linha separadora entre os ASOs
+                        
+                        else:
+                            st.info("Nenhum ASO encontrado.")
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
