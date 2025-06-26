@@ -451,7 +451,78 @@ class EmployeeManager:
             return data + timedelta(days=anos_validade * 365)
         
         return None
+    def archive_training(self, training_id: str, archive: bool = True):
+        """Marca um treinamento como arquivado ou ativo."""
+        from gdrive.config import TRAINING_SHEET_NAME
+        status = "Arquivado" if archive else "Ativo"
+        return self.sheet_ops.update_row_by_id(
+            TRAINING_SHEET_NAME, 
+            training_id, 
+            {'status': status}
+        )
 
+    def delete_training(self, training_id: str, file_url: str):
+        """Deleta permanentemente um treinamento e seu arquivo no Drive."""
+        from gdrive.config import TRAINING_SHEET_NAME
+        uploader = GoogleDriveUploader()
+        if file_url and pd.notna(file_url):
+            if not uploader.delete_file_by_url(file_url):
+                st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo.")
+        
+        return self.sheet_ops.excluir_dados_aba(TRAINING_SHEET_NAME, training_id)
+
+    def delete_aso(self, aso_id: str, file_url: str):
+        """Deleta permanentemente um ASO e seu arquivo no Drive."""
+        from gdrive.config import ASO_SHEET_NAME
+        uploader = GoogleDriveUploader()
+        if file_url and pd.notna(file_url):
+            if not uploader.delete_file_by_url(file_url):
+                st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo.")
+
+        return self.sheet_ops.excluir_dados_aba(ASO_SHEET_NAME, aso_id)
+
+    def archive_all_employee_docs(self, employee_id: str):
+        """Arquiva todos os treinamentos de um funcionário específico."""
+        trainings_to_archive = self.training_df[self.training_df['funcionario_id'] == str(employee_id)]
+        if trainings_to_archive.empty:
+            st.info("Funcionário não possui treinamentos para arquivar.")
+            return True
+
+        success_count = 0
+        for index, row in trainings_to_archive.iterrows():
+            if self.archive_training(row['id'], archive=True):
+                success_count += 1
+            
+        if success_count == len(trainings_to_archive):
+            st.cache_data.clear()
+            self.load_data()
+            return True
+        else:
+            st.error("Alguns treinamentos não puderam ser arquivados.")
+            return False
+
+    def delete_all_employee_data(self, employee_id: str):
+        """Exclui permanentemente um funcionário, seus ASOs, treinamentos e todos os arquivos associados."""
+        from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
+        
+        print(f"Iniciando exclusão total para o funcionário ID: {employee_id}")
+        
+        trainings_to_delete = self.training_df[self.training_df['funcionario_id'] == str(employee_id)]
+        for index, row in trainings_to_delete.iterrows():
+            self.delete_training(row['id'], row.get('arquivo_id'))
+        
+        asos_to_delete = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)]
+        for index, row in asos_to_delete.iterrows():
+            self.delete_aso(row['id'], row.get('arquivo_id'))
+        
+        if self.sheet_ops.excluir_dados_aba(EMPLOYEE_DATA_SHEET_NAME, employee_id):
+            print(f"Registro do funcionário ID {employee_id} excluído da planilha.")
+            st.cache_data.clear()
+            self.load_data()
+            return True
+        else:
+            st.error(f"Falha ao excluir o registro principal do funcionário ID {employee_id}.")
+            return False 
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         norma_padronizada = self._padronizar_norma(norma)
         
