@@ -166,7 +166,47 @@ class SheetOperations:
         except Exception as e:
             logging.error(f"Erro ao editar dados na aba '{aba_name}': {e}", exc_info=True)
             return False
-
+    def update_row_by_id(self, aba_name, row_id, new_values_dict):
+        """
+        Atualiza células específicas de uma linha baseada em seu ID.
+        Args:
+            aba_name (str): Nome da aba.
+            row_id (str): ID da linha a ser atualizada.
+            new_values_dict (dict): Dicionário onde a chave é o nome da coluna e o valor é o novo valor.
+        """
+        if not self.credentials or not self.my_archive_google_sheets:
+            return False
+        try:
+            archive = self.credentials.open_by_url(self.my_archive_google_sheets)
+            aba = archive.worksheet_by_title(aba_name)
+            
+            # Encontra a linha pelo ID e o índice das colunas a serem atualizadas
+            header = aba.get_row(1)
+            col_indices = {col_name: i + 1 for i, col_name in enumerate(header)}
+            
+            # Encontra o número da linha que corresponde ao ID
+            id_column_data = aba.get_col(1, include_tailing_empty=False)
+            if str(row_id) not in id_column_data:
+                logging.error(f"ID {row_id} não encontrado na aba '{aba_name}'.")
+                return False
+                
+            row_number_to_update = id_column_data.index(str(row_id)) + 1
+            
+            # Atualiza as células
+            for col_name, new_value in new_values_dict.items():
+                if col_name in col_indices:
+                    col_index_to_update = col_indices[col_name]
+                    aba.update_value((row_number_to_update, col_index_to_update), new_value)
+                else:
+                    logging.warning(f"Coluna '{col_name}' não encontrada no cabeçalho da aba '{aba_name}'.")
+    
+            logging.info(f"Linha com ID {row_id} na aba '{aba_name}' atualizada com sucesso.")
+            return True
+    
+        except Exception as e:
+            logging.error(f"Erro ao atualizar linha na aba '{aba_name}': {e}", exc_info=True)
+            return False 
+            
     def excluir_dados_aba(self, aba_name, id):
         """
         Exclui dados em uma aba específica do Google Sheets.
