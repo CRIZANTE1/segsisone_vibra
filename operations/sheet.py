@@ -295,7 +295,78 @@ class SheetOperations:
         except Exception as e:
             logging.error(f"Erro ao excluir dados: {e}", exc_info=True)
             return False
-        
+    def update_row_by_id(self, aba_name, row_id, new_values_dict):
+        """
+        Atualiza células específicas de uma linha baseada em seu ID.
+        Args:
+            aba_name (str): Nome da aba.
+            row_id (str): ID da linha a ser atualizada.
+            new_values_dict (dict): Dicionário onde a chave é o nome da coluna e o valor é o novo valor.
+        """
+        if not self.credentials or not self.my_archive_google_sheets:
+            return False
+        try:
+            archive = self.credentials.open_by_url(self.my_archive_google_sheets)
+            aba = archive.worksheet_by_title(aba_name)
+            
+            # Pega o cabeçalho para encontrar o índice das colunas
+            header = aba.get_row(1, include_tailing_empty=False)
+            col_indices = {col_name: i + 1 for i, col_name in enumerate(header)}
+            
+            # Encontra o número da linha que corresponde ao ID (coluna 1)
+            id_column_data = aba.get_col(1, include_tailing_empty=False)
+            if str(row_id) not in id_column_data:
+                logging.error(f"ID {row_id} não encontrado na aba '{aba_name}'.")
+                return False
+            
+            # O índice da lista + 1 nos dá o número da linha na planilha
+            row_number_to_update = id_column_data.index(str(row_id)) + 1
+            
+            # Cria uma lista de células para atualizar em lote
+            cell_updates = []
+            for col_name, new_value in new_values_dict.items():
+                if col_name in col_indices:
+                    col_index_to_update = col_indices[col_name]
+                    cell = aba.cell((row_number_to_update, col_index_to_update))
+                    cell.value = new_value
+                    cell_updates.append(cell)
+                else:
+                    logging.warning(f"Coluna '{col_name}' não encontrada no cabeçalho da aba '{aba_name}'.")
+    
+            # Atualiza todas as células de uma vez (mais eficiente)
+            if cell_updates:
+                aba.update_cells(cell_updates)
+    
+            logging.info(f"Linha com ID {row_id} na aba '{aba_name}' atualizada com sucesso.")
+            return True
+    
+        except Exception as e:
+            logging.error(f"Erro ao atualizar linha na aba '{aba_name}': {e}", exc_info=True)
+            return False
+
+
+    def add_column_if_not_exists(self, aba_name, column_name):
+        """Adiciona uma nova coluna à planilha se ela ainda não existir."""
+        if not self.credentials or not self.my_archive_google_sheets:
+            return False
+        try:
+            archive = self.credentials.open_by_url(self.my_archive_google_sheets)
+            aba = archive.worksheet_by_title(aba_name)
+            
+            header = aba.get_row(1)
+            if column_name not in header:
+                # Encontra a primeira coluna vazia para adicionar o novo cabeçalho
+                new_col_index = len(header) + 1
+                aba.update_value((1, new_col_index), column_name)
+                logging.info(f"Coluna '{column_name}' adicionada à aba '{aba_name}'.")
+                return True
+            else:
+                logging.info(f"Coluna '{column_name}' já existe na aba '{aba_name}'.")
+                return True
+                
+        except Exception as e:
+            logging.error(f"Erro ao adicionar coluna na aba '{aba_name}': {e}", exc_info=True)
+            return False   
 # Em implemação -----------------------------------------------------------------------------
     def add_user(self, user_data):
         
