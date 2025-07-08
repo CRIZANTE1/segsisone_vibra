@@ -555,18 +555,14 @@ class EmployeeManager:
                 if carga_horaria < 8:
                     return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
         
-        # Lógica para Permissão de Trabalho (PT) - CORRIGIDO
+        # Lógica para Permissão de Trabalho (PT)
         elif norma_padronizada == "PERMISSÃO DE TRABALHO (PT)":
             modulo_lower = str(modulo).lower()
-            
-            # Validação para o módulo Emitente
             if "emitente" in modulo_lower:
                 if tipo_treinamento == 'formação' and carga_horaria < 16:
                     return False, f"Carga horária para formação de Emitente de PT deve ser de 16h, mas foi de {carga_horaria}h."
                 elif tipo_treinamento == 'reciclagem' and carga_horaria < 4:
                     return False, f"Carga horária para reciclagem de Emitente de PT deve ser de 4h, mas foi de {carga_horaria}h."
-
-            # Validação para o módulo Requisitante
             elif "requisitante" in modulo_lower:
                 if tipo_treinamento == 'formação' and carga_horaria < 8:
                     return False, f"Carga horária para formação de Requisitante de PT deve ser de 8h, mas foi de {carga_horaria}h."
@@ -599,5 +595,5 @@ class EmployeeManager:
                     return False, f"Carga horária para reciclagem de Resgate Técnico Industrial (NBR 16710) deve ser de no mínimo 24h, mas foi de {carga_horaria}h."
         
         # Se nenhuma das condições de falha for atendida, o treinamento é considerado conforme.
-        return True, "Carga horária conforme.
+        return True, "Carga horária conforme."
 
