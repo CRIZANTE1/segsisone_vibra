@@ -63,7 +63,8 @@ class EmployeeManager:
             'NR-33': {'reciclagem_anos': 1},
             'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1},
             'NR-11': {'reciclagem_anos': 3, 'reciclagem_horas': 16},
-            'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1}
+            'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1},
+            'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
         
 
@@ -183,8 +184,8 @@ class EmployeeManager:
             **JSON a ser preenchido:**
             ```json
             {
-            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'NBR 16710' 'Brigada de Incêndio', 'IT-17','NR-11', 'NR-35').",
-            "modulo": "O módulo específico do treinamento (ex: 'Resgate Técnico Industrial', 'Operador de Empilhadeira', 'Munck', 'Guindauto','Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo ex se vier 'Intermediário Nível III' considere apenas 'Intermediário'.",
+            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'NBR 16710' 'Brigada de Incêndio', 'IT-17','NR-11', 'NR-35', Permissão de Trabalho).",
+            "modulo": "O módulo específico do treinamento (ex: 'Emitente', 'Requisitante', 'Resgate Técnico Industrial', 'Operador de Empilhadeira', 'Munck', 'Guindauto','Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo ex se vier 'Intermediário Nível III' considere apenas 'Intermediário'.",
             "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
             "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem' se não estiver descrito será 'formação'.",
             "carga_horaria": "A carga horária total do treinamento, apenas o número."
@@ -374,21 +375,26 @@ class EmployeeManager:
         if not norma:
             return None
         
+        # Converte para maiúsculas e remove espaços extras no início/fim
         norma_upper = str(norma).strip().upper()
     
+
+        # Regra 1: Brigada de Incêndio
         if "BRIGADA" in norma_upper or "INCÊNDIO" in norma_upper or "IT-17" in norma_upper or "IT 17" in norma_upper or "NR-23" in norma_upper or "NR 23" in norma_upper:
             return "BRIGADA DE INCÊNDIO"
 
+        # Regra 2: NBR 16710 (Resgate Técnico)
         if "16710" in norma_upper or "RESGATE TÉCNICO" in norma_upper:
             return "NBR-16710 RESGATE TÉCNICO"
+        
+        if "PERMISSÃO" in norma_upper or re.search(r'\b(PT)\b', norma_upper): 
+            return "PERMISSÃO DE TRABALHO (PT)"
             
-        norma_padronizada = norma_upper.replace("NR ", "NR-")
-        parts = norma_padronizada.split('-')
-        if len(parts) == 2 and parts[0] == "NR" and parts[1].isdigit():
-            num_str = parts[1]
-            if len(num_str) == 1:
-                return f"NR-0{num_str}"
-            return norma_padronizada
+        # Regra 4: NRs numéricas (ex: NR-10, NR 11, NR-06)
+        match = re.search(r'NR\s?-?(\d+)', norma_upper)
+        if match:
+            num = int(match.group(1))
+            return f"NR-{num:02d}" # Formata com zero à esquerda (ex: NR-06)
             
         return norma_upper
 
@@ -548,7 +554,25 @@ class EmployeeManager:
             elif tipo_treinamento == 'reciclagem':
                 if carga_horaria < 8:
                     return False, f"Carga horária para reciclagem (NR-33) deve ser de 8h, mas foi de {carga_horaria}h."
-                    
+        
+        # Lógica para Permissão de Trabalho (PT) - CORRIGIDO
+        elif norma_padronizada == "PERMISSÃO DE TRABALHO (PT)":
+            modulo_lower = str(modulo).lower()
+            
+            # Validação para o módulo Emitente
+            if "emitente" in modulo_lower:
+                if tipo_treinamento == 'formação' and carga_horaria < 16:
+                    return False, f"Carga horária para formação de Emitente de PT deve ser de 16h, mas foi de {carga_horaria}h."
+                elif tipo_treinamento == 'reciclagem' and carga_horaria < 4:
+                    return False, f"Carga horária para reciclagem de Emitente de PT deve ser de 4h, mas foi de {carga_horaria}h."
+
+            # Validação para o módulo Requisitante
+            elif "requisitante" in modulo_lower:
+                if tipo_treinamento == 'formação' and carga_horaria < 8:
+                    return False, f"Carga horária para formação de Requisitante de PT deve ser de 8h, mas foi de {carga_horaria}h."
+                elif tipo_treinamento == 'reciclagem' and carga_horaria < 4:
+                    return False, f"Carga horária para reciclagem de Requisitante de PT deve ser de 4h, mas foi de {carga_horaria}h."
+          
         # Lógica para Brigada de Incêndio
         elif norma_padronizada == "BRIGADA DE INCÊNDIO":
             is_avancado = "avançado" in str(modulo).lower()
@@ -558,25 +582,22 @@ class EmployeeManager:
                 elif tipo_treinamento == 'reciclagem' and carga_horaria < 16:
                     return False, f"Carga horária para reciclagem de Brigada Avançada deve ser de 16h, mas foi de {carga_horaria}h."
 
-        # Lógica para NR-11 (CORRIGIDA)
+        # Lógica para NR-11
         elif norma_padronizada == "NR-11":
             if tipo_treinamento == 'formação' and carga_horaria < 16:
-                # A norma não especifica, mas 16h é um mínimo comum. Ajuste se necessário.
                 return False, f"Carga horária para formação (NR-11) parece baixa ({carga_horaria}h). O mínimo comum é 16h."
-            # Usando 'elif' para garantir que os blocos são mutuamente exclusivos
             elif tipo_treinamento == 'reciclagem' and carga_horaria < 16:
                  return False, f"Carga horária para reciclagem (NR-11) deve ser de 16h, mas foi de {carga_horaria}h."
         
-        # Lógica para NBR 16710 (ADICIONADA)
+        # Lógica para NBR 16710
         elif norma_padronizada == "NBR-16710 RESGATE TÉCNICO":
             is_industrial_rescue = "industrial" in str(modulo).lower()
             if is_industrial_rescue:
-                # A NBR não define C.H. de reciclagem, mas adotamos 24h como prática comum.
                 if tipo_treinamento == 'formação' and carga_horaria < 24:
                     return False, f"Carga horária para formação de Resgate Técnico Industrial (NBR 16710) deve ser de no mínimo 24h, mas foi de {carga_horaria}h."
                 elif tipo_treinamento == 'reciclagem' and carga_horaria < 24:
                     return False, f"Carga horária para reciclagem de Resgate Técnico Industrial (NBR 16710) deve ser de no mínimo 24h, mas foi de {carga_horaria}h."
         
         # Se nenhuma das condições de falha for atendida, o treinamento é considerado conforme.
-        return True, "Carga horária conforme."
+        return True, "Carga horária conforme.
 
