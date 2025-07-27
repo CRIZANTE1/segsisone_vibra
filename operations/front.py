@@ -11,7 +11,8 @@ from ui.ui_helpers import (
     highlight_expired,
     process_aso_pdf,
     process_training_pdf,
-    process_company_doc_pdf
+    process_company_doc_pdf,
+    process_epi_pdf
 )
 
 
@@ -21,12 +22,16 @@ def front_page():
         st.session_state.employee_manager = EmployeeManager()
     if 'docs_manager' not in st.session_state:
         st.session_state.docs_manager = CompanyDocsManager()
+    if 'epi_manager' not in st.session_state:
+        st.session_state.epi_manager = EPIManager()    
     
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
     
     employee_manager.load_data()
     docs_manager.load_company_data()
+    epi_manager.load_epi_data()
     
     gdrive_uploader = GoogleDriveUploader()
     
@@ -43,7 +48,7 @@ def front_page():
         )
     
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento = st.tabs([
-        "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento"
+        "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento", "Adicionar Ficha de EPI"        
     ])
 
     with tab_situacao:
@@ -109,7 +114,29 @@ def front_page():
             else:
                 st.info("Nenhum funcionário cadastrado para esta empresa.")
 
-            st.markdown("---")
+            st.markdown("Equipamentos de Proteção Individual (EPIs)")
+                            all_epis = epi_manager.get_epi_by_employee(employee_id)
+                            if not all_epis.empty:
+                                epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
+                                st.dataframe(
+                                    all_epis[epi_display_cols],
+                                    column_config={
+                                        "descricao_epi": "Equipamento",
+                                        "ca_epi": "C.A.",
+                                        "data_entrega": "Data de Entrega",
+                                        "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")
+                                    },
+                                    hide_index=True, use_container_width=True
+                                )
+                            else:
+                                st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
+    
+                else:
+                    st.info("Nenhum funcionário cadastrado para esta empresa.")
+                
+                st.markdown("---")
+
+            
             with st.expander("📖 Histórico de Auditorias de Conformidade"):
                 audit_history = docs_manager.get_audits_by_company(selected_company)
                 
