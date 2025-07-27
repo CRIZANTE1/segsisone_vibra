@@ -17,6 +17,7 @@ TRAINING_SHEET_NAME = "treinamento"  # Aba para treinamentos
 ADM_SHEET_NAME = "ADM"  # Aba para administradores
 AUDIT_RESULTS_SHEET_NAME = "auditorias"
 COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
+EPI_SHEET_NAME = "fichas_epi"
 
 def get_credentials_dict():
     """
