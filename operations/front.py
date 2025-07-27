@@ -5,6 +5,7 @@ from operations.company_docs import CompanyDocsManager
 from gdrive.gdrive_upload import GoogleDriveUploader
 import pandas as pd
 from auth.auth_utils import check_admin_permission
+from operations.epi import EPIManager
 
 from ui.ui_helpers import (
     mostrar_info_normas,
