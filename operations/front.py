@@ -186,6 +186,68 @@ def front_page():
                 else:
                     st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
 
+    
+    with tab_add_epi:
+        if selected_company:
+            if check_admin_permission():
+                st.subheader("Adicionar Nova Ficha de EPI")
+                current_employees = employee_manager.get_employees_by_company(selected_company)
+                if not current_employees.empty:
+                    st.selectbox("Funcionário", current_employees['id'].tolist(), format_func=employee_manager.get_employee_name, key="epi_employee_add")
+                    st.file_uploader("Anexar Ficha de EPI (PDF)", type=['pdf'], key="epi_uploader_tab", on_change=process_epi_pdf)
+                    
+                    if st.session_state.get('epi_info_para_salvar'):
+                        epi_info = st.session_state.epi_info_para_salvar
+                        if epi_info and epi_info.get('itens_epi'):
+                            with st.container(border=True):
+                                st.markdown("### Confirme as Informações Extraídas")
+                                
+                                # Validação do nome do funcionário
+                                nome_extraido = epi_info.get('nome_funcionario', 'N/A')
+                                funcionario_selecionado_id = st.session_state.epi_funcionario_para_salvar
+                                nome_selecionado = employee_manager.get_employee_name(funcionario_selecionado_id)
+                                
+                                st.write(f"**Funcionário no PDF:** {nome_extraido}")
+                                st.write(f"**Funcionário Selecionado:** {nome_selecionado}")
+                                
+                                if nome_extraido.lower() not in nome_selecionado.lower():
+                                    st.warning("Atenção: O nome do funcionário no PDF não parece corresponder ao funcionário selecionado. Prossiga com cuidado.")
+                                
+                                st.markdown("**Itens de EPI encontrados na ficha:**")
+                                itens_df = pd.DataFrame(epi_info['itens_epi'])
+                                st.dataframe(itens_df, hide_index=True, use_container_width=True)
+
+                                if st.button("Confirmar e Salvar Itens da Ficha de EPI", type="primary"):
+                                    with st.spinner("Salvando Ficha de EPI..."):
+                                        anexo_epi = st.session_state.epi_anexo_para_salvar
+                                        
+                                        # Upload do arquivo PDF
+                                        arquivo_id = gdrive_uploader.upload_file(anexo_epi, f"EPI_{nome_selecionado}_{date.today().strftime('%Y-%m-%d')}")
+                                        
+                                        if arquivo_id:
+                                            # Adiciona os registros na planilha
+                                            saved_ids = epi_manager.add_epi_records(funcionario_selecionado_id, arquivo_id, epi_info['itens_epi'])
+                                            
+                                            if saved_ids:
+                                                st.success(f"{len(saved_ids)} item(ns) de EPI salvos com sucesso!")
+                                                # Limpa o estado da sessão para resetar a interface
+                                                for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar']:
+                                                    if key in st.session_state: del st.session_state[key]
+                                                st.rerun()
+                                            else:
+                                                st.error("Falha ao salvar os dados na planilha.")
+                                        else:
+                                            st.error("Falha ao fazer o upload do anexo para o Google Drive.")
+                        else:
+                            st.error("Não foi possível extrair itens de EPI válidos do PDF.")
+                            if 'epi_info_para_salvar' in st.session_state: del st.session_state['epi_info_para_salvar']
+                else:
+                    st.warning("Cadastre funcionários nesta empresa primeiro.")
+            else:
+                st.error("Você não tem permissão para esta ação.")
+        else:
+            st.info("Selecione uma empresa na primeira aba para adicionar Fichas de EPI.")
+            
     with tab_add_doc_empresa:
         if selected_company:
             if check_admin_permission():
