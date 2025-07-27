@@ -111,30 +111,24 @@ def front_page():
                             training_reordered_df = all_trainings[training_display_cols]
                             st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
                         else: st.info("Nenhum treinamento encontrado.")
-            else:
-                st.info("Nenhum funcionário cadastrado para esta empresa.")
 
-            st.markdown("Equipamentos de Proteção Individual (EPIs)")
-                            all_epis = epi_manager.get_epi_by_employee(employee_id)
-                            if not all_epis.empty:
-                                epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
-                                st.dataframe(
-                                    all_epis[epi_display_cols],
-                                    column_config={
-                                        "descricao_epi": "Equipamento",
-                                        "ca_epi": "C.A.",
-                                        "data_entrega": "Data de Entrega",
-                                        "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")
-                                    },
-                                    hide_index=True, use_container_width=True
-                                )
-                            else:
-                                st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
-    
-                else:
-                    st.info("Nenhum funcionário cadastrado para esta empresa.")
+                        st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
+                        all_epis = epi_manager.get_epi_by_employee(employee_id)
+                        if not all_epis.empty:
+                            epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
+                            st.dataframe(
+                                all_epis[epi_display_cols],
+                                column_config={
+                                    "descricao_epi": "Equipamento",
+                                    "ca_epi": "C.A.",
+                                    "data_entrega": "Data de Entrega",
+                                    "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")
+                                },
+                                hide_index=True, use_container_width=True
+                            )
+                        else:
+                            st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
                 
-                st.markdown("---")
 
             
             with st.expander("📖 Histórico de Auditorias de Conformidade"):
