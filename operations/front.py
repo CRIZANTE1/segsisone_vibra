@@ -47,7 +47,7 @@ def front_page():
             key="company_select"
         )
     
-    tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento = st.tabs([
+    tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
         "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento", "Adicionar Ficha de EPI"        
     ])
 
