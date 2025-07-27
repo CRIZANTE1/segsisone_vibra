@@ -68,3 +68,12 @@ def process_company_doc_pdf():
         with st.spinner("Analisando PDF do documento..."):
             st.session_state.doc_anexo_para_salvar = st.session_state.doc_uploader_tab
             st.session_state.doc_info_para_salvar = docs_manager.analyze_company_doc_pdf(st.session_state.doc_uploader_tab)
+
+def process_epi_pdf():
+    """Callback para analisar a Ficha de EPI quando o arquivo é carregado."""
+    if st.session_state.get('epi_uploader_tab'):
+        epi_manager = st.session_state.epi_manager
+        with st.spinner("Analisando PDF da Ficha de EPI..."):
+            st.session_state.epi_anexo_para_salvar = st.session_state.epi_uploader_tab
+            st.session_state.epi_funcionario_para_salvar = st.session_state.epi_employee_add
+            st.session_state.epi_info_para_salvar = epi_manager.analyze_epi_pdf(st.session_state.epi_uploader_tab)            
