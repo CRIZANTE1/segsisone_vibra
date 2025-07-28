@@ -21,13 +21,9 @@ from google.oauth2.service_account import Credentials
 def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
     """
     Carrega a planilha RAG, gera embeddings para cada chunk e armazena em cache.
-    Esta é a etapa de "indexação" que acontece uma vez.
     """
-    if not embedding_model:
-        st.warning("Modelo de embedding não está disponível. A análise RAG será desativada.")
-        return pd.DataFrame(), None
-        
     try:
+        # Carrega os dados da planilha
         scopes = ['https://www.googleapis.com/auth/spreadsheets']
         creds_dict = get_credentials_dict()
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -40,17 +36,22 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
             st.error("A planilha RAG está vazia ou não contém a coluna 'Answer_Chunk'.")
             return pd.DataFrame(), None
 
-        with st.spinner(f"Indexando a base de conhecimento ({len(df)} itens)... Isso acontece apenas uma vez."):
-            # Gera embeddings para todos os chunks de uma vez
+        with st.spinner(f"Indexando a base de conhecimento ({len(df)} itens)..."):
             chunks_to_embed = df["Answer_Chunk"].tolist()
-            result = embedding_model.embed_content(chunks_to_embed, task_type="RETRIEVAL_DOCUMENT")
+            result = genai.embed_content(
+                model='models/text-embedding-004',
+                content=chunks_to_embed,
+                task_type="RETRIEVAL_DOCUMENT"
+            )
             embeddings = np.array(result['embedding'])
         
         st.success("Base de conhecimento indexada e pronta para uso!")
         return df, embeddings
 
     except Exception as e:
+        # Se a chave de API não estiver configurada, um erro será capturado aqui.
         st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
+        st.warning("Verifique se a chave GEMINI_AUDIT_KEY está configurada corretamente nos secrets.")
         return pd.DataFrame(), None
 
 class NRAnalyzer:
