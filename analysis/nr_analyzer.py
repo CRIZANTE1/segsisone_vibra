@@ -52,6 +52,7 @@ def load_unified_rag_base(sheet_id: str) -> pd.DataFrame:
 class NRAnalyzer:
     def __init__(self):
         self.pdf_analyzer = PDFQA()
+        self.action_plan_manager = ActionPlanManager()
         from operations.sheet import SheetOperations
         self.sheet_ops = SheetOperations()
         try:
@@ -211,3 +212,21 @@ class NRAnalyzer:
                 saved_count += 1
 
         return saved_count == total_items
+
+    def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str):
+        """Cria itens no plano de ação para cada falha encontrada na auditoria."""
+        if audit_result.get("summary", "").lower() != 'não conforme':
+            return 0 # Nenhum item criado
+
+        non_compliant_items = [d for d in audit_result.get("details", []) if d.get("status", "").lower() == "não conforme"]
+        if not non_compliant_items:
+            return 0
+
+        audit_run_id = f"audit_{doc_id}" 
+        
+        created_count = 0
+        for item in non_compliant_items:
+            if self.action_plan_manager.add_action_item(audit_run_id, company_id, doc_id, item):
+                created_count += 1
+        
+        return created_count
