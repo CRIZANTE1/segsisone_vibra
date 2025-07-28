@@ -71,10 +71,11 @@ class NRAnalyzer:
         try:
             self.rag_sheet_id = st.secrets.app_settings.get("rag_sheet_id")
             if not self.rag_sheet_id:
-                st.error("ID da planilha RAG unificada ('rag_sheet_id') não encontrado nos secrets.")
+                st.error("ID da planilha RAG ('rag_sheet_id') não encontrado nos secrets.")
             else:
-                # Carrega e gera os embeddings na inicialização da classe
                 self.rag_df, self.rag_embeddings = load_and_embed_rag_base(self.rag_sheet_id)
+        except (AttributeError, KeyError):
+            st.error("Seção [app_settings] com 'rag_sheet_id' não encontrada no secrets.toml.")
 
         except (AttributeError, KeyError):
             st.error("A seção [app_settings] com 'rag_sheet_id' não foi encontrada no seu secrets.toml.")
@@ -180,7 +181,10 @@ class NRAnalyzer:
             return {"summary": "Falha na Análise (Erro de JSON)", "details": [{"item_verificacao": "Resposta Bruta da IA", "observacao": json_string, "status": "Não Conforme"}]}
 
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str):
-        # (Esta função não precisa de alterações)
+        """
+        Cria itens no plano de ação para cada falha encontrada na auditoria.
+        Agora, `self.action_plan_manager` existe e esta função funcionará.
+        """
         if audit_result.get("summary", "").lower() == 'conforme':
             return 0
         non_compliant_items = [d for d in audit_result.get("details", []) if d.get("status", "").lower() == "não conforme"]
