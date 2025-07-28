@@ -20,10 +20,10 @@ from datetime import datetime
 @st.cache_data(ttl=3600)
 def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
     """
-    Carrega a planilha RAG, gera embeddings para cada chunk e armazena em cache.
+    Carrega a planilha RAG, gera embeddings em lotes com uma barra de progresso,
+    e armazena os resultados em cache.
     """
     try:
-        # Carrega os dados da planilha
         scopes = ['https://www.googleapis.com/auth/spreadsheets']
         creds_dict = get_credentials_dict()
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -36,22 +36,31 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
             st.error("A planilha RAG está vazia ou não contém a coluna 'Answer_Chunk'.")
             return pd.DataFrame(), None
 
-        with st.spinner(f"Indexando a base de conhecimento ({len(df)} itens)..."):
-            chunks_to_embed = df["Answer_Chunk"].tolist()
+        progress_bar = st.progress(0, text="Iniciando indexação da base de conhecimento...")
+        chunks_to_embed = df["Answer_Chunk"].tolist()
+        all_embeddings = []
+        batch_size = 100
+        
+        for i in range(0, len(chunks_to_embed), batch_size):
+            batch = chunks_to_embed[i:i+batch_size]
             result = genai.embed_content(
                 model='models/text-embedding-004',
-                content=chunks_to_embed,
+                content=batch,
                 task_type="RETRIEVAL_DOCUMENT"
             )
-            embeddings = np.array(result['embedding'])
-        
+            all_embeddings.extend(result['embedding'])
+            progress_value = min((i + batch_size) / len(chunks_to_embed), 1.0)
+            progress_bar.progress(progress_value, text=f"Indexando item {i+batch_size} de {len(chunks_to_embed)}...")
+            time.sleep(0.1) 
+
+        embeddings = np.array(all_embeddings)
+        progress_bar.empty()
         st.success("Base de conhecimento indexada e pronta para uso!")
         return df, embeddings
 
     except Exception as e:
-        # Se a chave de API não estiver configurada, um erro será capturado aqui.
         st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
-        st.warning("Verifique se a chave GEMINI_AUDIT_KEY está configurada corretamente nos secrets.")
+        st.warning("Verifique sua chave de API e os limites de quota.")
         return pd.DataFrame(), None
 
 class NRAnalyzer:
