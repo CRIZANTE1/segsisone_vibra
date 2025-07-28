@@ -32,7 +32,18 @@ class ActionPlanManager:
     def load_data(self):
         try:
             data = self.sheet_ops.carregar_dados_aba(ACTION_PLAN_SHEET_NAME)
-            self.action_plan_df = pd.DataFrame(data[1:], columns=data[0]) if data and len(data) > 0 else pd.DataFrame()
+            if data and len(data) > 1:
+                df = pd.DataFrame(data[1:], columns=data[0])
+          
+                df.columns = [col.strip().lower() for col in df.columns]
+                self.action_plan_df = df
+            else:
+                columns = [
+                    'id', 'audit_run_id', 'id_empresa', 'id_documento_original',
+                    'item_nao_conforme', 'referencia_normativa', 'plano_de_acao',
+                    'responsavel', 'prazo', 'status', 'data_criacao', 'data_conclusao'
+                ]
+                self.action_plan_df = pd.DataFrame(columns=columns)
         except Exception as e:
             st.error(f"Erro ao carregar dados de Planos de Ação: {e}")
             self.action_plan_df = pd.DataFrame()
