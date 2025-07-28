@@ -34,65 +34,53 @@ selected_company_id = st.selectbox(
 
 if selected_company_id:
     company_name = employee_manager.get_company_name(selected_company_id) or f"Empresa (ID: {selected_company_id})"
+    
+    st.header(f"Itens Pendentes para: {company_name}")
     action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
     
-    pending_count = 0
+    # Pré-carrega todos os DataFrames para buscas eficientes
+    asos_df = employee_manager.aso_df
+    trainings_df = employee_manager.training_df
+    company_docs_df = docs_manager.docs_df # DataFrame dos documentos da empresa
+    
     if not action_items_df.empty and 'status' in action_items_df.columns:
         pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
-        pending_count = len(pending_items)
-
-    # Atualiza o título se houver pendências
-    if pending_count > 0:
-        page_title = f"📋 ({pending_count}) Plano de Ação para {company_name}"
     else:
-        page_title = f"📋 Plano de Ação para {company_name}"
-        
-    # Escreve o título na página APÓS o cálculo
-    st.title(page_title)    
-    
+        pending_items = pd.DataFrame()
+
     if pending_items.empty:
         st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
     else:
-        # Pré-carrega os DataFrames necessários para a busca de contexto
-        asos_df = employee_manager.aso_df
-        trainings_df = employee_manager.training_df
-        company_docs_df = docs_manager.docs_df
-    
-    
         for index, row in pending_items.iterrows():
             with st.container(border=True):
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
 
-                # --- LÓGICA DE BUSCA APRIMORADA (AGORA INCLUI URL) ---
                 original_doc_id = row.get('id_documento_original')
                 employee_id = None
                 doc_type_context = "Documento da Empresa"
-                pdf_url = "" # <-- Inicializa a variável da URL
+                pdf_url = "" 
 
-                # 1. Tenta encontrar o doc em ASOs
                 aso_entry = asos_df[asos_df['id'] == original_doc_id]
                 if not aso_entry.empty:
                     entry = aso_entry.iloc[0]
                     employee_id = entry.get('funcionario_id')
                     doc_type_context = f"ASO ({entry.get('tipo_aso', '')})"
-                    pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
+                    pdf_url = entry.get('arquivo_id', '') 
 
-                # 2. Se não encontrou, tenta em Treinamentos
                 if not pdf_url:
                     training_entry = trainings_df[trainings_df['id'] == original_doc_id]
                     if not training_entry.empty:
                         entry = training_entry.iloc[0]
                         employee_id = entry.get('funcionario_id')
                         doc_type_context = f"Treinamento ({entry.get('norma', '')})"
-                        pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
+                        pdf_url = entry.get('arquivo_id', '') 
 
-                # 3. Se ainda não encontrou, tenta nos Documentos da Empresa
                 if not pdf_url:
                     company_doc_entry = company_docs_df[company_docs_df['id'] == original_doc_id]
                     if not company_doc_entry.empty:
                         entry = company_doc_entry.iloc[0]
                         doc_type_context = f"Doc. Empresa ({entry.get('tipo_documento', '')})"
-                        pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
+                        pdf_url = entry.get('arquivo_id', '') 
 
                 # 4. Busca o nome do funcionário
                 employee_info = ""
