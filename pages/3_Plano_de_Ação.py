@@ -37,7 +37,9 @@ if selected_company_id:
     st.header(f"Itens Pendentes para: {company_name}")
     action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
     
-    all_audit_history = docs_manager.get_audits_by_company(selected_company_id)
+    # Pré-carrega os DataFrames de ASO e Treinamento para buscas eficientes
+    asos_df = employee_manager.aso_df
+    trainings_df = employee_manager.training_df
     
     if not action_items_df.empty and 'status' in action_items_df.columns:
         pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
@@ -49,29 +51,45 @@ if selected_company_id:
     else:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
-                
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
 
+                # --- NOVA LÓGICA DE BUSCA EM CASCATA ---
                 original_doc_id = row.get('id_documento_original')
-                context_info = f"**Documento ID:** {original_doc_id}" # Fallback
-                
-                if not all_audit_history.empty:
-                    audit_entry = all_audit_history[all_audit_history['id_documento_original'] == original_doc_id]
-                    if not audit_entry.empty:
-                        first_entry = audit_entry.iloc[0]
-                        doc_type = first_entry.get('tipo_documento', 'Documento')
-                        employee_id = first_entry.get('id_funcionario')
+                employee_id = None
+                doc_type_context = "Documento da Empresa"
 
-                        if employee_id and str(employee_id).lower() != 'n/a':
-                            employee_name = employee_manager.get_employee_name(employee_id)
-                            if employee_name:
-                                context_info = f"👤 **Funcionário:** {employee_name} | **Documento:** {doc_type} (ID: {original_doc_id})"
-                            else:
-                                context_info = f"👤 **Funcionário (ID: {employee_id})** | **Documento:** {doc_type} (ID: {original_doc_id})"
-                        else:
-                            context_info = f"🏢 **Empresa** | **Documento:** {doc_type} (ID: {original_doc_id})"
+                # 1. Tenta encontrar o documento na tabela de ASOs
+                aso_entry = asos_df[asos_df['id'] == original_doc_id]
+                if not aso_entry.empty:
+                    employee_id = aso_entry.iloc[0].get('funcionario_id')
+                    doc_type_context = f"ASO ({aso_entry.iloc[0].get('tipo_aso', '')})"
+
+                # 2. Se não encontrou, tenta na tabela de Treinamentos
+                if employee_id is None:
+                    training_entry = trainings_df[trainings_df['id'] == original_doc_id]
+                    if not training_entry.empty:
+                        employee_id = training_entry.iloc[0].get('funcionario_id')
+                        doc_type_context = f"Treinamento ({training_entry.iloc[0].get('norma', '')})"
+
+                # 3. Agora, com o employee_id (se encontrado), busca o nome
+                employee_info = ""
+                if employee_id:
+                    employee_name = employee_manager.get_employee_name(employee_id)
+                    if employee_name:
+                        employee_info = f"👤 **Funcionário:** {employee_name} | "
+                    else:
+                        employee_info = f"👤 **Funcionário (ID: {employee_id})** | "
+                else:
+                    employee_info = f"🏢 **Empresa** | "
                 
-                st.caption(f"{context_info} | **Referência:** {row.get('referencia_normativa', 'N/A')}")
+                # Monta e exibe as informações de contexto
+                context_caption = (
+                    f"{employee_info}"
+                    f"**Tipo:** {doc_type_context} | "
+                    f"**Doc ID:** {original_doc_id} | "
+                    f"**Referência:** {row.get('referencia_normativa', 'N/A')}"
+                )
+                st.caption(context_caption)
                 
                 # Layout para status e botão
                 col1, col2 = st.columns([4, 1])
