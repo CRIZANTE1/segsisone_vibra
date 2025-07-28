@@ -445,12 +445,49 @@ class EmployeeManager:
             
         return norma_upper
 
-    def add_training(self, id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
+
+    def add_training(self, training_data: dict):
+        """
+        Adiciona um novo registro de treinamento a partir de um dicionário,
+        lidando com campos opcionais de forma segura.
+        """
         from gdrive.config import TRAINING_SHEET_NAME
-        if not all([data, norma, vencimento]):
-            st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando.")
+    
+        funcionario_id = training_data.get('id')
+        data = training_data.get('data')
+        norma = training_data.get('norma')
+        vencimento = training_data.get('vencimento')
+        anexo = training_data.get('anexo')
+        
+        # 2. Valida apenas os campos críticos.
+        if not all([funcionario_id, data, norma, vencimento, anexo]):
+            st.error("Dados críticos (Funcionário, Data, Norma, Vencimento ou Anexo) para o treinamento estão faltando.")
             return None
-        new_data = [str(id), data.strftime("%d/%m/%Y"), vencimento.strftime("%d/%m/%Y"), self._padronizar_norma(norma), str(modulo), str(status), str(anexo), str(tipo_treinamento), str(carga_horaria)]
+    
+        # 3. Extrai os dados opcionais, fornecendo valores padrão.
+        modulo = training_data.get('modulo', 'N/A')
+        status = training_data.get('status', 'Válido')
+        tipo_treinamento = training_data.get('tipo_treinamento', 'Não identificado')
+        carga_horaria = training_data.get('carga_horaria', '0') # Usa string '0' como padrão
+    
+        # 4. Garante que valores vazios se tornem padrões consistentes.
+        modulo_str = str(modulo) if modulo else 'N/A'
+        tipo_treinamento_str = str(tipo_treinamento) if tipo_treinamento else 'Não identificado'
+        carga_horaria_str = str(carga_horaria) if carga_horaria is not None else '0'
+    
+        # 5. Monta a linha a ser inserida na planilha.
+        new_data = [
+            str(funcionario_id),
+            data.strftime("%d/%m/%Y"),
+            vencimento.strftime("%d/%m/%Y"),
+            self._padronizar_norma(norma),
+            modulo_str,
+            str(status),
+            str(anexo),
+            tipo_treinamento_str,
+            carga_horaria_str
+        ]
+        
         try:
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
@@ -459,7 +496,7 @@ class EmployeeManager:
                 return training_id
             return None
         except Exception as e:
-            st.error(f"Erro ao adicionar treinamento: {str(e)}")
+            st.error(f"Erro ao adicionar treinamento na planilha: {str(e)}")
             return None
 
     def get_company_name(self, company_id):
