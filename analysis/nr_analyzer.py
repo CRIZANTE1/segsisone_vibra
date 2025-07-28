@@ -11,6 +11,7 @@ import google.generativeai as genai
 from AI.api_Operation import PDFQA
 from gdrive.config import get_credentials_dict
 from operations.action_plan import ActionPlanManager
+from google.oauth2.service_account import Credentials
 
 
 try:
