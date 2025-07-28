@@ -13,3 +13,4 @@ google-generativeai>=0.3.2
 pygsheets>=2.0.6
 oauth2client
 gspread
+sklearn
