@@ -53,10 +53,11 @@ if selected_company_id:
                     if st.button("Tratar Item", key=f"treat_{row['id']}"):
                         st.session_state.current_item_to_treat = row.to_dict()
                         
-st.markdown("---")
+    st.markdown("---")
     st.header("📖 Histórico Completo de Auditorias")
     
     with st.spinner("Carregando histórico de auditorias..."):
+        # Agora a variável 'docs_manager' existe e esta linha funcionará
         audit_history = docs_manager.get_audits_by_company(selected_company_id)
         
     if audit_history.empty:
@@ -65,21 +66,15 @@ st.markdown("---")
         audit_history_display = audit_history.copy()
         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
-        # Ordena para mostrar as auditorias mais recentes primeiro
         audit_history_display.sort_values(by='data_auditoria', ascending=False, inplace=True)
         
-        # Agrupa os resultados por 'id_auditoria' para exibir um resumo por análise
         for audit_id, group in audit_history_display.groupby('id_auditoria'):
             first_row = group.iloc[0]
-            
-            # Busca pela linha de resumo, que pode conter "Resumo da Auditoria" ou "Resumo Executivo"
             resumo_row = group[group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)]
             
             if not resumo_row.empty:
                 resumo_text = resumo_row.iloc[0]['observacao']
                 status = resumo_row.iloc[0]['Status']
-                
-                # Determina o alvo da auditoria (funcionário ou empresa)
                 target_name = ""
                 emp_id = first_row.get('id_funcionario')
                 if pd.notna(emp_id) and emp_id != 'N/A':
@@ -87,11 +82,9 @@ st.markdown("---")
                 else:
                     target_name = company_name
 
-                # Define o título e a data da auditoria
                 audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
                 audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
                 
-                # Exibe as informações como uma lista contínua
                 st.markdown(f"**Análise de {audit_title}**")
                 st.caption(f"Realizada em: {audit_date}")
                 
@@ -99,7 +92,7 @@ st.markdown("---")
                     st.error(f"**Parecer da IA:** {resumo_text}")
                 else:
                     st.info(f"**Parecer da IA:** {resumo_text}")
-                st.markdown("---") # Separador para a próxima auditoria
+                st.markdown("---")
                     
 if 'current_item_to_treat' in st.session_state:
     item_data = st.session_state.current_item_to_treat
