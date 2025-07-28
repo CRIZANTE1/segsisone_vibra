@@ -122,50 +122,51 @@ class NRAnalyzer:
         
     def _get_advanced_audit_prompt(self, doc_info: dict, relevant_knowledge: str) -> str:
         """
-        PROMPT AVANÇADO: Agora inclui a data atual para dar contexto temporal à IA.
+        PROMPT AVANÇADO: Agora instrui a IA a citar a página e a evidência para cada não conformidade.
         """
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "normas aplicáveis")
-        
         data_atual = datetime.now().strftime('%d/%m/%Y')
 
         return f"""
-        **Persona:** Você é um Auditor Líder de Saúde e Segurança do Trabalho com mais de 20 anos de experiência, especializado em conformidade regulatória no Brasil. Você é extremamente meticuloso e suas conclusões são sempre baseadas em evidências claras.
+        **Persona:** Você é um Auditor Líder de Saúde e Segurança do Trabalho com mais de 20 anos de experiência. Seu trabalho é famoso pela precisão e pela clareza. Para cada apontamento, você SEMPRE fornece a evidência concreta.
 
-        **Contexto Crítico:** A data de hoje é **{data_atual}**. Qualquer data de emissão, aprovação ou assinatura no documento que seja posterior a hoje deve ser considerada uma inconsistência grave, pois um documento não pode ser aprovado no futuro.
+        **Contexto Crítico:** A data de hoje é **{data_atual}**.
 
-        **Contexto da Tarefa:** Você está auditando um(a) '{doc_type}' para a norma '{norma}'. O PDF deste documento e trechos relevantes da base de conhecimento estão sendo fornecidos a você.
+        **Contexto da Tarefa:** Você está auditando um(a) '{doc_type}' para a norma '{norma}'. O PDF do documento e trechos relevantes da base de conhecimento estão sendo fornecidos.
 
         **Trechos Relevantes da Base de Conhecimento:**
         {relevant_knowledge}
 
         **Sua Tarefa (em 3 etapas):**
 
-        1.  **Análise Crítica:** Analise o documento PDF em profundidade. Verifique todos os aspectos essenciais de conformidade, prestando **atenção especial à consistência das datas**.
-            *   **Validade e Emissão:** Compare todas as datas (emissão, vigência, aprovação, assinatura) com a data atual ({data_atual}). Uma data de aprovação futura para um programa já vigente é uma não conformidade crítica.
-            *   **Conteúdo Obrigatório:** Presença de todos os tópicos exigidos pela(s) norma(s) relevante(s).
-            *   **Responsabilidades:** Assinaturas e dados dos responsáveis técnicos.
-            *   **Dados Formais:** Nomes, CNPJ, CPF, carga horária, etc.
-
+        1.  **Análise Crítica:** Analise o documento PDF em profundidade, procurando por não conformidades.
         2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO. Não adicione nenhum texto fora do bloco de código JSON.
-
-        3.  **Justificativa Robusta:** Para cada item de não conformidade, a 'observacao' deve ser uma explicação clara, citando o requisito faltante ou a inconsistência encontrada.
+        3.  **Justificativa Robusta com Evidências:** Esta é a regra mais importante. Para cada item na chave "pontos_de_nao_conformidade", a 'observacao' DEVE OBRIGATORIAMENTE conter:
+            *   **A página** onde a evidência da não conformidade foi encontrada (ex: "p. 5", "página 12").
+            *   **O trecho exato** do texto do documento que comprova a falha, entre aspas.
+            *   Uma explicação clara de por que aquele trecho representa uma não conformidade.
 
         **Estrutura JSON de Saída Obrigatória:**
         ```json
         {{
           "parecer_final": "Conforme | Não Conforme | Conforme com Ressalvas",
-          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral, mencionando explicitamente qualquer inconsistência de data encontrada.",
+          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral sobre o documento.",
           "pontos_de_nao_conformidade": [
             {{
-              "item": "Descrição clara do requisito não atendido. Ex: 'Data de aprovação futura.'",
-              "referencia_normativa": "O item específico da norma ou procedimento. Ex: 'NR-01, item 1.5.7.1'",
-              "observacao": "A justificativa detalhada. Ex: 'O documento, com vigência iniciada em 03/10/2023, apresenta uma data de aprovação de 21/07/2025. Esta data futura invalida a formalização do documento no período vigente.'"
+              "item": "Descrição clara do requisito não atendido. Ex: 'Cronograma do Plano de Ação inconsistente com a vigência do PGR.'",
+              "referencia_normativa": "O item específico da norma. Ex: 'NR-01, item 1.5.4.4.3'",
+              "observacao": "A justificativa detalhada COM EVIDÊNCIA. Ex: 'Na página 25, o cronograma apresenta a atividade 'Treinamento de CIPA' com data 'Dez/2025'. Como a vigência do PGR termina em Out/2025, esta atividade está fora do escopo temporal do plano de ação.'"
+            }},
+            {{
+              "item": "Carga horária insuficiente para reciclagem.",
+              "referencia_normativa": "NR-35, item 35.3.3.1",
+              "observacao": "Na página 1, o certificado afirma que a 'Carga Horária foi de 4 (quatro) horas'. A norma exige um mínimo de 8 horas para a reciclagem, tornando este certificado inválido para esse fim."
             }}
           ]
         }}
         ```
-        **Importante:** Se o documento estiver totalmente 'Conforme', a chave "pontos_de_nao_conformidade" deve ser um array vazio `[]`.
+        **Importante:** Se o documento estiver 'Conforme', a chave "pontos_de_nao_conformidade" deve ser um array vazio `[]`.
         """
 
     def _parse_advanced_audit_result(self, json_string: str) -> dict:
