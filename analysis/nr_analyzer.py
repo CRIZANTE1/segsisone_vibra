@@ -190,10 +190,10 @@ class NRAnalyzer:
         except (json.JSONDecodeError, AttributeError):
             return {"summary": "Falha na Análise (Erro de JSON)", "details": [{"item_verificacao": "Resposta Bruta da IA", "observacao": json_string, "status": "Não Conforme"}]}
 
-    def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str):
+    def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str, employee_id: str | None = None):
         """
-        Cria itens no plano de ação para cada não conformidade real, ignorando
-        o resumo geral da auditoria.
+        Cria itens no plano de ação para cada não conformidade real.
+        Agora aceita um 'employee_id' opcional.
         """
         if "não conforme" not in audit_result.get("summary", "").lower():
             return 0
@@ -213,6 +213,9 @@ class NRAnalyzer:
         created_count = 0
         
         for item in actionable_items:
+           
+            item['employee_id'] = employee_id if employee_id else 'N/A'
+            
             if self.action_plan_manager.add_action_item(audit_run_id, company_id, doc_id, item):
                 created_count += 1
                 
