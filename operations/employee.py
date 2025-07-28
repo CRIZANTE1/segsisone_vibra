@@ -371,27 +371,33 @@ class EmployeeManager:
     def add_aso(self, aso_data: dict):
         """
         Adiciona um novo registro de ASO à planilha a partir de um dicionário.
-        É robusto contra campos ausentes, exceto os essenciais.
+        Se um campo opcional não for encontrado, insere um valor padrão como "Não identificado".
         """
         from gdrive.config import ASO_SHEET_NAME
     
+        # 1. Extrai os dados essenciais. Se faltarem, a função para.
         funcionario_id = aso_data.get('funcionario_id')
         data_aso = aso_data.get('data_aso')
         arquivo_id = aso_data.get('arquivo_id')
-        cargo = aso_data.get('cargo')
         
         if not all([funcionario_id, data_aso, arquivo_id]):
-            st.error("Dados essenciais para o ASO (ID do Funcionário, Data, Arquivo) estão faltando.")
+            st.error("Dados críticos para o ASO (ID do Funcionário, Data ou Arquivo) estão faltando e não puderam ser salvos.")
             return None
     
-        # 3. Lida com campos opcionais de forma segura
-        vencimento = aso_data.get('vencimento')
-        vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
-        riscos_str = aso_data.get('riscos', 'Não informado')
-        tipo_aso_str = aso_data.get('tipo_aso', 'Não identificado')
-        cargo_str = cargo or 'Não informado' # Garante que não seja None
+        # 2. Extrai os dados opcionais, fornecendo "Não identificado" como valor padrão.
+        #    O método .get(chave, valor_padrao) é perfeito para isso.
+        vencimento = aso_data.get('vencimento') # Vencimento pode ser None (ex: demissional)
+        cargo = aso_data.get('cargo', 'Não identificado')
+        riscos = aso_data.get('riscos', 'Não identificado')
+        tipo_aso = aso_data.get('tipo_aso', 'Não identificado')
     
-        # 4. Monta a linha a ser inserida na planilha
+        # 3. Garante que mesmo que a IA retorne um valor vazio (""), nós salvemos "Não identificado".
+        cargo_str = cargo if cargo else 'Não identificado'
+        riscos_str = riscos if riscos else 'Não identificado'
+        tipo_aso_str = tipo_aso if tipo_aso else 'Não identificado'
+        vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
+        
+        # 4. Monta a linha a ser inserida na planilha com os dados tratados.
         new_data = [
             str(funcionario_id),
             data_aso.strftime("%d/%m/%Y"),
@@ -412,7 +418,7 @@ class EmployeeManager:
         except Exception as e:
             st.error(f"Erro ao adicionar ASO na planilha: {str(e)}")
             return None
-
+        
     def _padronizar_norma(self, norma):
         if not norma:
             return None
