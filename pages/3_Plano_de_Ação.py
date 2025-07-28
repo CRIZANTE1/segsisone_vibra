@@ -16,9 +16,9 @@ if not check_admin_permission():
 # Instanciar os gerenciadores
 @st.cache_resource
 def get_managers():
-    return ActionPlanManager(), EmployeeManager()
+    return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
 
-action_plan_manager, employee_manager = get_managers()
+action_plan_manager, employee_manager, docs_manager = get_managers()
 
 # Selecionar a empresa
 selected_company_id = st.selectbox(
