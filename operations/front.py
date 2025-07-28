@@ -383,15 +383,15 @@ def front_page():
                                         
                                         if arquivo_id:                                                                                
                                             training_data_to_save = {
-                                                'funcionario_id': selected_employee_training,
-                                                'data': training_info.get('data'),
-                                                'vencimento': vencimento,
-                                                'norma': norma_padronizada,
-                                                'modulo': training_info.get('modulo'),
-                                                'status': "Válido",
-                                                'anexo': arquivo_id,
-                                                'tipo_treinamento': training_info.get('tipo_treinamento'),
-                                                'carga_horaria': training_info.get('carga_horaria')
+                                            'id': selected_employee_training,
+                                            'data': training_info.get('data'),
+                                            'vencimento': vencimento,
+                                            'norma': norma_padronizada,
+                                            'modulo': training_info.get('modulo'),
+                                            'status': "Válido",
+                                            'anexo': arquivo_id,
+                                            'tipo_treinamento': training_info.get('tipo_treinamento'),
+                                            'carga_horaria': training_info.get('carga_horaria', 0)
                                             }
                                             
                                             training_id = employee_manager.add_training(**training_data_to_save)
