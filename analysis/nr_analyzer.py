@@ -8,7 +8,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import google.generativeai as genai
 import random
-
+import gspread
 from AI.api_Operation import PDFQA
 from gdrive.config import get_credentials_dict
 from operations.action_plan import ActionPlanManager
