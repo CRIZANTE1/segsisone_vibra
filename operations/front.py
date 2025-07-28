@@ -394,7 +394,7 @@ def front_page():
                                                 'tipo_treinamento': training_info.get('tipo_treinamento'),
                                                 'carga_horaria': training_info.get('carga_horaria', 0)
                                             }
-                                            
+                                                            
                                             training_id = employee_manager.add_training(**training_data_to_save)
                                             
                                             if training_id:
