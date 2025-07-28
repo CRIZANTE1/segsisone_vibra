@@ -7,10 +7,7 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager 
 from auth.auth_utils import check_admin_permission, is_user_logged_in
 
-if 'pending_items' in locals() and not pending_items.empty:
-    page_title = f"({len(pending_items)}) Plano de Ação"
-else:
-    page_title = "Plano de Ação e Auditorias"
+
 st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
 
 st.title("📋 Gestão de Não Conformidades e Auditorias")
@@ -37,9 +34,18 @@ selected_company_id = st.selectbox(
 
 if selected_company_id:
     company_name = employee_manager.get_company_name(selected_company_id) or f"Empresa (ID: {selected_company_id})"
-    
-    st.header(f"Itens Pendentes para: {company_name}")
     action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
+    
+    pending_count = 0
+    if not action_items_df.empty and 'status' in action_items_df.columns:
+        pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
+        pending_count = len(pending_items)
+
+    # Atualiza o título se houver pendências
+    if pending_count > 0:
+        page_title = f"📋 ({pending_count}) Plano de Ação para {company_name}"
+    else:
+        page_title = f"📋 Plano de Ação para {company_name}"
     
     # Pré-carrega todos os DataFrames para buscas eficientes
     asos_df = employee_manager.aso_df
