@@ -121,12 +121,11 @@ if selected_company_id:
                     st.dataframe(details_df, hide_index=True, use_container_width=True) 
 
     @st.dialog("Tratar Não Conformidade")
-    def treat_item_dialog():
+    def treat_item_dialog(item_data): 
         st.subheader(item_data['item_nao_conforme'])
         
-        # Converte a string de data para objeto date, se existir
         prazo_atual = None
-        if item_data.get('prazo'):
+        if item_data.get('prazo') and isinstance(item_data['prazo'], str) and item_data['prazo'].strip():
             try:
                 prazo_atual = datetime.strptime(item_data['prazo'], "%d/%m/%Y").date()
             except (ValueError, TypeError):
@@ -137,13 +136,11 @@ if selected_company_id:
             responsavel = st.text_input("Responsável", value=item_data.get('responsavel', ''))
             prazo = st.date_input("Prazo para Conclusão", value=prazo_atual)
             status_options = ["Aberto", "Em Andamento", "Concluído", "Cancelado"]
-            # Encontra o índice do status atual para definir como padrão
             try:
                 current_status_index = status_options.index(item_data.get('status', 'Aberto'))
             except ValueError:
                 current_status_index = 0
             status = st.selectbox("Status", status_options, index=current_status_index)
-
             submitted = st.form_submit_button("Salvar Alterações")
 
             if submitted:
@@ -155,9 +152,9 @@ if selected_company_id:
                 }
                 if action_plan_manager.update_action_item(item_data['id'], updates):
                     st.success("Plano de ação atualizado com sucesso!")
-                    del st.session_state.current_item_to_treat # Fecha o diálogo
+                    del st.session_state.current_item_to_treat
                     st.rerun()
                 else:
                     st.error("Falha ao atualizar o plano de ação.")
 
-    treat_item_dialog()
+    treat_item_dialog(current_item)
