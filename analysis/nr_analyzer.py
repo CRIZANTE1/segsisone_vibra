@@ -124,35 +124,46 @@ class NRAnalyzer:
                 os.unlink(temp_path)
         
     def _get_advanced_audit_prompt(self, doc_info: dict, relevant_knowledge: str) -> str:
+        """
+        PROMPT AVANÇADO: Agora inclui a data atual para dar contexto temporal à IA.
+        """
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "normas aplicáveis")
-        return f"""
-        **Persona:** Você é um Auditor Líder de Saúde e Segurança do Trabalho com mais de 20 anos de experiência, especializado em conformidade regulatória no Brasil. Você é extremamente meticuloso, analítico e suas conclusões são sempre baseadas em evidências claras encontradas no documento e referências normativas.
+        
+        data_atual = datetime.now().strftime('%d/%m/%Y')
 
-        **Contexto:** Você está auditando um(a) '{doc_type}' para a norma '{norma}'. O PDF deste documento e uma extensa base de conhecimento com Normas Regulamentadoras e procedimentos internos estão sendo fornecidos a você como contexto.
+        return f"""
+        **Persona:** Você é um Auditor Líder de Saúde e Segurança do Trabalho com mais de 20 anos de experiência, especializado em conformidade regulatória no Brasil. Você é extremamente meticuloso e suas conclusões são sempre baseadas em evidências claras.
+
+        **Contexto Crítico:** A data de hoje é **{data_atual}**. Qualquer data de emissão, aprovação ou assinatura no documento que seja posterior a hoje deve ser considerada uma inconsistência grave, pois um documento não pode ser aprovado no futuro.
+
+        **Contexto da Tarefa:** Você está auditando um(a) '{doc_type}' para a norma '{norma}'. O PDF deste documento e trechos relevantes da base de conhecimento estão sendo fornecidos a você.
+
+        **Trechos Relevantes da Base de Conhecimento:**
+        {relevant_knowledge}
 
         **Sua Tarefa (em 3 etapas):**
 
-        1.  **Análise Crítica:** Analise o documento PDF em profundidade. Verifique todos os aspectos essenciais de conformidade, como:
-            *   **Validade e Emissão:** Datas, periodicidade, vencimentos.
-            *   **Conteúdo Obrigatório:** Presença de todos os tópicos, anexos e informações exigidas pela(s) norma(s) relevante(s).
-            *   **Responsabilidades:** Assinaturas do responsável técnico, do trabalhador, do médico, etc.
-            *   **Dados Formais:** Nome correto da empresa, do funcionário, CNPJ, CPF, carga horária, etc.
+        1.  **Análise Crítica:** Analise o documento PDF em profundidade. Verifique todos os aspectos essenciais de conformidade, prestando **atenção especial à consistência das datas**.
+            *   **Validade e Emissão:** Compare todas as datas (emissão, vigência, aprovação, assinatura) com a data atual ({data_atual}). Uma data de aprovação futura para um programa já vigente é uma não conformidade crítica.
+            *   **Conteúdo Obrigatório:** Presença de todos os tópicos exigidos pela(s) norma(s) relevante(s).
+            *   **Responsabilidades:** Assinaturas e dados dos responsáveis técnicos.
+            *   **Dados Formais:** Nomes, CNPJ, CPF, carga horária, etc.
 
-        2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO. Não adicione nenhum texto ou comentário fora do bloco de código JSON.
+        2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO. Não adicione nenhum texto fora do bloco de código JSON.
 
-        3.  **Justificativa Robusta:** Para cada item de não conformidade, a 'observacao' deve ser uma explicação clara, concisa e profissional, citando o requisito faltante e, se possível, a referência normativa encontrada na base de conhecimento.
+        3.  **Justificativa Robusta:** Para cada item de não conformidade, a 'observacao' deve ser uma explicação clara, citando o requisito faltante ou a inconsistência encontrada.
 
         **Estrutura JSON de Saída Obrigatória:**
         ```json
         {{
           "parecer_final": "Conforme | Não Conforme | Conforme com Ressalvas",
-          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral sobre o documento. Ex: 'O documento está em conformidade, porém recomenda-se atenção ao prazo de reciclagem.' ou 'O documento apresenta falhas críticas de conformidade que o invalidam.'",
+          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral, mencionando explicitamente qualquer inconsistência de data encontrada.",
           "pontos_de_nao_conformidade": [
             {{
-              "item": "Descrição clara do requisito não atendido. Ex: 'Carga horária insuficiente para formação inicial.'",
-              "referencia_normativa": "O item específico da norma ou procedimento. Ex: 'NR-35, Anexo II, item 2.1.a'",
-              "observacao": "A justificativa detalhada. Ex: 'O certificado apresenta carga horária de 4h, enquanto a norma exige um mínimo de 8h para a formação inicial de trabalho em altura.'"
+              "item": "Descrição clara do requisito não atendido. Ex: 'Data de aprovação futura.'",
+              "referencia_normativa": "O item específico da norma ou procedimento. Ex: 'NR-01, item 1.5.7.1'",
+              "observacao": "A justificativa detalhada. Ex: 'O documento, com vigência iniciada em 03/10/2023, apresenta uma data de aprovação de 21/07/2025. Esta data futura invalida a formalização do documento no período vigente.'"
             }}
           ]
         }}
