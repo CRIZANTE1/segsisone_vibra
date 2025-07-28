@@ -368,13 +368,37 @@ class EmployeeManager:
         except Exception as e:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
-    def add_aso(self, id, data_aso, vencimento, arquivo_id, riscos, cargo, tipo_aso="Não identificado"):
+    def add_aso(self, aso_data: dict):
+        """
+        Adiciona um novo registro de ASO à planilha a partir de um dicionário.
+        Espera que o dicionário contenha 'funcionario_id', 'data_aso', 'arquivo_id', e 'cargo'.
+        """
         from gdrive.config import ASO_SHEET_NAME
-        if not all([id, data_aso, arquivo_id, cargo]):
-            st.error("Dados essenciais para o ASO (ID, Data, Arquivo, Cargo) estão faltando.")
+    
+        # --- CORREÇÃO AQUI: Validação mais clara e robusta ---
+        funcionario_id = aso_data.get('funcionario_id')
+        data_aso = aso_data.get('data_aso')
+        arquivo_id = aso_data.get('arquivo_id')
+        cargo = aso_data.get('cargo')
+        
+        # Verifica se os campos essenciais existem e não estão vazios
+        if not all([funcionario_id, data_aso, arquivo_id, cargo]):
+            st.error("Dados essenciais para o ASO (ID do Funcionário, Data, Arquivo, Cargo) estão faltando.")
             return None
+    
+        vencimento = aso_data.get('vencimento')
         vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
-        new_data = [str(id), data_aso.strftime("%d/%m/%Y"), vencimento_str, str(arquivo_id), str(riscos), str(cargo), str(tipo_aso)]
+        
+        new_data = [
+            str(funcionario_id),
+            data_aso.strftime("%d/%m/%Y"),
+            vencimento_str,
+            str(arquivo_id),
+            str(aso_data.get('riscos', '')),
+            str(cargo),
+            str(aso_data.get('tipo_aso', 'Não identificado'))
+        ]
+        
         try:
             aso_id = self.sheet_ops.adc_dados_aba(ASO_SHEET_NAME, new_data)
             if aso_id:
@@ -383,7 +407,7 @@ class EmployeeManager:
                 return aso_id
             return None
         except Exception as e:
-            st.error(f"Erro ao adicionar ASO: {str(e)}")
+            st.error(f"Erro ao adicionar ASO na planilha: {str(e)}")
             return None
 
     def _padronizar_norma(self, norma):
