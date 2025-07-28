@@ -191,16 +191,28 @@ class NRAnalyzer:
 
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str):
         """
-        Cria itens no plano de ação. A referência a 'random' agora funcionará.
+        Cria itens no plano de ação para cada não conformidade real, ignorando
+        o resumo geral da auditoria.
         """
-        if audit_result.get("summary", "").lower() == 'conforme':
+        if "não conforme" not in audit_result.get("summary", "").lower():
             return 0
-        non_compliant_items = [d for d in audit_result.get("details", []) if d.get("status", "").lower() == "não conforme"]
-        if not non_compliant_items: return 0
         
-        audit_run_id = f"audit_{doc_id}_{random.randint(100,999)}"
+        all_details = audit_result.get("details", [])
+        
+        actionable_items = [
+            item for item in all_details 
+            if item.get("status", "").lower() == "não conforme" 
+            and "resumo executivo" not in item.get("item_verificacao", "").lower()
+        ]
+        
+        if not actionable_items:
+            return 0
+        
+        audit_run_id = f"audit_{doc_id}_{random.randint(1000, 9999)}"
         created_count = 0
-        for item in non_compliant_items:
+        
+        for item in actionable_items:
             if self.action_plan_manager.add_action_item(audit_run_id, company_id, doc_id, item):
                 created_count += 1
+                
         return created_count
