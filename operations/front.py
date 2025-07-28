@@ -58,9 +58,24 @@ def get_managers():
     
 def front_page():
     
-    employee_manager, docs_manager, epi_manager, nr_analyzer, gdrive_uploader = get_managers()
+    if 'employee_manager' not in st.session_state:
+        st.session_state.employee_manager = EmployeeManager()
+    if 'docs_manager' not in st.session_state:
+        st.session_state.docs_manager = CompanyDocsManager()
+    if 'epi_manager' not in st.session_state:
+        st.session_state.epi_manager = EPIManager()
+    if 'nr_analyzer' not in st.session_state:
+        st.session_state.nr_analyzer = NRAnalyzer()
+    if 'gdrive_uploader' not in st.session_state:
+        st.session_state.gdrive_uploader = GoogleDriveUploader()
+
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
+    nr_analyzer = st.session_state.nr_analyzer
+    gdrive_uploader = st.session_state.gdrive_uploader
     
-    gdrive_uploader = GoogleDriveUploader()
+    
     
     st.title("Gestão de Documentação Inteligente")
     
