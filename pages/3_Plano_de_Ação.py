@@ -40,38 +40,38 @@ if selected_company_id:
 
     if pending_items.empty:
     st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
-else:
-    for index, row in pending_items.iterrows():
-        with st.container(border=True):
-            # --- CORREÇÃO E MELHORIA DE LAYOUT AQUI ---
-            
-            # 1. Busca o nome do funcionário, se aplicável.
-            employee_id = row.get('id_funcionario')
-            employee_info = "" # Inicializa como string vazia
-            if employee_id and str(employee_id) != 'N/A':
-                employee_name = employee_manager.get_employee_name(employee_id)
-                if employee_name:
-                    # Monta uma linha de informação completa sobre o funcionário
-                    employee_info = f"👤 **Funcionário:** {employee_name} | "
-            
-            # 2. Exibe a descrição da não conformidade.
-            st.markdown(f"**Item:** {row['item_nao_conforme']}")
-            
-            # 3. Monta e exibe as informações de contexto (funcionário, referência, etc.).
-            context_caption = (
-                f"{employee_info}"
-                f"**Documento ID:** {row['id_documento_original']} | "
-                f"**Referência Normativa:** {row.get('referencia_normativa', 'N/A')}"
-            )
-            st.caption(context_caption)
-
-            # 4. Exibe o status e o botão de ação em colunas.
-            col1, col2 = st.columns([4, 1])
-            with col1:
-                st.info(f"**Status Atual:** {row['status']}")
-            with col2:
-                if st.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
-                    st.session_state.current_item_to_treat = row.to_dict()
+    else:
+        for index, row in pending_items.iterrows():
+            with st.container(border=True):
+                # --- CORREÇÃO E MELHORIA DE LAYOUT AQUI ---
+                
+                # 1. Busca o nome do funcionário, se aplicável.
+                employee_id = row.get('id_funcionario')
+                employee_info = "" # Inicializa como string vazia
+                if employee_id and str(employee_id) != 'N/A':
+                    employee_name = employee_manager.get_employee_name(employee_id)
+                    if employee_name:
+                        # Monta uma linha de informação completa sobre o funcionário
+                        employee_info = f"👤 **Funcionário:** {employee_name} | "
+                
+                # 2. Exibe a descrição da não conformidade.
+                st.markdown(f"**Item:** {row['item_nao_conforme']}")
+                
+                # 3. Monta e exibe as informações de contexto (funcionário, referência, etc.).
+                context_caption = (
+                    f"{employee_info}"
+                    f"**Documento ID:** {row['id_documento_original']} | "
+                    f"**Referência Normativa:** {row.get('referencia_normativa', 'N/A')}"
+                )
+                st.caption(context_caption)
+    
+                # 4. Exibe o status e o botão de ação em colunas.
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.info(f"**Status Atual:** {row['status']}")
+                with col2:
+                    if st.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
+                        st.session_state.current_item_to_treat = row.to_dict()
                         
     st.markdown("---")
     with st.expander("📖 Ver Histórico Completo de Auditorias"):        
