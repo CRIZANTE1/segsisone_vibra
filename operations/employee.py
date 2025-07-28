@@ -448,44 +448,36 @@ class EmployeeManager:
 
     def add_training(self, training_data: dict):
         """
-        Adiciona um novo registro de treinamento a partir de um dicionário,
-        lidando com campos opcionais de forma segura.
+        Adiciona um novo registro de treinamento a partir de um dicionário.
         """
         from gdrive.config import TRAINING_SHEET_NAME
     
-        funcionario_id = training_data.get('id')
+        # --- CORREÇÃO AQUI: Espera 'funcionario_id' em vez de 'id' ---
+        funcionario_id = training_data.get('funcionario_id')
         data = training_data.get('data')
         norma = training_data.get('norma')
         vencimento = training_data.get('vencimento')
         anexo = training_data.get('anexo')
         
-        # 2. Valida apenas os campos críticos.
         if not all([funcionario_id, data, norma, vencimento, anexo]):
             st.error("Dados críticos (Funcionário, Data, Norma, Vencimento ou Anexo) para o treinamento estão faltando.")
             return None
     
-        # 3. Extrai os dados opcionais, fornecendo valores padrão.
         modulo = training_data.get('modulo', 'N/A')
         status = training_data.get('status', 'Válido')
         tipo_treinamento = training_data.get('tipo_treinamento', 'Não identificado')
-        carga_horaria = training_data.get('carga_horaria', '0') # Usa string '0' como padrão
+        carga_horaria = training_data.get('carga_horaria', '0')
     
-        # 4. Garante que valores vazios se tornem padrões consistentes.
-        modulo_str = str(modulo) if modulo else 'N/A'
-        tipo_treinamento_str = str(tipo_treinamento) if tipo_treinamento else 'Não identificado'
-        carga_horaria_str = str(carga_horaria) if carga_horaria is not None else '0'
-    
-        # 5. Monta a linha a ser inserida na planilha.
         new_data = [
             str(funcionario_id),
             data.strftime("%d/%m/%Y"),
             vencimento.strftime("%d/%m/%Y"),
             self._padronizar_norma(norma),
-            modulo_str,
+            str(modulo) if modulo else 'N/A',
             str(status),
             str(anexo),
-            tipo_treinamento_str,
-            carga_horaria_str
+            str(tipo_treinamento) if tipo_treinamento else 'Não identificado',
+            str(carga_horaria) if carga_horaria is not None else '0'
         ]
         
         try:
