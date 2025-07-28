@@ -13,6 +13,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+from operations.action_plan import ActionPlanManager
 
 @st.cache_data(ttl=3600)
 def load_unified_rag_base(sheet_id: str) -> pd.DataFrame:
