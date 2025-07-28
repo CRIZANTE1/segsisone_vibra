@@ -46,20 +46,19 @@ if selected_company_id:
         page_title = f"📋 ({pending_count}) Plano de Ação para {company_name}"
     else:
         page_title = f"📋 Plano de Ação para {company_name}"
+        
+    # Escreve o título na página APÓS o cálculo
+    st.title(page_title)    
     
-    # Pré-carrega todos os DataFrames para buscas eficientes
-    asos_df = employee_manager.aso_df
-    trainings_df = employee_manager.training_df
-    company_docs_df = docs_manager.docs_df # DataFrame dos documentos da empresa
-    
-    if not action_items_df.empty and 'status' in action_items_df.columns:
-        pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
-    else:
-        pending_items = pd.DataFrame()
-
     if pending_items.empty:
         st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
     else:
+        # Pré-carrega os DataFrames necessários para a busca de contexto
+        asos_df = employee_manager.aso_df
+        trainings_df = employee_manager.training_df
+        company_docs_df = docs_manager.docs_df
+    
+    
         for index, row in pending_items.iterrows():
             with st.container(border=True):
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
