@@ -4,6 +4,7 @@ from datetime import datetime
 
 from operations.action_plan import ActionPlanManager
 from operations.employee import EmployeeManager
+from operations.company_docs import CompanyDocsManager 
 from auth.auth_utils import check_admin_permission
 
 st.set_page_config(page_title="Plano de Ação", page_icon="📋", layout="wide")
