@@ -55,70 +55,69 @@ if selected_company_id:
                         st.session_state.current_item_to_treat = row.to_dict()
                         
     st.markdown("---")
-    st.header("📖 Histórico de Auditorias Realizadas")
-    
-    with st.spinner("Carregando histórico de auditorias..."):
-        audit_history = docs_manager.get_audits_by_company(selected_company_id)
-        
-    if audit_history.empty:
-        st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
-    else:
-        audit_history_display = audit_history.copy()
-        audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-        audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
-        audit_history_display.sort_values(by='data_auditoria', ascending=False, inplace=True)
-        
-        for audit_id, group in audit_history_display.groupby('id_auditoria'):
-            first_row = group.iloc[0]
+    with st.expander("📖 Ver Histórico Completo de Auditorias"):        
+        with st.spinner("Carregando histórico de auditorias..."):
+            audit_history = docs_manager.get_audits_by_company(selected_company_id)
             
-            # Pega a linha de resumo da auditoria
-            resumo_row = group[group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)]
-            if resumo_row.empty:
-                continue # Pula para a próxima auditoria se não houver um resumo
+        if audit_history.empty:
+            st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
+        else:
+            audit_history_display = audit_history.copy()
+            audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
+            audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
+            audit_history_display.sort_values(by='data_auditoria', ascending=False, inplace=True)
             
-            resumo_row = resumo_row.iloc[0]
-            status_auditoria = resumo_row['Status']
-            
-            status_badge = ""
-            if 'não conforme' in str(status_auditoria).lower():
-                related_actions = action_items_df[action_items_df['audit_run_id'] == str(audit_id)]
-                if not related_actions.empty:
-                    is_still_pending = any(s.lower() not in ['concluído', 'cancelado'] for s in related_actions['status'])
-                    if is_still_pending:
+            for audit_id, group in audit_history_display.groupby('id_auditoria'):
+                first_row = group.iloc[0]
+                
+                # Pega a linha de resumo da auditoria
+                resumo_row = group[group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)]
+                if resumo_row.empty:
+                    continue # Pula para a próxima auditoria se não houver um resumo
+                
+                resumo_row = resumo_row.iloc[0]
+                status_auditoria = resumo_row['Status']
+                
+                status_badge = ""
+                if 'não conforme' in str(status_auditoria).lower():
+                    related_actions = action_items_df[action_items_df['audit_run_id'] == str(audit_id)]
+                    if not related_actions.empty:
+                        is_still_pending = any(s.lower() not in ['concluído', 'cancelado'] for s in related_actions['status'])
+                        if is_still_pending:
+                            status_badge = "🔴 **Pendente**"
+                        else:
+                            status_badge = "✅ **Tratado**"
+                    else:
                         status_badge = "🔴 **Pendente**"
-                    else:
-                        status_badge = "✅ **Tratado**"
                 else:
-                    status_badge = "🔴 **Pendente**"
-            else:
-                status_badge = "✅ **Conforme**"
-            
-            with st.container(border=True):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    target_name = ""
-                    emp_id = first_row.get('id_funcionario')
-                    if pd.notna(emp_id) and emp_id != 'N/A':
-                        target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
-                    else:
-                        target_name = company_name
-                    
-                    audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
-                    audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
-                    
-                    st.markdown(audit_title)
-                    st.caption(f"Realizada em: {audit_date}")
+                    status_badge = "✅ **Conforme**"
                 
-                with col2:
-                    st.markdown(f"**Status:** {status_badge}")
-                
-                st.info(f"**Parecer da IA:** {resumo_row['observacao']}")
-
-                with st.expander("Ver detalhes da análise completa"):
-                    details_df = group[['item_de_verificacao', 'Status', 'observacao']].rename(
-                        columns={'item_de_verificacao': 'Item Verificado', 'observacao': 'Observação'}
-                    )
-                    st.dataframe(details_df, hide_index=True, use_container_width=True) 
+                with st.container(border=True):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        target_name = ""
+                        emp_id = first_row.get('id_funcionario')
+                        if pd.notna(emp_id) and emp_id != 'N/A':
+                            target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
+                        else:
+                            target_name = company_name
+                        
+                        audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
+                        audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
+                        
+                        st.markdown(audit_title)
+                        st.caption(f"Realizada em: {audit_date}")
+                    
+                    with col2:
+                        st.markdown(f"**Status:** {status_badge}")
+                    
+                    st.info(f"**Parecer da IA:** {resumo_row['observacao']}")
+    
+                    with st.expander("Ver detalhes da análise completa"):
+                        details_df = group[['item_de_verificacao', 'Status', 'observacao']].rename(
+                            columns={'item_de_verificacao': 'Item Verificado', 'observacao': 'Observação'}
+                        )
+                        st.dataframe(details_df, hide_index=True, use_container_width=True) 
 
     @st.dialog("Tratar Não Conformidade")
     def treat_item_dialog(item_data): 
