@@ -326,30 +326,45 @@ class EmployeeManager:
             return None
 
     def add_company(self, nome, cnpj):
-        from gdrive.config import EMPLOYEE_SHEET_NAME
-        if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
-            return None, "CNPJ já cadastrado"
-        new_data = [nome, cnpj]
-        try:
-            company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
-            if company_id:
-                st.cache_data.clear()
-                self.load_data()
-                return company_id, "Empresa cadastrada com sucesso"
-            return None, "Falha ao obter ID da empresa."
-        except Exception as e:
-            return None, f"Erro ao cadastrar empresa: {str(e)}"
-
+            """
+            Adiciona uma nova empresa à planilha, validando o CNPJ.
+            Limpa o cache de recursos para garantir que todos os selectboxes de empresa
+            no aplicativo sejam atualizados.
+            """
+            from gdrive.config import EMPLOYEE_SHEET_NAME
+            # Validação para evitar CNPJ duplicado
+            if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
+                return None, "CNPJ já cadastrado."
+            
+            new_data = [nome, cnpj]
+            try:
+                company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
+                if company_id:
+                   
+                    st.cache_resource.clear() 
+                    self.load_data() # Garante que o estado interno do objeto também seja atualizado
+                    return company_id, "Empresa cadastrada com sucesso"
+                
+                return None, "Falha ao obter ID da empresa após o cadastro."
+            except Exception as e:
+                return None, f"Erro ao cadastrar empresa: {str(e)}"
+         
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
+        """
+        Adiciona um novo funcionário a uma empresa específica.
+        Limpa o cache de dados para recarregar a lista de funcionários.
+        """
         from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
-        new_data = [nome, empresa_id, cargo, data_admissao.strftime("%d/%m/%Y")]
+        new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y")]
         try:
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             if employee_id:
+               
                 st.cache_data.clear()
-                self.load_data()
+                self.load_data() # Atualiza o DataFrame interno de funcionários
                 return employee_id, "Funcionário adicionado com sucesso"
-            return None, "Erro ao adicionar funcionário na planilha"
+                
+            return None, "Erro ao adicionar funcionário na planilha."
         except Exception as e:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
@@ -375,7 +390,6 @@ class EmployeeManager:
         if not norma:
             return None
         
-        # Converte para maiúsculas e remove espaços extras no início/fim
         norma_upper = str(norma).strip().upper()
     
 
