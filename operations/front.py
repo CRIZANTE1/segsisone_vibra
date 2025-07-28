@@ -322,105 +322,104 @@ def front_page():
         else:
             st.info("Selecione uma empresa na primeira aba para adicionar um ASO.")
 
-    # --- Bloco de código para a aba de Adicionar Treinamento (copie e cole em front.py) ---
 
-with tab_add_treinamento:
-    if selected_company:
-        if check_admin_permission():
-            st.subheader("Adicionar Novo Treinamento")
-            mostrar_info_normas()
-            current_employees = employee_manager.get_employees_by_company(selected_company)
-            if not current_employees.empty:
-                st.selectbox(
-                    "Funcionário",
-                    current_employees['id'].tolist(),
-                    format_func=employee_manager.get_employee_name,
-                    key="training_employee_add"
-                )
-                st.file_uploader(
-                    "Anexar Certificado (PDF)",
-                    type=['pdf'],
-                    key="training_uploader_tab",
-                    on_change=process_training_pdf
-                )
-                
-                if st.session_state.get('Treinamento_info_para_salvar'):
-                    training_info = st.session_state['Treinamento_info_para_salvar']
-                    audit_result = training_info.get('audit_result')
-
-                    if training_info and training_info.get('data'):
-                        with st.container(border=True):
-                            st.markdown("### Confirme as Informações Extraídas")
-                            data = training_info.get('data')
-                            norma_bruta = training_info.get('norma')
-                            norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
-                            modulo = training_info.get('modulo')
-                            tipo_treinamento = training_info.get('tipo_treinamento')
-                            carga_horaria = training_info.get('carga_horaria', 0)
-                            vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=norma_padronizada, modulo=modulo, tipo_treinamento=tipo_treinamento)
-                            
-                            st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
-                            st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
-                            st.write(f"**Módulo:** {modulo or 'N/A'}")
-                            st.write(f"**Tipo:** {tipo_treinamento}")
-                            st.write(f"**Carga Horária:** {carga_horaria} horas")
-                            
-                            if vencimento:
-                                st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
-                            else:
-                                st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada nas configurações.")
-                            
-                            display_audit_results(audit_result)
-
-                            if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
-                                with st.spinner("Salvando Treinamento e processando auditoria..."):
-                                    anexo_training = st.session_state.Treinamento_anexo_para_salvar
-                                    selected_employee_training = st.session_state.Treinamento_funcionario_para_salvar
-                                    employee_name = employee_manager.get_employee_name(selected_employee_training)
-                                    arquivo_id = gdrive_uploader.upload_file(
-                                        anexo_training,
-                                        f"TRAINING_{employee_name}_{norma_padronizada}_{data.strftime('%Y%m%d')}"
-                                    )
-                                    
-                                    if arquivo_id:                                                                                
-                                        training_data_to_save = {
-                                            'id': selected_employee_training,
-                                            'data': training_info.get('data'),
-                                            'vencimento': vencimento,
-                                            'norma': norma_padronizada,
-                                            'modulo': training_info.get('modulo'),
-                                            'status': "Válido",
-                                            'anexo': arquivo_id,
-                                            'tipo_treinamento': training_info.get('tipo_treinamento'),
-                                            'carga_horaria': training_info.get('carga_horaria')
-                                        }
+    with tab_add_treinamento:
+        if selected_company:
+            if check_admin_permission():
+                st.subheader("Adicionar Novo Treinamento")
+                mostrar_info_normas()
+                current_employees = employee_manager.get_employees_by_company(selected_company)
+                if not current_employees.empty:
+                    st.selectbox(
+                        "Funcionário",
+                        current_employees['id'].tolist(),
+                        format_func=employee_manager.get_employee_name,
+                        key="training_employee_add"
+                    )
+                    st.file_uploader(
+                        "Anexar Certificado (PDF)",
+                        type=['pdf'],
+                        key="training_uploader_tab",
+                        on_change=process_training_pdf
+                    )
+                    
+                    if st.session_state.get('Treinamento_info_para_salvar'):
+                        training_info = st.session_state['Treinamento_info_para_salvar']
+                        audit_result = training_info.get('audit_result')
+    
+                        if training_info and training_info.get('data'):
+                            with st.container(border=True):
+                                st.markdown("### Confirme as Informações Extraídas")
+                                data = training_info.get('data')
+                                norma_bruta = training_info.get('norma')
+                                norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
+                                modulo = training_info.get('modulo')
+                                tipo_treinamento = training_info.get('tipo_treinamento')
+                                carga_horaria = training_info.get('carga_horaria', 0)
+                                vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=norma_padronizada, modulo=modulo, tipo_treinamento=tipo_treinamento)
+                                
+                                st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
+                                st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
+                                st.write(f"**Módulo:** {modulo or 'N/A'}")
+                                st.write(f"**Tipo:** {tipo_treinamento}")
+                                st.write(f"**Carga Horária:** {carga_horaria} horas")
+                                
+                                if vencimento:
+                                    st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
+                                else:
+                                    st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada nas configurações.")
+                                
+                                display_audit_results(audit_result)
+    
+                                if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
+                                    with st.spinner("Salvando Treinamento e processando auditoria..."):
+                                        anexo_training = st.session_state.Treinamento_anexo_para_salvar
+                                        selected_employee_training = st.session_state.Treinamento_funcionario_para_salvar
+                                        employee_name = employee_manager.get_employee_name(selected_employee_training)
+                                        arquivo_id = gdrive_uploader.upload_file(
+                                            anexo_training,
+                                            f"TRAINING_{employee_name}_{norma_padronizada}_{data.strftime('%Y%m%d')}"
+                                        )
                                         
-                                        training_id = employee_manager.add_training(**training_data_to_save)
-                                        
-                                        if training_id:
-                                            if audit_result and "não conforme" in audit_result.get("summary", "").lower():
-                                                created_count = nr_analyzer.create_action_plan_from_audit(
-                                                    audit_result,
-                                                    selected_company,
-                                                    training_id,
-                                                    employee_id=selected_employee_training
-                                                )
-                                                st.success(f"Treinamento salvo! {created_count} item(ns) de ação foram criados.")
+                                        if arquivo_id:                                                                                
+                                            training_data_to_save = {
+                                                'id': selected_employee_training,
+                                                'data': training_info.get('data'),
+                                                'vencimento': vencimento,
+                                                'norma': norma_padronizada,
+                                                'modulo': training_info.get('modulo'),
+                                                'status': "Válido",
+                                                'anexo': arquivo_id,
+                                                'tipo_treinamento': training_info.get('tipo_treinamento'),
+                                                'carga_horaria': training_info.get('carga_horaria')
+                                            }
+                                            
+                                            training_id = employee_manager.add_training(**training_data_to_save)
+                                            
+                                            if training_id:
+                                                if audit_result and "não conforme" in audit_result.get("summary", "").lower():
+                                                    created_count = nr_analyzer.create_action_plan_from_audit(
+                                                        audit_result,
+                                                        selected_company,
+                                                        training_id,
+                                                        employee_id=selected_employee_training
+                                                    )
+                                                    st.success(f"Treinamento salvo! {created_count} item(ns) de ação foram criados.")
+                                                else:
+                                                    st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
+    
+                                                for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
+                                                    if key in st.session_state:
+                                                        del st.session_state[key]
+                                                st.rerun()
                                             else:
-                                                st.success(f"Treinamento adicionado com sucesso! ID: {training_id}")
-
-                                            for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
-                                                if key in st.session_state:
-                                                    del st.session_state[key]
-                                            st.rerun()
+                                                st.error("Falha ao salvar os dados do treinamento na planilha.")
                                         else:
-                                            st.error("Falha ao salvar os dados do treinamento na planilha.")
-                                    else:
-                                        st.error("Falha ao fazer o upload do anexo para o Google Drive.")
+                                            st.error("Falha ao fazer o upload do anexo para o Google Drive.")
+                else:
+                    st.warning("Nenhum funcionário cadastrado. Por favor, adicione funcionários na página de Administração.")
             else:
-                st.warning("Nenhum funcionário cadastrado. Por favor, adicione funcionários na página de Administração.")
+                st.error("Você não tem permissão para realizar esta ação.")
         else:
-            st.error("Você não tem permissão para realizar esta ação.")
-    else:
-        st.info("Selecione uma empresa na primeira aba para adicionar um treinamento.")
+            st.info("Selecione uma empresa na primeira aba para adicionar um treinamento.")
 
