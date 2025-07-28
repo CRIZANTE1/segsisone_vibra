@@ -62,42 +62,44 @@ st.markdown("---")
     if audit_history.empty:
         st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
     else:
-        # Prepara o DataFrame para exibição
         audit_history_display = audit_history.copy()
         audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
         audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
+        # Ordena para mostrar as auditorias mais recentes primeiro
         audit_history_display.sort_values(by='data_auditoria', ascending=False, inplace=True)
         
-        # Agrupa visualmente por auditoria
+        # Agrupa os resultados por 'id_auditoria' para exibir um resumo por análise
         for audit_id, group in audit_history_display.groupby('id_auditoria'):
             first_row = group.iloc[0]
-            resumo_row = group[group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)].iloc[0]
             
-            # Monta o título
-            target_name = ""
-            emp_id = first_row.get('id_funcionario')
-            if pd.notna(emp_id) and emp_id != 'N/A':
-                target_name = employee_manager.get_employee_name(emp_id) or f"ID: {emp_id}"
-            else:
-                target_name = company_name
-            audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** de **{target_name}**"
-            audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
+            # Busca pela linha de resumo, que pode conter "Resumo da Auditoria" ou "Resumo Executivo"
+            resumo_row = group[group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)]
             
-            # Expander para cada auditoria
-            with st.expander(f"{audit_title} - {audit_date}"):
-                resumo_text = resumo_row['observacao']
-                status = resumo_row['Status']
+            if not resumo_row.empty:
+                resumo_text = resumo_row.iloc[0]['observacao']
+                status = resumo_row.iloc[0]['Status']
+                
+                # Determina o alvo da auditoria (funcionário ou empresa)
+                target_name = ""
+                emp_id = first_row.get('id_funcionario')
+                if pd.notna(emp_id) and emp_id != 'N/A':
+                    target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
+                else:
+                    target_name = company_name
+
+                # Define o título e a data da auditoria
+                audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
+                audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
+                
+                # Exibe as informações como uma lista contínua
+                st.markdown(f"**Análise de {audit_title}**")
+                st.caption(f"Realizada em: {audit_date}")
                 
                 if 'não conforme' in str(status).lower():
                     st.error(f"**Parecer da IA:** {resumo_text}")
                 else:
                     st.info(f"**Parecer da IA:** {resumo_text}")
-                
-                # Mostra outros detalhes da auditoria (se houver)
-                details_df = group[~group['item_de_verificacao'].str.contains("Resumo", case=False, na=False)]
-                if not details_df.empty:
-                    st.markdown("**Detalhes:**")
-                    st.dataframe(details_df[['item_de_verificacao', 'Status', 'observacao']], hide_index=True, use_container_width=True)
+                st.markdown("---") # Separador para a próxima auditoria
                     
 if 'current_item_to_treat' in st.session_state:
     item_data = st.session_state.current_item_to_treat
