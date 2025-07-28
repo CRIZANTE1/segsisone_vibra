@@ -58,7 +58,6 @@ if selected_company_id:
     st.header("📖 Histórico Completo de Auditorias")
     
     with st.spinner("Carregando histórico de auditorias..."):
-        # Agora a variável 'docs_manager' existe e esta linha funcionará
         audit_history = docs_manager.get_audits_by_company(selected_company_id)
         
     if audit_history.empty:
@@ -75,7 +74,25 @@ if selected_company_id:
             
             if not resumo_row.empty:
                 resumo_text = resumo_row.iloc[0]['observacao']
-                status = resumo_row.iloc[0]['Status']
+                status_auditoria = resumo_row.iloc[0]['Status']
+                
+                status_badge = ""
+                if 'não conforme' in str(status_auditoria).lower():
+                    # Procura pelos itens de plano de ação gerados por esta auditoria específica
+                    related_actions = action_items_df[action_items_df['audit_run_id'] == str(audit_id)]
+                    
+                    if not related_actions.empty:
+                        # Verifica se AINDA existe algum item que NÃO esteja concluído ou cancelado
+                        is_still_pending = any(s.lower() not in ['concluído', 'cancelado'] for s in related_actions['status'])
+                        if is_still_pending:
+                            status_badge = "🔴 **Pendente**"
+                        else:
+                            status_badge = "✅ **Tratado**"
+                    else:
+                         status_badge = "🔴 **Pendente**"
+                else:
+                    status_badge = "✅ **Conforme**"
+
                 target_name = ""
                 emp_id = first_row.get('id_funcionario')
                 if pd.notna(emp_id) and emp_id != 'N/A':
@@ -86,17 +103,14 @@ if selected_company_id:
                 audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
                 audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
                 
-                st.markdown(f"**Análise de {audit_title}**")
-                st.caption(f"Realizada em: {audit_date}")
+                st.markdown(f"#### {audit_title}")
+                st.caption(f"Realizada em: {audit_date} | Status Atual: {status_badge}")
                 
-                if 'não conforme' in str(status).lower():
+                if 'não conforme' in str(status_auditoria).lower():
                     st.error(f"**Parecer da IA:** {resumo_text}")
                 else:
                     st.info(f"**Parecer da IA:** {resumo_text}")
-                st.markdown("---")
-                    
-if 'current_item_to_treat' in st.session_state:
-    item_data = st.session_state.current_item_to_treat
+                st.markdown("---") 
 
     @st.dialog("Tratar Não Conformidade")
     def treat_item_dialog():
