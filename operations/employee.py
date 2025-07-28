@@ -446,38 +446,27 @@ class EmployeeManager:
         return norma_upper
 
 
-    def add_training(self, training_data: dict):
+    def add_training(self, funcionario_id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
         """
-        Adiciona um novo registro de treinamento a partir de um dicionário.
+        Adiciona um novo registro de treinamento.
+        O primeiro parâmetro agora corresponde à coluna da planilha.
         """
         from gdrive.config import TRAINING_SHEET_NAME
-    
-        # --- CORREÇÃO AQUI: Espera 'funcionario_id' em vez de 'id' ---
-        funcionario_id = training_data.get('funcionario_id')
-        data = training_data.get('data')
-        norma = training_data.get('norma')
-        vencimento = training_data.get('vencimento')
-        anexo = training_data.get('anexo')
         
-        if not all([funcionario_id, data, norma, vencimento, anexo]):
-            st.error("Dados críticos (Funcionário, Data, Norma, Vencimento ou Anexo) para o treinamento estão faltando.")
+        if not all([data, norma, vencimento]):
+            st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando.")
             return None
-    
-        modulo = training_data.get('modulo', 'N/A')
-        status = training_data.get('status', 'Válido')
-        tipo_treinamento = training_data.get('tipo_treinamento', 'Não identificado')
-        carga_horaria = training_data.get('carga_horaria', '0')
-    
+            
         new_data = [
-            str(funcionario_id),
-            data.strftime("%d/%m/%Y"),
-            vencimento.strftime("%d/%m/%Y"),
-            self._padronizar_norma(norma),
-            str(modulo) if modulo else 'N/A',
-            str(status),
-            str(anexo),
-            str(tipo_treinamento) if tipo_treinamento else 'Não identificado',
-            str(carga_horaria) if carga_horaria is not None else '0'
+            str(funcionario_id), 
+            data.strftime("%d/%m/%Y"), 
+            vencimento.strftime("%d/%m/%Y"), 
+            self._padronizar_norma(norma), 
+            str(modulo), 
+            str(status), 
+            str(anexo), 
+            str(tipo_treinamento), 
+            str(carga_horaria)
         ]
         
         try:
@@ -488,8 +477,9 @@ class EmployeeManager:
                 return training_id
             return None
         except Exception as e:
-            st.error(f"Erro ao adicionar treinamento na planilha: {str(e)}")
+            st.error(f"Erro ao adicionar treinamento: {str(e)}")
             return None
+        
 
     def get_company_name(self, company_id):
         if self.companies_df.empty:
