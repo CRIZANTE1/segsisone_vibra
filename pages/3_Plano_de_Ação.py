@@ -39,7 +39,7 @@ if selected_company_id:
     pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
 
     if pending_items.empty:
-    st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
+        st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
     else:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
