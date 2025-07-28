@@ -291,18 +291,14 @@ def front_page():
                                         arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{employee_name}_{aso_info['data_aso'].strftime('%Y%m%d')}")
                                         
                                         if arquivo_id:
-                         
                                             aso_data_to_save = aso_info.copy()
-                     
                                             aso_data_to_save.pop('type', None)
                                             aso_data_to_save.pop('audit_result', None)
-                                            aso_data_to_save.pop('employee_id', None)
+                                            
+                                            aso_data_to_save['funcionario_id'] = selected_employee_aso
+                                            aso_data_to_save['arquivo_id'] = arquivo_id
     
-                                            aso_id = employee_manager.add_aso(
-                                                id=selected_employee_aso, 
-                                                arquivo_id=arquivo_id, 
-                                                **aso_data_to_save # Agora só contém os argumentos válidos
-                                            )
+                                            aso_id = employee_manager.add_aso(aso_data_to_save)
     
                                             if aso_id:
                                                 if audit_result and "não conforme" in audit_result.get("summary", "").lower():
