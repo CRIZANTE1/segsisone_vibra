@@ -15,11 +15,7 @@ from operations.action_plan import ActionPlanManager
 from google.oauth2.service_account import Credentials
 
 
-try:
-    embedding_model = genai.GenerativeModel('models/text-embedding-004')
-except Exception as e:
-    st.error(f"Não foi possível inicializar o modelo de embedding do Gemini. Verifique sua chave de API. Erro: {e}")
-    embedding_model = None
+
 
 @st.cache_data(ttl=3600)
 def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
@@ -32,7 +28,6 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
         return pd.DataFrame(), None
         
     try:
-        # Carrega os dados da planilha
         scopes = ['https://www.googleapis.com/auth/spreadsheets']
         creds_dict = get_credentials_dict()
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -78,9 +73,6 @@ class NRAnalyzer:
         except (AttributeError, KeyError):
             st.error("Seção [app_settings] com 'rag_sheet_id' não encontrada no secrets.toml.")
 
-        except (AttributeError, KeyError):
-            st.error("A seção [app_settings] com 'rag_sheet_id' não foi encontrada no seu secrets.toml.")
-
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
         """
         Encontra os 'top_k' chunks mais relevantes usando busca por similaridade de cosseno.
@@ -89,7 +81,11 @@ class NRAnalyzer:
             return "Base de conhecimento indisponível ou não indexada."
 
         try:
-            query_embedding_result = embedding_model.embed_content([query_text], task_type="RETRIEVAL_QUERY")
+            query_embedding_result = genai.embed_content(
+                model='models/text-embedding-004',
+                content=[query_text],
+                task_type="RETRIEVAL_QUERY"
+            )
             query_embedding = np.array(query_embedding_result['embedding'])
 
             similarities = cosine_similarity(query_embedding, self.rag_embeddings)[0]
