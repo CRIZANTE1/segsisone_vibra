@@ -1,46 +1,36 @@
-from dotenv import load_dotenv
-import os
-import google.generativeai as genai
 import streamlit as st
+import google.generativeai as genai
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO)
 
-def load_api():
+def load_models():
+    """
+    Carrega e configura dois modelos Gemini distintos, um para extração e outro para auditoria,
+    usando chaves de API separadas dos secrets do Streamlit.
+    """
+    extraction_model = None
+    audit_model = None
+
     try:
-        # Tentar carregar a chave API de múltiplas fontes
-        api_key = None
-        
-        # 1. Tentar carregar de Streamlit secrets (produção)
-        try:
-            api_key = st.secrets["general"]["GOOGLE_API_KEY"]
-            logging.info("API key loaded from Streamlit secrets.")
-        except (KeyError, TypeError, AttributeError):
-            logging.info("API key not found in Streamlit secrets, trying environment variables.")
-        
-        # 2. Se não encontrou nos secrets, tentar carregar do arquivo .env (desenvolvimento)
-        if not api_key:
-            # Load environment variables from .env file
-            load_dotenv()
-            api_key = os.getenv('GOOGLE_API_KEY')
-            if api_key:
-                logging.info("API key loaded from .env file.")
+        extraction_key = st.secrets.get("GEMINI_EXTRACTION_KEY")
+        if extraction_key:
+            genai.configure(api_key=extraction_key)
+            extraction_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20') 
+            logging.info("Modelo de EXTRAÇÃO carregado com sucesso.")
+        else:
+            st.warning("Chave 'GEMINI_EXTRACTION_KEY' não encontrada nos secrets. Funções de extração de dados serão desativadas.")
 
-        # 3. Verificar se uma chave foi encontrada
-        if not api_key:
-            error_msg = "Google API key not found. Please set the GOOGLE_API_KEY environment variable or in Streamlit secrets."
-            logging.error(error_msg)
-            st.error(error_msg)
-            return None
+        audit_key = st.secrets.get("GEMINI_AUDIT_KEY")
+        if audit_key:
+            genai.configure(api_key=audit_key)
+            audit_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
+            logging.info("Modelo de AUDITORIA carregado com sucesso.")
+        else:
+            st.warning("Chave 'GEMINI_AUDIT_KEY' não encontrada nos secrets. Funções de auditoria serão desativadas.")
 
-        # Configurar a API Gemini com a chave encontrada
-        genai.configure(api_key=api_key)
-        logging.info("API loaded successfully.")
-        return genai
+        return extraction_model, audit_model
 
     except Exception as e:
-        error_msg = f"Error loading API: {str(e)}"
-        logging.exception(error_msg)
-        st.error(error_msg)
-        return None
+        st.error(f"Erro crítico ao carregar os modelos de IA: {e}")
+        return None, None
