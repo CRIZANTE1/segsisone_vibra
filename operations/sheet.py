@@ -48,12 +48,18 @@ class SheetOperations:
             return None
 
 
-    def carregar_dados_aba(self, aba_name: str) -> list | None:
-        worksheet = self._get_worksheet(aba_name)
+    @st.cache_data(ttl=60) # Cache por 60 segundos
+    def carregar_dados_aba(_self, aba_name: str) -> list | None:
+        """
+        Carrega todos os dados de uma aba específica usando gspread.
+        O resultado é cacheado pelo Streamlit por 60 segundos.
+        """
+        
+        worksheet = _self._get_worksheet(aba_name)
         if not worksheet:
             return None
         try:
-            logging.info(f"Tentando ler dados da aba '{aba_name}' com gspread...")
+            logging.info(f"CACHE MISS: Lendo dados da API para a aba '{aba_name}'...")
             return worksheet.get_all_values()
         except Exception as e:
             logging.error(f"Erro ao ler dados da aba '{aba_name}' com gspread: {e}")
@@ -72,6 +78,7 @@ class SheetOperations:
                     break
             full_row_to_add = [new_id] + new_data
             worksheet.append_row(full_row_to_add, value_input_option='USER_ENTERED')
+            st.cache_data.clear()
             logging.info(f"Dados adicionados com sucesso na aba '{aba_name}'. ID gerado: {new_id}")
             return new_id
         except Exception as e:
@@ -97,6 +104,7 @@ class SheetOperations:
                     cell_updates.append(gspread.Cell(row_number_to_update, col_index, str(new_value)))
             if cell_updates:
                 worksheet.update_cells(cell_updates, value_input_option='USER_ENTERED')
+                st.cache_data.clear()
             logging.info(f"Linha com ID {row_id} na aba '{aba_name}' atualizada com sucesso.")
             return True
         except Exception as e:
@@ -113,6 +121,7 @@ class SheetOperations:
                 return False
             row_number_to_delete = id_column_data.index(str(row_id)) + 1
             worksheet.delete_rows(row_number_to_delete)
+            st.cache_data.clear()
             logging.info(f"Linha com ID {row_id} da aba '{aba_name}' excluída com sucesso.")
             return True
         except Exception as e:
