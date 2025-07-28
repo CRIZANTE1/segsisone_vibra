@@ -43,18 +43,6 @@ def display_audit_results(audit_result):
     else:
         st.info(f"**Parecer da IA:** {summary}")
 
-@st.cache_resource
-def get_managers():
-    """
-    Instancia todos os gerenciadores de operações e análise.
-    O @st.cache_resource garante que esta função seja executada apenas uma vez por sessão.
-    """
-    employee_manager = EmployeeManager()
-    docs_manager = CompanyDocsManager()
-    epi_manager = EPIManager()
-    nr_analyzer = NRAnalyzer()
-    gdrive_uploader = GoogleDriveUploader() 
-    return employee_manager, docs_manager, epi_manager, nr_analyzer, gdrive_uploader
     
 def front_page():
     
