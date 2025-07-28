@@ -156,58 +156,7 @@ def front_page():
                         else:
                             st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
                 
-
-            
-            with st.expander("📖 Histórico de Auditorias de Conformidade"):
-                audit_history = docs_manager.get_audits_by_company(selected_company)
-                
-                if not audit_history.empty:
-                    audit_history_display = audit_history.copy()
-                    if 'data_auditoria' in audit_history_display.columns:
-                        audit_history_display['data_auditoria'] = pd.to_datetime(audit_history_display['data_auditoria'], format="%d/%m/%Y %H:%M:%S", errors='coerce')
-                        audit_history_display.dropna(subset=['data_auditoria'], inplace=True)
-                    
-                    # Agrupa os resultados por 'id_auditoria'
-                    for audit_id, group in audit_history_display.groupby('id_auditoria'):
-                        # Pega a primeira linha do grupo para informações gerais
-                        first_row = group.iloc[0]
-                        
-                        resumo_row = group[group['item_de_verificacao'].str.contains("Resumo da Auditoria", case=False, na=False)]
-                        
-                        if not resumo_row.empty:
-                            resumo_text = resumo_row.iloc[0]['observacao']
-                            status = resumo_row.iloc[0]['Status']
-                            
-                            # Determina o alvo da auditoria (funcionário ou empresa)
-                            target_name = ""
-                            emp_id = first_row.get('id_funcionario')
-                            if pd.notna(emp_id) and emp_id != 'N/A':
-                                target_name = employee_manager.get_employee_name(emp_id) or f"Funcionário (ID: {emp_id})"
-                            else:
-                                # Garante que estamos buscando na lista correta de empresas
-                                company_info = employee_manager.companies_df[employee_manager.companies_df['id'] == first_row['id_empresa']]
-                                if not company_info.empty:
-                                    target_name = company_info['nome'].iloc[0]
-                                else:
-                                    target_name = f"Empresa (ID: {first_row['id_empresa']})"
-
-                            # Define o título e a data da auditoria
-                            audit_title = f"**{first_row.get('tipo_documento')} ({first_row.get('norma_auditada')})** para **{target_name}**"
-                            audit_date = first_row['data_auditoria'].strftime('%d/%m/%Y às %H:%M')
-                            
-                            # Exibe as informações de forma limpa, com cor baseada no status do resumo
-                            st.markdown(f"**Análise de {audit_title}**")
-                            st.caption(f"Realizada em: {audit_date}")
-                            
-                            if 'não conforme' in str(status).lower():
-                                st.error(f"**Parecer da IA:** {resumo_text}")
-                            else:
-                                st.info(f"**Parecer da IA:** {resumo_text}")
-                            st.markdown("---")
-                else:
-                    st.info("Nenhum histórico de auditoria encontrado para esta empresa.")
-
-    
+ 
     with tab_add_epi:
         if selected_company:
             if check_admin_permission():
