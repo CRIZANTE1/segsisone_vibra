@@ -18,6 +18,8 @@ ADM_SHEET_NAME = "ADM"  # Aba para administradores
 AUDIT_RESULTS_SHEET_NAME = "auditorias"
 COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
 EPI_SHEET_NAME = "fichas_epi"
+ACTION_PLAN_SHEET_NAME = "planos_de_acao"
+
 
 def get_credentials_dict():
     """
