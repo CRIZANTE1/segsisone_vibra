@@ -13,7 +13,7 @@ def load_models():
     audit_model = None
 
     try:
-        extraction_key = st.secrets.get("GEMINI_EXTRACTION_KEY")
+        extraction_key = st.secrets.general.get("GEMINI_EXTRACTION_KEY")
         if extraction_key:
             genai.configure(api_key=extraction_key)
             extraction_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20') 
@@ -21,7 +21,7 @@ def load_models():
         else:
             st.warning("Chave 'GEMINI_EXTRACTION_KEY' não encontrada nos secrets. Funções de extração de dados serão desativadas.")
 
-        audit_key = st.secrets.get("GEMINI_AUDIT_KEY")
+        audit_key = st.secrets.general.get("GEMINI_AUDIT_KEY")
         if audit_key:
             genai.configure(api_key=audit_key)
             audit_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20')
