@@ -7,6 +7,7 @@ import json
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import google.generativeai as genai
+import random
 
 from AI.api_Operation import PDFQA
 from gdrive.config import get_credentials_dict
@@ -182,8 +183,7 @@ class NRAnalyzer:
 
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str):
         """
-        Cria itens no plano de ação para cada falha encontrada na auditoria.
-        Agora, `self.action_plan_manager` existe e esta função funcionará.
+        Cria itens no plano de ação. A referência a 'random' agora funcionará.
         """
         if audit_result.get("summary", "").lower() == 'conforme':
             return 0
