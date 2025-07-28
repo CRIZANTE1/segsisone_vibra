@@ -157,4 +157,5 @@ if selected_company_id:
                 else:
                     st.error("Falha ao atualizar o plano de ação.")
 
-    treat_item_dialog(current_item)
+    if 'current_item_to_treat' in st.session_state:
+        treat_item_dialog(st.session_state.current_item_to_treat
