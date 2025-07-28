@@ -75,9 +75,6 @@ class NRAnalyzer:
             st.error("Seção [app_settings] com 'rag_sheet_id' não encontrada no secrets.toml.")
 
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
-        """
-        Encontra os 'top_k' chunks mais relevantes usando busca por similaridade de cosseno.
-        """
         if self.rag_df.empty or self.rag_embeddings is None or self.rag_embeddings.size == 0:
             return "Base de conhecimento indisponível ou não indexada."
 
@@ -88,10 +85,8 @@ class NRAnalyzer:
                 task_type="RETRIEVAL_QUERY"
             )
             query_embedding = np.array(query_embedding_result['embedding'])
-
             similarities = cosine_similarity(query_embedding, self.rag_embeddings)[0]
             top_k_indices = similarities.argsort()[-top_k:][::-1]
-
             relevant_chunks = self.rag_df.iloc[top_k_indices]
             context_text = "\n\n---\n\n".join(relevant_chunks['Answer_Chunk'].tolist())
             return context_text
