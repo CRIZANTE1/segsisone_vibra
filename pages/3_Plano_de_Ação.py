@@ -43,14 +43,29 @@ if selected_company_id:
     else:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
+                employee_id = row.get('id_funcionario')
+                target_name = ""
+                
+                # Se houver um ID de funcionário válido, busca o nome
+                if employee_id and str(employee_id) != 'N/A':
+                    employee_name = employee_manager.get_employee_name(employee_id)
+                    if employee_name:
+                        target_name = f"👤 **Funcionário:** {employee_name}"
+    
+                st.markdown(f"**Item:** {row['item_nao_conforme']}")
+                
+                # Exibe o nome do funcionário se encontrado
+                if target_name:
+                    st.markdown(target_name)
+                    
+                st.markdown(f"**Item:** {row['item_nao_conforme']}")    
+                
                 col1, col2, col3 = st.columns([3, 2, 1])
                 with col1:
-                    st.markdown(f"**Item:** {row['item_nao_conforme']}")
                     st.caption(f"Referência: {row['referencia_normativa']} | Documento ID: {row['id_documento_original']}")
                 with col2:
                     st.info(f"**Status:** {row['status']}")
-                with col3:
-                    # O botão "Tratar" abre o diálogo
+                with col3:                 
                     if st.button("Tratar Item", key=f"treat_{row['id']}"):
                         st.session_state.current_item_to_treat = row.to_dict()
                         
