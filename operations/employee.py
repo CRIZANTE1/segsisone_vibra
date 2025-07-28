@@ -371,32 +371,35 @@ class EmployeeManager:
     def add_aso(self, aso_data: dict):
         """
         Adiciona um novo registro de ASO à planilha a partir de um dicionário.
-        Espera que o dicionário contenha 'funcionario_id', 'data_aso', 'arquivo_id', e 'cargo'.
+        É robusto contra campos ausentes, exceto os essenciais.
         """
         from gdrive.config import ASO_SHEET_NAME
     
-        # --- CORREÇÃO AQUI: Validação mais clara e robusta ---
         funcionario_id = aso_data.get('funcionario_id')
         data_aso = aso_data.get('data_aso')
         arquivo_id = aso_data.get('arquivo_id')
         cargo = aso_data.get('cargo')
         
-        # Verifica se os campos essenciais existem e não estão vazios
-        if not all([funcionario_id, data_aso, arquivo_id, cargo]):
-            st.error("Dados essenciais para o ASO (ID do Funcionário, Data, Arquivo, Cargo) estão faltando.")
+        if not all([funcionario_id, data_aso, arquivo_id]):
+            st.error("Dados essenciais para o ASO (ID do Funcionário, Data, Arquivo) estão faltando.")
             return None
     
+        # 3. Lida com campos opcionais de forma segura
         vencimento = aso_data.get('vencimento')
         vencimento_str = vencimento.strftime("%d/%m/%Y") if vencimento else "N/A"
-        
+        riscos_str = aso_data.get('riscos', 'Não informado')
+        tipo_aso_str = aso_data.get('tipo_aso', 'Não identificado')
+        cargo_str = cargo or 'Não informado' # Garante que não seja None
+    
+        # 4. Monta a linha a ser inserida na planilha
         new_data = [
             str(funcionario_id),
             data_aso.strftime("%d/%m/%Y"),
             vencimento_str,
             str(arquivo_id),
-            str(aso_data.get('riscos', '')),
-            str(cargo),
-            str(aso_data.get('tipo_aso', 'Não identificado'))
+            riscos_str,
+            cargo_str,
+            tipo_aso_str
         ]
         
         try:
