@@ -37,9 +37,10 @@ if selected_company_id:
     st.header(f"Itens Pendentes para: {company_name}")
     action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
     
-    # Pré-carrega os DataFrames de ASO e Treinamento para buscas eficientes
+    # Pré-carrega todos os DataFrames para buscas eficientes
     asos_df = employee_manager.aso_df
     trainings_df = employee_manager.training_df
+    company_docs_df = docs_manager.docs_df # DataFrame dos documentos da empresa
     
     if not action_items_df.empty and 'status' in action_items_df.columns:
         pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
@@ -53,40 +54,53 @@ if selected_company_id:
             with st.container(border=True):
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
 
-                # --- NOVA LÓGICA DE BUSCA EM CASCATA ---
+                # --- LÓGICA DE BUSCA APRIMORADA (AGORA INCLUI URL) ---
                 original_doc_id = row.get('id_documento_original')
                 employee_id = None
                 doc_type_context = "Documento da Empresa"
+                pdf_url = "" # <-- Inicializa a variável da URL
 
-                # 1. Tenta encontrar o documento na tabela de ASOs
+                # 1. Tenta encontrar o doc em ASOs
                 aso_entry = asos_df[asos_df['id'] == original_doc_id]
                 if not aso_entry.empty:
-                    employee_id = aso_entry.iloc[0].get('funcionario_id')
-                    doc_type_context = f"ASO ({aso_entry.iloc[0].get('tipo_aso', '')})"
+                    entry = aso_entry.iloc[0]
+                    employee_id = entry.get('funcionario_id')
+                    doc_type_context = f"ASO ({entry.get('tipo_aso', '')})"
+                    pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
 
-                # 2. Se não encontrou, tenta na tabela de Treinamentos
-                if employee_id is None:
+                # 2. Se não encontrou, tenta em Treinamentos
+                if not pdf_url:
                     training_entry = trainings_df[trainings_df['id'] == original_doc_id]
                     if not training_entry.empty:
-                        employee_id = training_entry.iloc[0].get('funcionario_id')
-                        doc_type_context = f"Treinamento ({training_entry.iloc[0].get('norma', '')})"
+                        entry = training_entry.iloc[0]
+                        employee_id = entry.get('funcionario_id')
+                        doc_type_context = f"Treinamento ({entry.get('norma', '')})"
+                        pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
 
-                # 3. Agora, com o employee_id (se encontrado), busca o nome
+                # 3. Se ainda não encontrou, tenta nos Documentos da Empresa
+                if not pdf_url:
+                    company_doc_entry = company_docs_df[company_docs_df['id'] == original_doc_id]
+                    if not company_doc_entry.empty:
+                        entry = company_doc_entry.iloc[0]
+                        doc_type_context = f"Doc. Empresa ({entry.get('tipo_documento', '')})"
+                        pdf_url = entry.get('arquivo_id', '') # <-- Pega a URL
+
+                # 4. Busca o nome do funcionário
                 employee_info = ""
                 if employee_id:
                     employee_name = employee_manager.get_employee_name(employee_id)
-                    if employee_name:
-                        employee_info = f"👤 **Funcionário:** {employee_name} | "
-                    else:
-                        employee_info = f"👤 **Funcionário (ID: {employee_id})** | "
+                    employee_info = f"👤 **Funcionário:** {employee_name or f'ID: {employee_id}'} | "
                 else:
                     employee_info = f"🏢 **Empresa** | "
                 
+                # 5. Monta o link clicável
+                pdf_link_markdown = f"[[PDF]({pdf_url})]" if pdf_url else ""
+
                 # Monta e exibe as informações de contexto
                 context_caption = (
                     f"{employee_info}"
                     f"**Tipo:** {doc_type_context} | "
-                    f"**Doc ID:** {original_doc_id} | "
+                    f"**Doc ID:** {original_doc_id} {pdf_link_markdown} | " # <-- Adiciona o link aqui
                     f"**Referência:** {row.get('referencia_normativa', 'N/A')}"
                 )
                 st.caption(context_caption)
@@ -98,7 +112,6 @@ if selected_company_id:
                 with col2:
                     if st.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
                         st.session_state.current_item_to_treat = row.to_dict()
-
                         
     st.markdown("---")
     with st.expander("📖 Ver Histórico Completo de Auditorias"):        
