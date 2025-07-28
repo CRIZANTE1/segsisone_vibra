@@ -43,10 +43,28 @@ class ActionPlanManager:
             self.action_plan_df = pd.DataFrame(columns=self.columns)
 
     def add_action_item(self, audit_run_id, company_id, doc_id, item_details):
+        """
+        Adiciona um item ao plano de ação, combinando o título e a observação
+        para uma descrição completa.
+        """
+        item_title = item_details.get('item_verificacao', 'Não conformidade não especificada')
+        
+        item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
+
+        full_description = f"{item_title.strip()}: {item_observation.strip()}"
+
         new_data = [
-            str(audit_run_id), str(company_id), str(doc_id),
-            item_details.get('item_verificacao', ''), item_details.get('referencia', ''),
-            "", "", "", "Aberto", date.today().strftime("%d/%m/%Y"), ""
+            str(audit_run_id),
+            str(company_id),
+            str(doc_id),
+            full_description,  
+            item_details.get('referencia', ''), 
+            "",  
+            "",  
+            "",  
+            "Aberto",
+            date.today().strftime("%d/%m/%Y"),
+            ""  
         ]
         return self.sheet_ops.adc_dados_aba(ACTION_PLAN_SHEET_NAME, new_data)
 
