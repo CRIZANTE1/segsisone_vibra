@@ -26,7 +26,6 @@ def load_unified_rag_base(sheet_id: str) -> pd.DataFrame:
         worksheet = spreadsheet.sheet1
         df = pd.DataFrame(worksheet.get_all_records())
 
-        # <-- MUDANÇA FINAL AQUI: Ajustado para o nome da coluna 'Chunk'
         expected_columns = [
             "Norma_Referencia",
             "ID",
@@ -35,7 +34,7 @@ def load_unified_rag_base(sheet_id: str) -> pd.DataFrame:
             "Keywords",
             "Question",
             "Answer_Chunk",
-            "Chunk"  # Nome da sua oitava coluna
+            "Chunk" 
         ]
         columns_to_keep = [col for col in expected_columns if col in df.columns]
 
@@ -51,7 +50,6 @@ def load_unified_rag_base(sheet_id: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 class NRAnalyzer:
-    # O restante da classe permanece exatamente o mesmo. Nenhuma outra mudança é necessária.
     def __init__(self):
         self.pdf_analyzer = PDFQA()
         from operations.sheet import SheetOperations
