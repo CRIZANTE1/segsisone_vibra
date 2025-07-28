@@ -43,21 +43,20 @@ if selected_company_id:
     else:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
-                # --- CORREÇÃO E MELHORIA DE LAYOUT AQUI ---
                 
                 # 1. Busca o nome do funcionário, se aplicável.
                 employee_id = row.get('id_funcionario')
-                employee_info = "" # Inicializa como string vazia
-                if employee_id and str(employee_id) != 'N/A':
+                employee_info = ""
+                if employee_id and str(employee_id).strip() and str(employee_id).lower() != 'n/a':
                     employee_name = employee_manager.get_employee_name(employee_id)
                     if employee_name:
-                        # Monta uma linha de informação completa sobre o funcionário
                         employee_info = f"👤 **Funcionário:** {employee_name} | "
+                    else:
+                        # Se não encontrar o nome, mostra o ID para depuração
+                        employee_info = f"👤 **Funcionário (ID não encontrado):** {employee_id} | "
                 
-                # 2. Exibe a descrição da não conformidade.
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
                 
-                # 3. Monta e exibe as informações de contexto (funcionário, referência, etc.).
                 context_caption = (
                     f"{employee_info}"
                     f"**Documento ID:** {row['id_documento_original']} | "
