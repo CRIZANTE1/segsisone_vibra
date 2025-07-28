@@ -7,6 +7,10 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager 
 from auth.auth_utils import check_admin_permission, is_user_logged_in
 
+if 'pending_items' in locals() and not pending_items.empty:
+    page_title = f"({len(pending_items)}) Plano de Ação"
+else:
+    page_title = "Plano de Ação e Auditorias"
 st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
 
 st.title("📋 Gestão de Não Conformidades e Auditorias")
