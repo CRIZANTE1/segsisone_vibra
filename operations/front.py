@@ -271,7 +271,7 @@ def front_page():
                     if st.session_state.get('ASO_info_para_salvar'):
                         aso_info = st.session_state['ASO_info_para_salvar']
                         audit_result = aso_info.get('audit_result')
-
+    
                         if aso_info and aso_info.get('data_aso'):
                             with st.container(border=True):
                                 st.markdown("### Confirme as Informações Extraídas")
@@ -280,9 +280,9 @@ def front_page():
                                 vencimento_aso = aso_info.get('vencimento')
                                 if vencimento_aso: st.success(f"**Vencimento:** {vencimento_aso.strftime('%d/%m/%Y')}")
                                 else: st.info("**Vencimento:** N/A (Ex: Demissional)")
-
+    
                                 display_audit_results(audit_result)
-
+    
                                 if st.button("Confirmar e Salvar ASO", type="primary"):
                                     with st.spinner("Salvando ASO e processando auditoria..."):
                                         anexo_aso = st.session_state.ASO_anexo_para_salvar
@@ -291,19 +291,40 @@ def front_page():
                                         arquivo_id = gdrive_uploader.upload_file(anexo_aso, f"ASO_{employee_name}_{aso_info['data_aso'].strftime('%Y%m%d')}")
                                         
                                         if arquivo_id:
-                                            # Remove o resultado da auditoria do dicionário antes de salvar
-                                            aso_data_to_save = {k: v for k, v in aso_info.items() if k != 'audit_result'}
-                                            aso_id = employee_manager.add_aso(id=selected_employee_aso, arquivo_id=arquivo_id, **aso_data_to_save)
+                         
+                                            aso_data_to_save = aso_info.copy()
+                     
+                                            aso_data_to_save.pop('type', None)
+                                            aso_data_to_save.pop('audit_result', None)
+                                            aso_data_to_save.pop('employee_id', None)
+    
+                                            aso_id = employee_manager.add_aso(
+                                                id=selected_employee_aso, 
+                                                arquivo_id=arquivo_id, 
+                                                **aso_data_to_save # Agora só contém os argumentos válidos
+                                            )
+    
                                             if aso_id:
-                                                if audit_result and audit_result.get("summary", "").lower() == 'não conforme':
+                                                if audit_result and "não conforme" in audit_result.get("summary", "").lower():
                                                     created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, aso_id)
                                                     st.success(f"ASO salvo! {created_count} item(ns) de ação foram criados.")
                                                 else:
                                                     st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                                                 
+                                                # Limpa o estado da sessão para resetar a UI
                                                 for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
+                                            else:
+                                                st.error("Falha ao salvar os dados do ASO na planilha.")
+                                        else:
+                                            st.error("Falha ao fazer o upload do anexo para o Google Drive.")
+                else:
+                    st.warning("Nenhum funcionário cadastrado. Por favor, adicione funcionários na página de Administração.")
+            else:
+                st.error("Você não tem permissão para realizar esta ação.")
+        else:
+            st.info("Selecione uma empresa na primeira aba para adicionar um ASO.")
 
     with tab_add_treinamento:
         if selected_company:
