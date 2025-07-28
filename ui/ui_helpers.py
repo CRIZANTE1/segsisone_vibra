@@ -46,15 +46,14 @@ def style_audit_table(row):
         return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
-def _run_analysis_and_audit(analysis_func, uploader_key, doc_type_str, employee_id_key=None):
+def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_type_str, employee_id_key=None):
     """
-    Função genérica e interna para executar a análise de dados E a auditoria de conformidade.
+    Função genérica e interna que recebe o objeto gerenciador como argumento.
     """
     if not st.session_state.get(uploader_key):
         return
 
     nr_analyzer = st.session_state.nr_analyzer
-    
     anexo = st.session_state[uploader_key]
     st.session_state[f"{doc_type_str}_anexo_para_salvar"] = anexo
     
@@ -62,6 +61,9 @@ def _run_analysis_and_audit(analysis_func, uploader_key, doc_type_str, employee_
     if employee_id:
         st.session_state[f"{doc_type_str}_funcionario_para_salvar"] = employee_id
 
+    # Pega o método de análise do objeto gerenciador
+    analysis_func = getattr(manager, analysis_method_name)
+    
     with st.spinner(f"Analisando conteúdo do PDF..."):
         info = analysis_func(anexo)
 
@@ -76,43 +78,45 @@ def _run_analysis_and_audit(analysis_func, uploader_key, doc_type_str, employee_
     with st.spinner(f"Executando auditoria de conformidade..."):
         audit_result = nr_analyzer.perform_initial_audit(info, anexo.getvalue())
 
-    if audit_result:
-        info['audit_result'] = audit_result
-    else:
-        info['audit_result'] = {"summary": "Falha na Auditoria", "details": []}
+    info['audit_result'] = audit_result or {"summary": "Falha na Auditoria", "details": []}
     
     st.session_state[f"{doc_type_str}_info_para_salvar"] = info
 
 def process_aso_pdf():
-    _run_analysis_and_audit(
-        analysis_func=st.session_state.employee_manager.analyze_aso_pdf,
-        uploader_key='aso_uploader_tab',
-        doc_type_str='ASO',
-        employee_id_key='aso_employee_add'
-    )
+    # Garante que os gerenciadores existam antes de chamar o helper
+    if 'employee_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+        _run_analysis_and_audit(
+            manager=st.session_state.employee_manager,
+            analysis_method_name='analyze_aso_pdf',
+            uploader_key='aso_uploader_tab',
+            doc_type_str='ASO',
+            employee_id_key='aso_employee_add'
+        )
 
 def process_training_pdf():
-    _run_analysis_and_audit(
-        analysis_func=st.session_state.employee_manager.analyze_training_pdf,
-        uploader_key='training_uploader_tab',
-        doc_type_str='Treinamento',
-        employee_id_key='training_employee_add'
-    )
+    if 'employee_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+        _run_analysis_and_audit(
+            manager=st.session_state.employee_manager,
+            analysis_method_name='analyze_training_pdf',
+            uploader_key='training_uploader_tab',
+            doc_type_str='Treinamento',
+            employee_id_key='training_employee_add'
+        )
 
 def process_company_doc_pdf():
-    _run_analysis_and_audit(
-        analysis_func=st.session_state.docs_manager.analyze_company_doc_pdf,
-        uploader_key='doc_uploader_tab',
-        doc_type_str='Doc. Empresa'
-    )
+    if 'docs_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+        _run_analysis_and_audit(
+            manager=st.session_state.docs_manager,
+            analysis_method_name='analyze_company_doc_pdf',
+            uploader_key='doc_uploader_tab',
+            doc_type_str='Doc. Empresa'
+        )
 
 def process_epi_pdf():
-    """
-    A Ficha de EPI não passa pela auditoria de NR, então mantemos sua lógica simples.
-    """
-    if st.session_state.get('epi_uploader_tab'):
+    # EPI não tem auditoria, então sua lógica permanece simples
+    if st.session_state.get('epi_uploader_tab') and 'epi_manager' in st.session_state:
         epi_manager = st.session_state.epi_manager
         with st.spinner("Analisando PDF da Ficha de EPI..."):
             st.session_state.epi_anexo_para_salvar = st.session_state.epi_uploader_tab
             st.session_state.epi_funcionario_para_salvar = st.session_state.epi_employee_add
-            st.session_state.epi_info_para_salvar = epi_manager.analyze_epi_pdf(st.session_state.epi_uploader_tab)            
+            st.session_state.epi_info_para_salvar = epi_manager.analyze_epi_pdf(st.session_state.epi_uploader_tab)
