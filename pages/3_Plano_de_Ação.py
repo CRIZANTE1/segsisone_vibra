@@ -5,25 +5,26 @@ from datetime import datetime
 from operations.action_plan import ActionPlanManager
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager 
-from auth.auth_utils import check_admin_permission
+from auth.auth_utils import check_admin_permission, is_user_logged_in
 
-st.set_page_config(page_title="Plano de Ação", page_icon="📋", layout="wide")
+st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
 
-st.title("📋 Plano de Ação de Não Conformidades")
+st.title("📋 Gestão de Não Conformidades e Auditorias")
 
+if not is_user_logged_in():
+    st.warning("Por favor, faça login para acessar esta página.")
+    st.stop()
 if not check_admin_permission():
     st.stop()
 
-# Instanciar os gerenciadores
 @st.cache_resource
 def get_managers():
     return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
 
 action_plan_manager, employee_manager, docs_manager = get_managers()
 
-# Selecionar a empresa
 selected_company_id = st.selectbox(
-    "Selecione uma empresa para visualizar o plano de ação",
+    "Selecione uma empresa",
     employee_manager.companies_df['id'].tolist(),
     format_func=lambda x: employee_manager.get_company_name(x),
     index=None,
@@ -31,12 +32,17 @@ selected_company_id = st.selectbox(
 )
 
 if selected_company_id:
-    st.header(f"Itens Pendentes para: {employee_manager.get_company_name(selected_company_id)}")
-
+    company_name = employee_manager.get_company_name(selected_company_id) or f"Empresa (ID: {selected_company_id})"
+    
+    st.header(f"Itens Pendentes para: {company_name}")
     action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
     
-    # Filtra por itens que não estão concluídos
-    pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
+    all_audit_history = docs_manager.get_audits_by_company(selected_company_id)
+    
+    if not action_items_df.empty and 'status' in action_items_df.columns:
+        pending_items = action_items_df[action_items_df['status'].str.lower() != 'concluído']
+    else:
+        pending_items = pd.DataFrame()
 
     if pending_items.empty:
         st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
@@ -44,33 +50,37 @@ if selected_company_id:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
                 
-                # 1. Busca o nome do funcionário, se aplicável.
-                employee_id = row.get('id_funcionario')
-                employee_info = ""
-                if employee_id and str(employee_id).strip() and str(employee_id).lower() != 'n/a':
-                    employee_name = employee_manager.get_employee_name(employee_id)
-                    if employee_name:
-                        employee_info = f"👤 **Funcionário:** {employee_name} | "
-                    else:
-                        # Se não encontrar o nome, mostra o ID para depuração
-                        employee_info = f"👤 **Funcionário (ID não encontrado):** {employee_id} | "
-                
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
+
+                original_doc_id = row.get('id_documento_original')
+                context_info = f"**Documento ID:** {original_doc_id}" # Fallback
                 
-                context_caption = (
-                    f"{employee_info}"
-                    f"**Documento ID:** {row['id_documento_original']} | "
-                    f"**Referência Normativa:** {row.get('referencia_normativa', 'N/A')}"
-                )
-                st.caption(context_caption)
-    
-                # 4. Exibe o status e o botão de ação em colunas.
+                if not all_audit_history.empty:
+                    audit_entry = all_audit_history[all_audit_history['id_documento_original'] == original_doc_id]
+                    if not audit_entry.empty:
+                        first_entry = audit_entry.iloc[0]
+                        doc_type = first_entry.get('tipo_documento', 'Documento')
+                        employee_id = first_entry.get('id_funcionario')
+
+                        if employee_id and str(employee_id).lower() != 'n/a':
+                            employee_name = employee_manager.get_employee_name(employee_id)
+                            if employee_name:
+                                context_info = f"👤 **Funcionário:** {employee_name} | **Documento:** {doc_type} (ID: {original_doc_id})"
+                            else:
+                                context_info = f"👤 **Funcionário (ID: {employee_id})** | **Documento:** {doc_type} (ID: {original_doc_id})"
+                        else:
+                            context_info = f"🏢 **Empresa** | **Documento:** {doc_type} (ID: {original_doc_id})"
+                
+                st.caption(f"{context_info} | **Referência:** {row.get('referencia_normativa', 'N/A')}")
+                
+                # Layout para status e botão
                 col1, col2 = st.columns([4, 1])
                 with col1:
                     st.info(f"**Status Atual:** {row['status']}")
                 with col2:
                     if st.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
                         st.session_state.current_item_to_treat = row.to_dict()
+
                         
     st.markdown("---")
     with st.expander("📖 Ver Histórico Completo de Auditorias"):        
