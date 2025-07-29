@@ -1,131 +1,81 @@
-# Sistema de Gestão de Documentação de Contratadas (SEGMA-SIS)
+# Sistema de Gestão Inteligente para Contratadas (SEGMA-SIS)
 
-Sistema desenvolvido para gerenciar documentação de empresas contratadas, incluindo ASOs (Atestados de Saúde Ocupacional) e treinamentos de normas regulamentadoras (NRs).
+![Status](https://img.shields.io/badge/status-em%20desenvolvimento-yellow)
+![Tecnologia](https://img.shields.io/badge/backend-Python%20%7C%20Streamlit-blue)
+![IA](https://img.shields.io/badge/IA-Google%20Gemini-orange)
 
-## Funcionalidades
+**Automatize a conformidade, reduza riscos e gerencie a documentação de seus prestadores de serviço com o poder da Inteligência Artificial.**
 
-### Gestão de Empresas
-- Cadastro de empresas contratadas
-- Visualização de dados por empresa
-- Gerenciamento de funcionários por empresa
+---
 
-### Gestão de Documentos
-- Upload e análise automática de ASOs
-  - Extração automática de datas
-  - Identificação de riscos ocupacionais
-  - Validação de vencimentos
-  - Armazenamento seguro no Google Drive
+## O Problema
 
-- Gestão de Treinamentos de NRs
-  - Suporte às normas: NR-10, NR-18, NR-20, NR-34, NR-35
-  - Análise automática de certificados
-  - Validação de cargas horárias e periodicidades
-  - Controle de vencimentos
+Gerenciar a documentação de Saúde e Segurança do Trabalho (SST) de empresas contratadas é um desafio complexo, manual e propenso a falhas. Controlar vencimentos de ASOs, validar certificados de NRs e garantir a conformidade de PGRs e PCMSOs consome tempo, recursos e expõe a empresa a riscos legais e operacionais significativos.
 
-### Normas Regulamentadoras Suportadas para uma instalação especifica. 
-Ajustes podem ser realizados de acordo com cada particularidade.
+## A Solução: SEGMA-SIS
 
-#### NR-20
-##### Reciclagem:
-| Módulo | Periodicidade | Carga Horária Mínima |
-|--------|---------------|---------------------|
-| Básico | 3 anos | 4 horas |
-| Intermediário | 2 anos | 4 horas |
-| Avançado I | 2 anos | 4 horas |
-| Avançado II | 1 ano | 4 horas |
+O **SEGMA-SIS** é uma plataforma inteligente que centraliza e automatiza a gestão de documentos de SST de contratadas. Utilizando a IA avançada do Google Gemini, o sistema não apenas armazena documentos, mas os analisa, audita e transforma dados em ações, garantindo um novo nível de controle e segurança.
 
-##### Formação Inicial:
-| Módulo | Carga Horária Mínima |
-|--------|---------------------|
-| Básico | 8 horas |
-| Intermediário | 16 horas |
-| Avançado I | 20 horas |
-| Avançado II | 32 horas |
+---
 
-#### Outras NRs
-| Norma | Carga Horária Inicial | Carga Horária Reciclagem | Periodicidade Reciclagem |
-|-------|----------------------|------------------------|----------------------|
-| NR-35 | 8 horas | 8 horas | 2 anos |
-| NR-10 | 40 horas | 40 horas | 2 anos |
-| NR-18 | 8 horas | 8 horas | 1 ano |
-| NR-34 | 8 horas | 8 horas | 1 ano |
+## Principais Funcionalidades
+
+*   **🗂️ Central de Documentos:** Um repositório único e organizado para toda a documentação de empresas, funcionários, ASOs, treinamentos e fichas de EPI.
+
+*   **🧠 Análise Inteligente com IA:** Faça o upload de um PDF e deixe a IA trabalhar. O sistema extrai automaticamente informações cruciais como datas de emissão, vencimentos, nomes, tipos de exame e cargas horárias, eliminando a digitação manual.
+
+*   **⚖️ Auditoria de Conformidade Automatizada:** No momento do upload, cada documento é submetido a uma auditoria instantânea. Usando uma base de conhecimento (RAG), a IA verifica se o documento atende aos requisitos normativos (NRs) e aponta inconsistências, como cargas horárias insuficientes ou datas inválidas.
+
+*   **📋 Geração Automática de Plano de Ação:** Uma não conformidade foi encontrada? O SEGMA-SIS cria automaticamente um item no Plano de Ação, vinculando o problema ao documento e ao funcionário, garantindo que nenhuma pendência seja esquecida.
+
+*   **🗓️ Dashboard de Gestão:** Visualize o status de todos os documentos e funcionários de uma empresa em uma única tela. Monitore vencimentos, trate pendências e consulte o histórico completo de auditorias com status de tratamento.
+
+*   **📧 Notificador Automático de Vencimentos:** Um sistema proativo envia relatórios por e-mail, alertando sobre documentos vencidos ou próximos do vencimento, permitindo ações preventivas.
+
+---
+
+## Demonstração Visual
+
+*(Sugestão: Grave GIFs curtos da sua aplicação em funcionamento e insira-os aqui. Eles são extremamente eficazes!)*
+
+**1. Upload e Análise Instantânea**
+*(GIF mostrando o upload de um ASO e a IA preenchendo os campos de data e tipo automaticamente)*
+`![GIF de Análise de ASO](link_para_seu_gif_1.gif)`
+
+**2. Auditoria e Criação de Plano de Ação**
+*(GIF mostrando o upload de um certificado com carga horária errada, a IA apontando a falha e um novo item aparecendo na página de Plano de Ação)*
+`![GIF de Auditoria e Plano de Ação](link_para_seu_gif_2.gif)`
+
+**3. Gestão e Tratamento de Pendências**
+*(GIF mostrando a página de Plano de Ação, o usuário clicando em "Tratar", preenchendo o formulário no diálogo e o item desaparecendo da lista de pendentes)*
+`![GIF de Tratamento de Pendência](link_para_seu_gif_3.gif)`
+
+---
 
 ## Tecnologias Utilizadas
 
-- **Frontend**: Streamlit
-- **Backend**: Python
-- **Banco de Dados**: Google Sheets
-- **Armazenamento**: Google Drive
-- **IA**: Modelo Gemini 
+*   **Frontend:** Streamlit
+*   **Backend & Lógica de Negócio:** Python
+*   **Inteligência Artificial:** Google Gemini (para extração e RAG)
+*   **Banco de Dados:** Google Sheets
+*   **Armazenamento de Arquivos:** Google Drive
 
-## Requisitos
+---
 
-```bash
-pip install -r requirements.txt
-```
+## Contato e Demonstração
 
-## Estrutura do Projeto
+Este é um projeto proprietário e não está disponível para uso público ou redistribuição.
 
-```
-segma_sis/
-├── AI/                     # Módulos de inteligência artificial
-├── auth/                   # Configurações de autenticação
-├── data/                   # Dados e configurações
-├── gdrive/                 # Integração com Google Drive
-├── operations/             # Lógica de negócio
-│   ├── employee.py        # Gestão de funcionários
-│   ├── front.py           # Interface do usuário
-│   └── sheet.py           # Operações com planilhas
-├── main.py                # Ponto de entrada da aplicação
-├── requirements.txt       # Dependências do projeto
-└── README.md             # Este arquivo
-```
+Para uma **demonstração ao vivo** ou para discutir como o SEGMA-SIS pode ser adaptado para as necessidades da sua empresa, entre em contato:
 
-## Configuração
+*   **Autor:** Cristian Ferreira Carlos
+*   **LinkedIn:** [https://www.linkedin.com/in/cristian-ferreira-carlos-256b19161/](https://www.linkedin.com/in/cristian-ferreira-carlos-256b19161/)
+*   **E-mail:** cristianfc2015@hotmail.com
 
-1. Configure as credenciais do Google:
-   - Crie um projeto no Google Cloud Console
-   - Habilite as APIs do Google Drive e Google Sheets
-   - Configure as credenciais de autenticação
+---
 
-2. Configure o arquivo de ambiente:
-   - Copie o arquivo `.env.example` para `.env`
-   - Preencha as variáveis de ambiente necessárias
+## Licença de Uso
 
-## Uso
+Este software é uma propriedade intelectual de Cristian Ferreira Carlos. Todos os direitos são reservados.
 
-1. Execute o aplicativo:
-```bash
-streamlit run main.py
-```
-
-2. Fluxo básico:
-   - Selecione ou cadastre uma empresa
-   - Visualize os dados existentes na aba "Dados da Empresa"
-   - Cadastre novos funcionários se necessário
-   - Adicione documentos na aba "Adicionar Documentos"
-
-## Recursos
-
-- Interface intuitiva para gestão de documentos
-- Análise automática de PDFs
-- Validação automática de normas
-- Armazenamento seguro de documentos
-- Controle de vencimentos
-- Visualização organizada por empresa
-
-## Contribuição
-
-1. Faça um Fork do projeto
-2. Crie uma Branch para sua Feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a Branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## Licença
-
-Lincença restrita.
-
-## Suporte
-
-Para suporte, abra uma issue no GitHub. 
+É estritamente proibido o uso, cópia, modificação, fusão, publicação, distribuição, sublicenciamento e/ou venda de cópias do Software sem a permissão expressa e por escrito do autor. Para mais detalhes, consulte o arquivo `LICENSE.txt`.
