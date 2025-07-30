@@ -250,42 +250,41 @@ class NRAnalyzer:
             """
 
         return f"""
-        **Persona:** Você é um Auditor Líder de SST, extremamente preciso e objetivo.
-
+        **Persona:** Você é um Auditor Líder de SST. Sua análise é baseada em duas fontes: (1) As regras da sua tarefa e (2) a Base de Conhecimento fornecida.
+    
         **Contexto Crítico:** A data de hoje é **{data_atual}**.
-
-        **Sua Tarefa (em 3 etapas):**
-        1.  **Análise Crítica:** Use o **Checklist de Auditoria Crítica** abaixo para auditar o documento.
+    
+        **Base de Conhecimento Normativa (Fonte da Verdade):**
+        A seguir estão trechos de Normas Regulamentadoras. USE ESTA FONTE para preencher a chave "referencia_normativa" no JSON.
+        ---
+        {relevant_knowledge}
+        ---
+    
+        **Sua Tarefa (Regras de Análise):**
+        1.  **Análise Crítica:** Use o **Checklist de Auditoria** abaixo para auditar o documento PDF.
         
             {checklist_instrucoes}
-
+    
         2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO.
+    
         3.  **Justificativa Robusta com Evidências:**
-            *   Para cada item em "pontos_de_nao_conformidade", a 'observacao' DEVE citar a página e a evidência da falha.
-            *   **REGRA CRUCIAL:** Se o parecer final for **'Conforme com Ressalvas'**, você DEVE OBRIGATORIAMENTE preencher a chave "pontos_de_ressalva" com os detalhes. Uma ressalva é um ponto de melhoria ou uma pequena inconsistência que não invalida o documento, mas precisa ser mencionada.
-
-        **Estrutura JSON de Saída Obrigatória:**
+            *   Para cada "ponto_de_nao_conformidade", a 'observacao' deve citar a página e a evidência do PDF.
+            *   **REGRA CRUCIAL:** A chave "referencia_normativa" DEVE ser preenchida com o item ou seção relevante encontrado na **'Base de Conhecimento Normativa'** acima. **NUNCA cite o 'Checklist de Auditoria' como referência.**
+    
+        **Estrutura JSON de Saída Obrigatória (Siga o exemplo):**
         ```json
         {{
           "parecer_final": "Conforme | Não Conforme | Conforme com Ressalvas",
-          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral sobre o documento.",
+          "resumo_executivo": "...",
           "pontos_de_nao_conformidade": [
             {{
-              "item": "Descrição clara da NÃO CONFORMIDADE.",
-              "referencia_normativa": "O item específico da norma.",
-              "observacao": "A justificativa detalhada com página e evidência."
-            }}
-          ],
-          "pontos_de_ressalva": [
-            {{
-              "item": "Descrição clara da RESSALVA ou ponto de melhoria.",
-              "referencia_normativa": "A norma ou boa prática relacionada.",
-              "observacao": "A justificativa detalhada com página e evidência, explicando por que é uma ressalva e não uma não conformidade."
+              "item": "Ausência da assinatura do trabalhador no certificado",
+              "referencia_normativa": "NR-01, item 1.7.1.1",
+              "observacao": "Na página 1, o campo para assinatura do funcionário está em branco. A Base de Conhecimento, no item 1.7.1.1 da NR-01, exige a assinatura do trabalhador como item obrigatório no certificado."
             }}
           ]
         }}
         ```
-        **Importante:** Se o documento estiver 'Conforme', ambos os arrays devem estar vazios `[]`. Se for 'Não Conforme', "pontos_de_ressalva" pode estar vazio. Se for 'Conforme com Ressalvas', "pontos_de_nao_conformidade" deve estar vazio.
         """
 
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
