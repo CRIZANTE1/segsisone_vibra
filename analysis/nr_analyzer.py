@@ -198,7 +198,38 @@ class NRAnalyzer:
                 }
               ]
             """
-        
+
+        elif doc_type == "ASO":
+            checklist_instrucoes = f"""
+            **Checklist de Auditoria Obrigatório para Atestado de Saúde Ocupacional (ASO - NR-07):**
+            
+            1.  **Identificação Completa:** Verifique se o ASO contém o nome completo do trabalhador, número de CPF, e a função desempenhada.
+            
+            2.  **Dados do Exame:**
+                *   Verifique se o tipo de exame (admissional, periódico, demissional, etc.) está claro.
+                *   Confira se os riscos ocupacionais específicos (se houver) estão listados.
+                *   Verifique se a data de emissão do ASO é explícita e não é uma data futura em relação à data da auditoria ({data_atual}).
+            
+            3.  **Assinatura do Médico (Item Crítico):**
+                *   Verifique se o ASO contém o nome, número do conselho de classe (CRM) e a **assinatura** do médico responsável pelo exame.
+                *   **REGRA:** Se a assinatura do médico estiver ausente, o documento é inválido. Aponte como 'Não Conforme'.
+    
+            4.  **Assinatura do Trabalhador (Item Crítico):**
+                *   Verifique se o ASO contém um campo para a assinatura do trabalhador e se está assinado. A assinatura do trabalhador indica ciência do resultado.
+                *   **REGRA:** Embora a ausência da assinatura do trabalhador seja uma falha de registro, a do médico é mais crítica. Se a do trabalhador faltar, aponte como 'Não Conforme' e mencione a falha.
+                
+            5.  **Parecer de Aptidão:** O documento deve concluir de forma clara se o trabalhador está 'Apto' ou 'Inapto' para a função.
+            """
+            json_example = """
+              "resumo_executivo": "O ASO apresenta uma não conformidade crítica que invalida o documento: a ausência da assinatura do médico responsável. Sem esta assinatura, não há comprovação legal da avaliação de saúde.",
+              "pontos_de_nao_conformidade": [
+                {
+                  "item": "Ausência da assinatura do médico responsável",
+                  "referencia_normativa": "NR-07, item 7.5.19.1.g",
+                  "observacao": "Na página 1, embora o nome e o CRM do médico estejam impressos, o campo destinado à sua assinatura está em branco. Isso torna o documento legalmente inválido para comprovar a aptidão do trabalhador."
+                }
+              ]
+            """
         else:
             checklist_instrucoes = """
             **Checklist de Auditoria Geral para Documentos de SST:**
