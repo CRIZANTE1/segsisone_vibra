@@ -122,30 +122,47 @@ class NRAnalyzer:
         
 
     def _get_advanced_audit_prompt(self, doc_info: dict, relevant_knowledge: str) -> str:
-        """
-        PROMPT AVANÇADO: Usa um checklist dinâmico e completo baseado no tipo de documento.
-        """
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "normas aplicáveis")
         data_atual = datetime.now().strftime('%d/%m/%Y')
-    
+
         checklist_instrucoes = ""
         json_example = ""
-    
+
         if doc_type == "PGR" or norma == "NR-01":
             checklist_instrucoes = """
-            **Checklist de Auditoria Obrigatório para PGR (NR-01):**
-            1.  **Inventário de Riscos (Item 1.5.7.3 da NR-01):** Verifique se o documento contém um inventário de riscos DETALHADO, incluindo caracterização dos processos, identificação de perigos, avaliação dos riscos (probabilidade/severidade), nível de risco e critérios. **Aponte como 'Não Conforme' se for apenas uma lista superficial.**
-            2.  **Plano de Ação (Item 1.5.7.3.3 da NR-01):** Verifique se o Plano de Ação é estruturado com medidas de prevenção, um **cronograma** claro (com datas ou prazos) e formas de acompanhamento. **Aponte como 'Não Conforme' se for uma lista de intenções sem datas.**
-            3.  **Vigência e Assinaturas:** Verifique se o documento possui uma data de emissão/vigência clara e se está assinado pelo responsável técnico. A data de emissão não pode ser futura em relação à data da auditoria.
+            **Checklist de Auditoria Crítica para PGR (NR-01) - NÃO ACEITE RESPOSTAS SUPERFICIAIS:**
+            
+            1.  **Inventário de Riscos (Qualidade vs. Presença):**
+                *   NÃO BASTA TER A SEÇÃO. O inventário deve, para cada risco, apresentar uma **avaliação**, indicando o **nível de risco** (ex: baixo, médio, alto) baseado em critérios de **severidade e probabilidade** (NR 01, item 1.5.4.4.2).
+                *   Verifique se os riscos são específicos para as funções/atividades da empresa e não genéricos.
+                *   **REGRA:** Se o documento apresentar apenas uma lista de riscos sem uma classificação clara de nível de risco, considere o item **'Inventário de Riscos incompleto' como 'Não Conforme'**.
+
+            2.  **Plano de Ação (Estrutura vs. Lista):**
+                *   NÃO BASTA TER A SEÇÃO. O plano de ação deve conter um **cronograma** com datas ou prazos definidos e **responsáveis** pelas ações (NR 01, item 1.5.5.2.2).
+                *   As ações devem ser específicas para os riscos identificados, e não apenas itens genéricos como "Atualização anual do PGR".
+                *   **REGRA:** Se o plano de ação for uma lista de tópicos sem cronograma e responsáveis, considere o item **'Plano de Ação não estruturado' como 'Não Conforme'**.
+
+            3.  **Procedimentos de Emergência:**
+                *   Verifique se o documento descreve, mesmo que minimamente, os procedimentos de resposta a emergências (NR 01, item 1.5.6.1).
+                *   **REGRA:** Se não houver menção a como responder a emergências, considere o item **'Ausência de plano de emergência' como 'Não Conforme'**.
+                
+            4.  **Vigência e Assinaturas:**
+                *   Verifique se o documento tem data de emissão e assinatura do responsável.
+                *   A data de emissão/aprovação NÃO PODE ser futura em relação à data da auditoria.
             """
             json_example = """
-              "resumo_executivo": "O PGR apresentado é superficial e não atende aos requisitos mínimos da NR-01...",
+              "resumo_executivo": "O PGR apresentado é fundamentalmente inadequado, pois não cumpre os requisitos estruturais básicos da NR-01. O documento falha em avaliar os riscos e em apresentar um plano de ação com cronograma, sendo pouco mais que uma declaração de intenções.",
               "pontos_de_nao_conformidade": [
                 {
-                  "item": "Plano de Ação não estruturado",
-                  "referencia_normativa": "NR-01, item 1.5.7.3.3",
-                  "observacao": "Na página 2, o 'Plano de Ação' consiste em uma lista de tópicos genéricos (ex: 'Verificação de EPI semanal') sem um cronograma de implementação ou definição de responsáveis."
+                  "item": "Inventário de Riscos incompleto (sem avaliação de nível de risco)",
+                  "referencia_normativa": "NR-01, item 1.5.4.4.2",
+                  "observacao": "Na página 2, a seção 'Inventário de Riscos' apenas lista agentes de risco. Falta a avaliação da combinação de severidade e probabilidade para determinar o nível de risco, o que é um pilar do gerenciamento de riscos."
+                },
+                {
+                  "item": "Plano de Ação não estruturado (sem cronograma e responsáveis)",
+                  "referencia_normativa": "NR-01, item 1.5.5.2.2",
+                  "observacao": "Na página 2, o 'Plano de Ação' apresenta uma lista de atividades genéricas sem definir um cronograma para sua implementação ou atribuir responsáveis, o que o descaracteriza como um plano acionável."
                 }
               ]
             """
@@ -188,25 +205,21 @@ class NRAnalyzer:
                 }
               ]
             """
-    
-        # --- ESTRUTURA FINAL DO PROMPT ---
+
         return f"""
-        **Persona:** Você é um Auditor Líder de SST, especialista em conformidade documental. Seu trabalho é validar se o documento apresentado cumpre os requisitos mínimos legais e normativos.
-    
+        **Persona:** Você é um Auditor Líder de SST, especialista em conformidade documental. Seu objetivo é validar se o documento apresentado cumpre os requisitos mínimos legais, com foco na **qualidade e completude** das informações, não apenas na sua existência.
+
         **Contexto Crítico:** A data de hoje é **{data_atual}**.
-    
-        **Trechos Relevantes da Base de Conhecimento para consulta:**
-        {relevant_knowledge}
-    
+
         **Sua Tarefa (em 3 etapas):**
-        1.  **Análise Crítica:** Use o **Checklist de Auditoria Obrigatório** abaixo para auditar o documento PDF.
+        1.  **Análise Crítica:** Use o **Checklist de Auditoria Crítica** abaixo para auditar o documento. Seja extremamente rigoroso e não aceite seções que sejam apenas placeholders.
         
         {checklist_instrucoes}
-    
+
         2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO.
-    
-        3.  **Justificativa Robusta com Evidências:** Para cada item 'Não Conforme', a 'observacao' DEVE OBRIGATORIAMENTe conter a página e o trecho do texto que comprova a falha.
-    
+
+        3.  **Justificativa Robusta com Evidências:** Para cada item 'Não Conforme', a 'observacao' DEVE citar a página e explicar por que o requisito do checklist não foi atendido em termos de **qualidade e detalhe**.
+
         **Estrutura JSON de Saída Obrigatória (use o exemplo como guia):**
         ```json
         {{
