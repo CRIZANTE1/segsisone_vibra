@@ -207,76 +207,121 @@ class NRAnalyzer:
             """
 
         return f"""
-        **Persona:** Você é um Auditor Líder de SST, especialista em conformidade documental. Seu objetivo é validar se o documento apresentado cumpre os requisitos mínimos legais, com foco na **qualidade e completude** das informações, não apenas na sua existência.
+        **Persona:** Você é um Auditor Líder de SST, extremamente preciso e objetivo.
 
         **Contexto Crítico:** A data de hoje é **{data_atual}**.
 
         **Sua Tarefa (em 3 etapas):**
-        1.  **Análise Crítica:** Use o **Checklist de Auditoria Crítica** abaixo para auditar o documento. Seja extremamente rigoroso e não aceite seções que sejam apenas placeholders.
+        1.  **Análise Crítica:** Use o **Checklist de Auditoria Crítica** abaixo para auditar o documento.
         
-        {checklist_instrucoes}
+            {checklist_instrucoes}
 
         2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO.
+        3.  **Justificativa Robusta com Evidências:**
+            *   Para cada item em "pontos_de_nao_conformidade", a 'observacao' DEVE citar a página e a evidência da falha.
+            *   **REGRA CRUCIAL:** Se o parecer final for **'Conforme com Ressalvas'**, você DEVE OBRIGATORIAMENTE preencher a chave "pontos_de_ressalva" com os detalhes. Uma ressalva é um ponto de melhoria ou uma pequena inconsistência que não invalida o documento, mas precisa ser mencionada.
 
-        3.  **Justificativa Robusta com Evidências:** Para cada item 'Não Conforme', a 'observacao' DEVE citar a página e explicar por que o requisito do checklist não foi atendido em termos de **qualidade e detalhe**.
-
-        **Estrutura JSON de Saída Obrigatória (use o exemplo como guia):**
+        **Estrutura JSON de Saída Obrigatória:**
         ```json
         {{
           "parecer_final": "Conforme | Não Conforme | Conforme com Ressalvas",
-          {json_example}
+          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral sobre o documento.",
+          "pontos_de_nao_conformidade": [
+            {{
+              "item": "Descrição clara da NÃO CONFORMIDADE.",
+              "referencia_normativa": "O item específico da norma.",
+              "observacao": "A justificativa detalhada com página e evidência."
+            }}
+          ],
+          "pontos_de_ressalva": [
+            {{
+              "item": "Descrição clara da RESSALVA ou ponto de melhoria.",
+              "referencia_normativa": "A norma ou boa prática relacionada.",
+              "observacao": "A justificativa detalhada com página e evidência, explicando por que é uma ressalva e não uma não conformidade."
+            }}
+          ]
         }}
         ```
+        **Importante:** Se o documento estiver 'Conforme', ambos os arrays devem estar vazios `[]`. Se for 'Não Conforme', "pontos_de_ressalva" pode estar vazio. Se for 'Conforme com Ressalvas', "pontos_de_nao_conformidade" deve estar vazio.
         """
+
+    def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
+        if self.rag_df.empty or self.rag_embeddings is None or self.rag_embeddings.size == 0:
+            return "Base de conhecimento indisponível."
+        try:
+            query_embedding_result = genai.embed_content(
+                model='models/text-embedding-004',
+                content=[query_text],
+                task_type="RETRIEVAL_QUERY"
+            )
+            query_embedding = np.array(query_embedding_result['embedding'])
+            similarities = cosine_similarity(query_embedding, self.rag_embeddings)[0]
+            top_k_indices = similarities.argsort()[-top_k:][::-1]
+            relevant_chunks = self.rag_df.iloc[top_k_indices]
+            return "\n\n---\n\n".join(relevant_chunks['Answer_Chunk'].tolist())
+        except Exception as e:
+            st.warning(f"Erro durante a busca semântica: {e}")
+            return "Erro ao buscar chunks relevantes."
+
+    def perform_initial_audit(self, doc_info: dict, file_content: bytes) -> dict | None:
+        doc_type = doc_info.get("type", "documento")
+        norma = doc_info.get("norma", "")
+        query = f"Quais são os principais requisitos de conformidade para um {doc_type} da norma {norma}?"
+        relevant_knowledge = self._find_semantically_relevant_chunks(query, top_k=7)
+        prompt = self._get_advanced_audit_prompt(doc_info, relevant_knowledge)
+        
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(file_content)
+                temp_path = temp_file.name
+            analysis_result, _ = self.pdf_analyzer.answer_question([temp_path], prompt, task_type='audit')
+            return self._parse_advanced_audit_result(analysis_result) if analysis_result else None
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     def _parse_advanced_audit_result(self, json_string: str) -> dict:
         try:
             match = re.search(r'\{.*\}', json_string, re.DOTALL)
             if not match:
-                return {"summary": "Falha na Análise (Formato Inválido)", "details": [{"item_verificacao": "Resposta Bruta da IA", "observacao": json_string, "status": "Não Conforme"}]}
-            
+                return {"summary": "Falha na Análise", "details": [{"item_verificacao": "Resposta Bruta da IA", "observacao": json_string, "status": "Não Conforme"}]}
             data = json.loads(match.group(0))
             summary = data.get("parecer_final", "Indefinido")
             details = []
-
+            
             if data.get("resumo_executivo"):
-                status_resumo = "Conforme" if summary.lower() == 'conforme' else "Não Conforme"
+                status_resumo = "Conforme" if "conforme" in summary.lower() else "Não Conforme"
                 details.append({"item_verificacao": "Resumo Executivo da Auditoria", "referencia": "N/A", "observacao": data["resumo_executivo"], "status": status_resumo})
             
             for item in data.get("pontos_de_nao_conformidade", []):
                 details.append({"item_verificacao": item.get("item", ""), "referencia": item.get("referencia_normativa", ""), "observacao": item.get("observacao", ""), "status": "Não Conforme"})
+
+            for item in data.get("pontos_de_ressalva", []):
+                details.append({
+                    "item_verificacao": f"Ressalva: {item.get('item', '')}",
+                    "referencia": item.get("referencia_normativa", ""),
+                    "observacao": item.get("observacao", ""),
+                    "status": "Ressalva"
+                })
 
             return {"summary": summary, "details": details}
         except (json.JSONDecodeError, AttributeError):
             return {"summary": "Falha na Análise (Erro de JSON)", "details": [{"item_verificacao": "Resposta Bruta da IA", "observacao": json_string, "status": "Não Conforme"}]}
 
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str, employee_id: str | None = None):
-        """
-        Cria itens no plano de ação para cada não conformidade real.
-        Agora aceita um 'employee_id' opcional.
-        """
         if "não conforme" not in audit_result.get("summary", "").lower():
             return 0
-        
-        all_details = audit_result.get("details", [])
-        
         actionable_items = [
-            item for item in all_details 
+            item for item in audit_result.get("details", []) 
             if item.get("status", "").lower() == "não conforme" 
             and "resumo executivo" not in item.get("item_verificacao", "").lower()
         ]
-        
-        if not actionable_items:
-            return 0
-        
+        if not actionable_items: return 0
         audit_run_id = f"audit_{doc_id}_{random.randint(1000, 9999)}"
         created_count = 0
-        
         for item in actionable_items:
-           
             item['employee_id'] = employee_id if employee_id else 'N/A'
-            
             if self.action_plan_manager.add_action_item(audit_run_id, company_id, doc_id, item):
                 created_count += 1
-                
         return created_count
