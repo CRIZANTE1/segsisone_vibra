@@ -120,53 +120,100 @@ class NRAnalyzer:
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
         
+
     def _get_advanced_audit_prompt(self, doc_info: dict, relevant_knowledge: str) -> str:
         """
-        PROMPT AVANÇADO: Agora instrui a IA a citar a página e a evidência para cada não conformidade.
+        PROMPT AVANÇADO: Usa um checklist dinâmico e completo baseado no tipo de documento.
         """
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "normas aplicáveis")
         data_atual = datetime.now().strftime('%d/%m/%Y')
-
+    
+        checklist_instrucoes = ""
+        json_example = ""
+    
+        if doc_type == "PGR" or norma == "NR-01":
+            checklist_instrucoes = """
+            **Checklist de Auditoria Obrigatório para PGR (NR-01):**
+            1.  **Inventário de Riscos (Item 1.5.7.3 da NR-01):** Verifique se o documento contém um inventário de riscos DETALHADO, incluindo caracterização dos processos, identificação de perigos, avaliação dos riscos (probabilidade/severidade), nível de risco e critérios. **Aponte como 'Não Conforme' se for apenas uma lista superficial.**
+            2.  **Plano de Ação (Item 1.5.7.3.3 da NR-01):** Verifique se o Plano de Ação é estruturado com medidas de prevenção, um **cronograma** claro (com datas ou prazos) e formas de acompanhamento. **Aponte como 'Não Conforme' se for uma lista de intenções sem datas.**
+            3.  **Vigência e Assinaturas:** Verifique se o documento possui uma data de emissão/vigência clara e se está assinado pelo responsável técnico. A data de emissão não pode ser futura em relação à data da auditoria.
+            """
+            json_example = """
+              "resumo_executivo": "O PGR apresentado é superficial e não atende aos requisitos mínimos da NR-01...",
+              "pontos_de_nao_conformidade": [
+                {
+                  "item": "Plano de Ação não estruturado",
+                  "referencia_normativa": "NR-01, item 1.5.7.3.3",
+                  "observacao": "Na página 2, o 'Plano de Ação' consiste em uma lista de tópicos genéricos (ex: 'Verificação de EPI semanal') sem um cronograma de implementação ou definição de responsáveis."
+                }
+              ]
+            """
+        
+        elif doc_type == "Treinamento":
+            checklist_instrucoes = f"""
+            **Checklist de Auditoria Obrigatório para Certificado de Treinamento (Norma: {norma}):**
+            1.  **Informações do Trabalhador:** Verifique se o nome completo e o CPF (ou outro identificador válido) do trabalhador estão presentes e legíveis.
+            2.  **Conteúdo Programático (Cronograma):** Verifique se o certificado lista o conteúdo programático/cronograma do curso. Compare os tópicos listados com os requisitos da **Base de Conhecimento** para a norma '{norma}'. **Aponte como 'Não Conforme' se tópicos essenciais estiverem ausentes.**
+            3.  **Carga Horária e Validade:** Verifique se a carga horária e a data de realização estão explícitas. Compare a carga horária com o mínimo exigido pela norma para o tipo de treinamento (formação/reciclagem), consultando a Base de Conhecimento. **Aponte como 'Não Conforme' se a carga horária for insuficiente.**
+            4.  **Assinaturas e Responsáveis:** Verifique se o certificado possui as assinaturas do(s) instrutor(es) e do responsável técnico.
+            5.  **Consistência das Datas:** A data de realização do treinamento não pode ser futura em relação à data da auditoria ({data_atual}).
+            """
+            json_example = """
+              "resumo_executivo": "O certificado de NR-35 apresenta uma não conformidade crítica relacionada ao conteúdo programático obrigatório...",
+              "pontos_de_nao_conformidade": [
+                {
+                  "item": "Conteúdo programático incompleto",
+                  "referencia_normativa": "NR-35, item 35.4.2.1(d)",
+                  "observacao": "Na página 2, o conteúdo programático listado não menciona 'sistemas de proteção coletiva', que é um tópico obrigatório para o treinamento de trabalho em altura, conforme a norma."
+                }
+              ]
+            """
+        
+        else:
+            checklist_instrucoes = """
+            **Checklist de Auditoria Geral para Documentos de SST:**
+            1.  **Identificação e Propósito:** Verifique se o documento identifica claramente a empresa, o trabalhador (se aplicável), e seu propósito (ex: Atestado de Saúde Ocupacional, Ordem de Serviço).
+            2.  **Datas e Validade:** Identifique todas as datas presentes (emissão, realização, validade, assinatura). Verifique se são consistentes entre si e se não são datas futuras em relação à data da auditoria. **Aponte como 'Não Conforme' qualquer data de emissão/aprovação futura.**
+            3.  **Conteúdo Essencial:** Verifique se o documento contém as informações mínimas esperadas para seu tipo. Para um ASO, por exemplo, isso inclui o tipo de exame (admissional, periódico), os riscos e o parecer de aptidão (apto/inapto).
+            4.  **Responsáveis e Assinaturas:** Verifique se o documento foi emitido e assinado pelos profissionais responsáveis (ex: médico do trabalho para ASO, técnico de segurança para Ordem de Serviço).
+            """
+            json_example = """
+              "resumo_executivo": "O Atestado de Saúde Ocupacional apresenta uma inconsistência crítica na data de emissão...",
+              "pontos_de_nao_conformidade": [
+                {
+                  "item": "Emissão do documento com data futura",
+                  "referencia_normativa": "Princípios gerais de auditoria de registros",
+                  "observacao": "Na página 1, o campo de data de emissão indica '15 DE DEZEMBRO DE 2025'. Considerando a data da auditoria, este documento é datado no futuro, tornando-o inválido para comprovar a aptidão na data corrente."
+                }
+              ]
+            """
+    
+        # --- ESTRUTURA FINAL DO PROMPT ---
         return f"""
-        **Persona:** Você é um Auditor Líder de Saúde e Segurança do Trabalho com mais de 20 anos de experiência. Seu trabalho é famoso pela precisão e pela clareza. Para cada apontamento, você SEMPRE fornece a evidência concreta.
-
+        **Persona:** Você é um Auditor Líder de SST, especialista em conformidade documental. Seu trabalho é validar se o documento apresentado cumpre os requisitos mínimos legais e normativos.
+    
         **Contexto Crítico:** A data de hoje é **{data_atual}**.
-
-        **Contexto da Tarefa:** Você está auditando um(a) '{doc_type}' para a norma '{norma}'. O PDF do documento e trechos relevantes da base de conhecimento estão sendo fornecidos.
-
-        **Trechos Relevantes da Base de Conhecimento:**
+    
+        **Trechos Relevantes da Base de Conhecimento para consulta:**
         {relevant_knowledge}
-
+    
         **Sua Tarefa (em 3 etapas):**
-
-        1.  **Análise Crítica:** Analise o documento PDF em profundidade de forma minunciosa, procurando por não conformidades.
-        2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO. Não adicione nenhum texto fora do bloco de código JSON.
-        3.  **Justificativa Robusta com Evidências:** Esta é a regra mais importante. Para cada item na chave "pontos_de_nao_conformidade", a 'observacao' DEVE OBRIGATORIAMENTE conter:
-            *   **A página** onde a evidência da não conformidade foi encontrada (ex: "p. 5", "página 12").
-            *   **O trecho exato** do texto do documento que comprova a falha, entre aspas.
-            *   Uma explicação clara de por que aquele trecho representa uma não conformidade.
-
-        **Estrutura JSON de Saída Obrigatória:**
+        1.  **Análise Crítica:** Use o **Checklist de Auditoria Obrigatório** abaixo para auditar o documento PDF.
+        
+        {checklist_instrucoes}
+    
+        2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO.
+    
+        3.  **Justificativa Robusta com Evidências:** Para cada item 'Não Conforme', a 'observacao' DEVE OBRIGATORIAMENTe conter a página e o trecho do texto que comprova a falha.
+    
+        **Estrutura JSON de Saída Obrigatória (use o exemplo como guia):**
         ```json
         {{
           "parecer_final": "Conforme | Não Conforme | Conforme com Ressalvas",
-          "resumo_executivo": "Um parágrafo curto resumindo sua conclusão geral sobre o documento.",
-          "pontos_de_nao_conformidade": [
-            {{
-              "item": "Descrição clara do requisito não atendido. Ex: 'Cronograma do Plano de Ação inconsistente com a vigência do PGR.'",
-              "referencia_normativa": "O item específico da norma. Ex: 'NR-01, item 1.5.4.4.3'",
-              "observacao": "A justificativa detalhada COM EVIDÊNCIA. Ex: 'Na página 25, o cronograma apresenta a atividade 'Treinamento de CIPA' com data 'Dez/2025'. Como a vigência do PGR termina em Out/2025, esta atividade está fora do escopo temporal do plano de ação.'"
-            }},
-            {{
-              "item": "Carga horária insuficiente para reciclagem.",
-              "referencia_normativa": "NR-35, item 35.3.3.1",
-              "observacao": "Na página 1, o certificado afirma que a 'Carga Horária foi de 4 (quatro) horas'. A norma exige um mínimo de 8 horas para a reciclagem, tornando este certificado inválido para esse fim."
-            }}
-          ]
+          {json_example}
         }}
         ```
-        **Importante:** Se o documento estiver 'Conforme', a chave "pontos_de_nao_conformidade" deve ser um array vazio `[]`.
         """
 
     def _parse_advanced_audit_result(self, json_string: str) -> dict:
