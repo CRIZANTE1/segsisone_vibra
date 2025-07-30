@@ -140,7 +140,7 @@ class NRAnalyzer:
 
         **Sua Tarefa (em 3 etapas):**
 
-        1.  **Análise Crítica:** Analise o documento PDF em profundidade, procurando por não conformidades.
+        1.  **Análise Crítica:** Analise o documento PDF em profundidade de forma minunciosa, procurando por não conformidades.
         2.  **Formatação da Resposta:** Apresente suas conclusões no seguinte formato JSON ESTRITO. Não adicione nenhum texto fora do bloco de código JSON.
         3.  **Justificativa Robusta com Evidências:** Esta é a regra mais importante. Para cada item na chave "pontos_de_nao_conformidade", a 'observacao' DEVE OBRIGATORIAMENTE conter:
             *   **A página** onde a evidência da não conformidade foi encontrada (ex: "p. 5", "página 12").
