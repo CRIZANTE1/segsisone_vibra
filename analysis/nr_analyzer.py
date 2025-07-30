@@ -170,19 +170,31 @@ class NRAnalyzer:
         elif doc_type == "Treinamento":
             checklist_instrucoes = f"""
             **Checklist de Auditoria Obrigatório para Certificado de Treinamento (Norma: {norma}):**
-            1.  **Informações do Trabalhador:** Verifique se o nome completo e o CPF (ou outro identificador válido) do trabalhador estão presentes e legíveis.
-            2.  **Conteúdo Programático (Cronograma):** Verifique se o certificado lista o conteúdo programático/cronograma do curso. Compare os tópicos listados com os requisitos da **Base de Conhecimento** para a norma '{norma}'. **Aponte como 'Não Conforme' se tópicos essenciais estiverem ausentes.**
-            3.  **Carga Horária e Validade:** Verifique se a carga horária e a data de realização estão explícitas. Compare a carga horária com o mínimo exigido pela norma para o tipo de treinamento (formação/reciclagem), consultando a Base de Conhecimento. **Aponte como 'Não Conforme' se a carga horária for insuficiente.**
-            4.  **Assinaturas e Responsáveis:** Verifique se o certificado possui as assinaturas do(s) instrutor(es) e do responsável técnico.
+            
+            1.  **Informações do Trabalhador:** Verifique se o nome completo e o CPF do trabalhador estão presentes e legíveis.
+            
+            2.  **Conteúdo Programático e Carga Horária:**
+                *   Verifique se o certificado lista o conteúdo programático.
+                *   Verifique se a carga horária está explícita e compare com o mínimo exigido pela norma na Base de Conhecimento.
+                *   **REGRA:** Se a carga horária for insuficiente ou o conteúdo programático estiver ausente, aponte como 'Não Conforme'.
+                
+            3.  **Assinaturas dos Responsáveis:**
+                *   Verifique se o certificado possui a(s) assinatura(s) do(s) instrutor(es) e/ou do responsável técnico.
+                *   **REGRA:** Se estas assinaturas estiverem ausentes, o item é 'Não Conforme'.
+                
+            4.  **Assinatura do TRABALHADOR (Item Crítico):**
+                *   Verifique se o certificado possui um campo para a assinatura do trabalhador e se ele está assinado. A assinatura do trabalhador é a evidência de que ele recebeu o treinamento.
+                *   **REGRA:** Se a assinatura do trabalhador estiver ausente, este item é **'Não Conforme'**. Não aceite o documento como totalmente conforme sem ela.
+    
             5.  **Consistência das Datas:** A data de realização do treinamento não pode ser futura em relação à data da auditoria ({data_atual}).
             """
             json_example = """
-              "resumo_executivo": "O certificado de NR-35 apresenta uma não conformidade crítica relacionada ao conteúdo programático obrigatório...",
+              "resumo_executivo": "O certificado de treinamento apresenta uma não conformidade crítica devido à ausência da assinatura do trabalhador, o que compromete a comprovação de que o treinamento foi efetivamente recebido.",
               "pontos_de_nao_conformidade": [
                 {
-                  "item": "Conteúdo programático incompleto",
-                  "referencia_normativa": "NR-35, item 35.4.2.1(d)",
-                  "observacao": "Na página 2, o conteúdo programático listado não menciona 'sistemas de proteção coletiva', que é um tópico obrigatório para o treinamento de trabalho em altura, conforme a norma."
+                  "item": "Ausência da assinatura do trabalhador",
+                  "referencia_normativa": "Princípios de auditoria e NR-01 (registro de treinamentos)",
+                  "observacao": "Na página 1, o campo destinado à assinatura do funcionário está em branco. A ausência desta assinatura impede a validação de que o trabalhador participou e concluiu o treinamento."
                 }
               ]
             """
