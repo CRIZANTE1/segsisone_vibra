@@ -36,18 +36,13 @@ O **SEGMA-SIS** é uma plataforma inteligente que centraliza e automatiza a gest
 
 ## Demonstração Visual
 
-*(Sugestão: Grave GIFs curtos da sua aplicação em funcionamento e insira-os aqui. Eles são extremamente eficazes!)*
-
 **1. Upload e Análise Instantânea**
-*(GIF mostrando o upload de um ASO e a IA preenchendo os campos de data e tipo automaticamente)*
 `![GIF de Análise de ASO](link_para_seu_gif_1.gif)`
 
 **2. Auditoria e Criação de Plano de Ação**
-*(GIF mostrando o upload de um certificado com carga horária errada, a IA apontando a falha e um novo item aparecendo na página de Plano de Ação)*
 `![GIF de Auditoria e Plano de Ação](link_para_seu_gif_2.gif)`
 
 **3. Gestão e Tratamento de Pendências**
-*(GIF mostrando a página de Plano de Ação, o usuário clicando em "Tratar", preenchendo o formulário no diálogo e o item desaparecendo da lista de pendentes)*
 `![GIF de Tratamento de Pendência](link_para_seu_gif_3.gif)`
 
 ---
