@@ -143,8 +143,7 @@ class EmployeeManager:
     def get_all_trainings_by_employee(self, employee_id):
         """
         Retorna uma lista contendo APENAS o treinamento mais recente e relevante
-        para cada combinação de norma e módulo, após normalizar os dados para
-        garantir o agrupamento correto.
+        para cada norma.
         """
         if self.training_df.empty:
             return pd.DataFrame()
@@ -152,31 +151,28 @@ class EmployeeManager:
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
         if training_docs.empty:
             return pd.DataFrame()
-        
-      
-        if 'norma' not in training_docs.columns:
-            return pd.DataFrame()
-        if 'modulo' not in training_docs.columns:
-            training_docs['modulo'] = 'N/A'
-        
-        training_docs['norma'] = training_docs['norma'].fillna('Desconhecida')
-        training_docs['modulo'] = training_docs['modulo'].fillna('N/A')
     
-        training_docs['norma_normalizada'] = training_docs['norma'].astype(str).str.strip().str.lower()
-        training_docs['modulo_normalizado'] = training_docs['modulo'].astype(str).str.strip().str.lower()
-     
+        # Limpeza e Normalização
+        for col in ['norma', 'modulo', 'tipo_treinamento']:
+            if col not in training_docs.columns:
+                training_docs[col] = 'N/A'
+            training_docs[col] = training_docs[col].fillna('N/A').astype(str).str.strip()
+    
+        # Converte a data para ordenação
         training_docs['data_dt'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
         training_docs.dropna(subset=['data_dt'], inplace=True)
         if training_docs.empty: return pd.DataFrame()
     
+        # Ordena e agrupa
         training_docs = training_docs.sort_values('data_dt', ascending=False)
-        
-        latest_trainings = training_docs.groupby(['norma_normalizada', 'modulo_normalizado']).head(1)
-        
+        latest_trainings = training_docs.groupby('norma').head(1).copy()
+                
+        # Formatação Final
+        # Agora estas modificações não gerarão mais o aviso.
         latest_trainings['data'] = latest_trainings['data_dt'].dt.date
         latest_trainings['vencimento'] = pd.to_datetime(latest_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         
-        latest_trainings = latest_trainings.drop(columns=['data_dt', 'norma_normalizada', 'modulo_normalizado'])
+        latest_trainings = latest_trainings.drop(columns=['data_dt'])
         
         return latest_trainings.sort_values('data', ascending=False)
 
