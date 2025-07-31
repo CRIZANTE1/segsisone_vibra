@@ -63,9 +63,7 @@ def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
         expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today]
         
         if not expired_trainings.empty:
-            employee_to_company = employee_manager.employees_df.set_index('id')['empresa_id']
-            expired_trainings['empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
-            
+            expired_trainings.loc[:, 'empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
             training_pendencies = expired_trainings.groupby('empresa_id').size()
             for company_id, count in training_pendencies.items():
                 pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
@@ -73,8 +71,6 @@ def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
     if pendencies_by_company:
         metrics['companies_with_pendencies'] = len(pendencies_by_company)
         metrics['total_pendencies'] = sum(pendencies_by_company.values())
-        
-        # Encontra a empresa com mais pendências
         most_pendent_id = max(pendencies_by_company, key=pendencies_by_company.get)
         company_name = employee_manager.get_company_name(most_pendent_id) or f"ID: {most_pendent_id}"
         metrics['most_pendent_company'] = (company_name, pendencies_by_company[most_pendent_id])
