@@ -52,45 +52,6 @@ if selected_company_id:
         st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
 
     else:
-        # Exibe métricas gerais de pendências
-        total_pending = len(all_pending_items)
-        companies_with_pendencies = all_pending_items['id_empresa'].nunique()
-        
-        col1, col2 = st.columns(2)
-        col1.metric("Total de Itens Pendentes", total_pending)
-        col2.metric("Empresas com Pendências", f"{companies_with_pendencies}")
-        
-        st.markdown("#### Lista de Todas as Pendências Abertas:")
-        
-        # Prepara o DataFrame para exibição, adicionando o nome da empresa
-        display_df = all_pending_items.copy()
-        display_df['nome_empresa'] = display_df['id_empresa'].apply(
-            lambda id: employee_manager.get_company_name(id) or f"ID: {id}"
-        )
-        
-        # Melhora a exibição do nome do funcionário
-        def get_employee_context(row):
-            emp_id = row.get('id_funcionario')
-            if emp_id and str(emp_id).lower() != 'n/a':
-                return employee_manager.get_employee_name(emp_id) or f"ID: {emp_id}"
-            return "Empresa"
-        
-        display_df['contexto'] = display_df.apply(get_employee_context, axis=1)
-
-        # Exibe a tabela
-        st.dataframe(
-            display_df[['nome_empresa', 'contexto', 'item_nao_conforme', 'status', 'prazo']],
-            column_config={
-                "nome_empresa": "Empresa",
-                "contexto": "Alvo",
-                "item_nao_conforme": "Não Conformidade",
-                "status": "Status",
-                "prazo": "Prazo"
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
         for index, row in pending_items.iterrows():
             with st.container(border=True):
                 st.markdown(f"**Item:** {row['item_nao_conforme']}")
