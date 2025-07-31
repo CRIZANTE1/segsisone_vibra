@@ -9,7 +9,6 @@ from analysis.nr_analyzer import NRAnalyzer
 
 from gdrive.gdrive_upload import GoogleDriveUploader
 from auth.auth_utils import check_admin_permission
-from ui.metrics import display_minimalist_metrics
 from ui.ui_helpers import (
     mostrar_info_normas,
     highlight_expired,
@@ -66,8 +65,6 @@ def front_page():
     
     
     st.title("Gestão de Documentação Inteligente")
-
-    display_minimalist_metrics(employee_manager)
 
     selected_company = None
     if not employee_manager.companies_df.empty:
