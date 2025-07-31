@@ -114,20 +114,20 @@ def front_page():
                             current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                             aso_vencimento = current_aptitude_aso.get('vencimento')
                             
-                            # Checa se o vencimento é uma data válida
                             if pd.notna(aso_vencimento) and isinstance(aso_vencimento, date):
                                 aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
                             else:
-                                aso_status = 'Venc. Indefinido' # ASO sem data de vencimento válida
+                                aso_status = 'Venc. Indefinido' 
                         else:
-                            # Caso o único ASO encontrado seja Demissional
                             aso_status = 'Apenas Demissional'
                             
-                    # A chamada à função agora retorna a lista correta
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+    
+                    trainings_total = 0
                     trainings_expired_count = 0
+                    
                     if not all_trainings.empty:
-                        # A máscara booleana é mais eficiente que um loop
+                        trainings_total = len(all_trainings)
                         expired_mask = all_trainings['vencimento'] < today
                         trainings_expired_count = expired_mask.sum()
                 
@@ -137,8 +137,8 @@ def front_page():
                     else:
                         overall_status = 'Em Dia'
                         status_icon = "✅"
-                
-                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+
+                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
                         st.markdown("##### Resumo de Status")
