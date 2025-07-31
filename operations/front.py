@@ -109,11 +109,16 @@ def front_page():
                         if isinstance(vencimento_aso_obj, date):
                              aso_vencimento = vencimento_aso_obj
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id).copy()
+                            
+                    # A chamada à função agora retorna a lista correta
+                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id) 
+
                     if not all_trainings.empty:
-                        trainings_total = len(all_trainings)
-                        expired_mask = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date < today
-                        trainings_expired_count = expired_mask.sum()
+                    trainings_total = len(all_trainings)                   
+                  
+                    today = date.today() 
+                    expired_mask = all_trainings['vencimento'] < today
+                    trainings_expired_count = expired_mask.sum()
                     overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
                     status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
                     expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
