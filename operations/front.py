@@ -111,17 +111,21 @@ def front_page():
                              aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
                             
                     # A chamada à função agora retorna a lista correta
-                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id) 
-
+                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+                    trainings_expired_count = 0
                     if not all_trainings.empty:
-                        trainings_total = len(all_trainings)                   
-                      
-                        today = date.today() 
+                        # A máscara booleana é mais eficiente que um loop
                         expired_mask = all_trainings['vencimento'] < today
                         trainings_expired_count = expired_mask.sum()
-                        overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
-                        status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
-                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+                
+                    if aso_status == 'Vencido' or trainings_expired_count > 0:
+                        overall_status = 'Pendente'
+                        status_icon = "⚠️"
+                    else:
+                        overall_status = 'Em Dia'
+                        status_icon = "✅"
+                
+                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
                         st.markdown("##### Resumo de Status")
