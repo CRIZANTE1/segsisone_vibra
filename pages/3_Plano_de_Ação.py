@@ -176,6 +176,52 @@ if selected_company_id:
                         )
                         st.dataframe(details_df, hide_index=True, use_container_width=True)
 
+else:
+    # --- MODO 2: VISÃO GERAL QUANDO NENHUMA EMPRESA ESTÁ SELECIONADA ---
+    st.header("Visão Geral de Todas as Pendências")
+    st.info("Selecione uma empresa no menu acima para tratar os itens e ver o histórico detalhado.")
+
+    all_action_items = action_plan_manager.action_plan_df
+    
+    all_pending_items = pd.DataFrame()
+    if not all_action_items.empty and 'status' in all_action_items.columns:
+        all_pending_items = all_action_items[all_action_items['status'].str.lower() != 'concluído']
+        
+    if all_pending_items.empty:
+        st.success("🎉 Parabéns! Não há nenhuma não conformidade pendente em todas as empresas.")
+    else:
+        total_pending = len(all_pending_items)
+        companies_with_pendencies = all_pending_items['id_empresa'].nunique()
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Total de Itens Pendentes", total_pending)
+        col2.metric("Empresas com Pendências", f"{companies_with_pendencies}")
+        
+        st.markdown("#### Lista de Todas as Pendências Abertas:")
+        
+        display_df = all_pending_items.copy()
+        display_df['nome_empresa'] = display_df['id_empresa'].apply(lambda id: employee_manager.get_company_name(id) or f"ID: {id}")
+        
+        def get_employee_context(row):
+            emp_id = row.get('id_funcionario')
+            if emp_id and str(emp_id).lower() != 'n/a':
+                return employee_manager.get_employee_name(emp_id) or f"ID: {emp_id}"
+            return "Empresa"
+        
+        display_df['contexto'] = display_df.apply(get_employee_context, axis=1)
+
+        st.dataframe(
+            display_df[['nome_empresa', 'contexto', 'item_nao_conforme', 'status', 'prazo']],
+            column_config={
+                "nome_empresa": "Empresa", "contexto": "Alvo",
+                "item_nao_conforme": "Não Conformidade", "status": "Status", "prazo": "Prazo"
+            },
+            use_container_width=True, hide_index=True
+        )
+
+
+
+    
     
     @st.dialog("Tratar Não Conformidade")
     def treat_item_dialog(item_data): 
