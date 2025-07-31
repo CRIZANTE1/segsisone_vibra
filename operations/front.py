@@ -101,14 +101,27 @@ def front_page():
             if not employees.empty:
                 for index, employee in employees.iterrows():
                     employee_id = employee['id']; employee_name = employee['nome']; employee_role = employee['cargo']
-                    today = datetime.now().date(); aso_status = 'Não encontrado'; aso_vencimento = None; trainings_total = 0; trainings_expired_count = 0
+                    today = date.today()
+                
+                    aso_status = 'Não encontrado'
+                    aso_vencimento = None
+                    latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
                     
-                    latest_aso = employee_manager.get_latest_aso_by_employee(employee_id).copy()
-                    if not latest_aso.empty:
-                        vencimento_aso_obj = latest_aso['vencimento'].iloc[0]
-                        if isinstance(vencimento_aso_obj, date):
-                             aso_vencimento = vencimento_aso_obj
-                             aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
+                    if not latest_asos_by_type.empty:
+                        aptitude_asos = latest_asos_by_type[~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])].copy()
+                        
+                        if not aptitude_asos.empty:
+                            current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
+                            aso_vencimento = current_aptitude_aso.get('vencimento')
+                            
+                            # Checa se o vencimento é uma data válida
+                            if pd.notna(aso_vencimento) and isinstance(aso_vencimento, date):
+                                aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
+                            else:
+                                aso_status = 'Venc. Indefinido' # ASO sem data de vencimento válida
+                        else:
+                            # Caso o único ASO encontrado seja Demissional
+                            aso_status = 'Apenas Demissional'
                             
                     # A chamada à função agora retorna a lista correta
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
