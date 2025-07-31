@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 
+from ui.metrics import display_minimalist_metrics
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_admin_permission, is_user_logged_in
 
@@ -22,6 +23,9 @@ def get_employee_manager():
     return EmployeeManager()
 
 employee_manager = get_employee_manager()
+
+st.header("Visão Geral das Pendências")
+display_minimalist_metrics(employee_manager)
 
 # --- UI com Abas para Cadastro ---
 tab_empresa, tab_funcionario = st.tabs(["Cadastrar Nova Empresa", "Cadastrar Novo Funcionário"])
