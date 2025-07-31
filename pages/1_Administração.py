@@ -24,9 +24,6 @@ def get_employee_manager():
 
 employee_manager = get_employee_manager()
 
-st.header("Visão Geral das Pendências")
-display_minimalist_metrics(employee_manager)
-
 # --- UI com Abas para Cadastro ---
 tab_empresa, tab_funcionario = st.tabs(["Cadastrar Nova Empresa", "Cadastrar Novo Funcionário"])
 
