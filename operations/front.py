@@ -114,14 +114,14 @@ def front_page():
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id) 
 
                     if not all_trainings.empty:
-                    trainings_total = len(all_trainings)                   
-                  
-                    today = date.today() 
-                    expired_mask = all_trainings['vencimento'] < today
-                    trainings_expired_count = expired_mask.sum()
-                    overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
-                    status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
-                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+                        trainings_total = len(all_trainings)                   
+                      
+                        today = date.today() 
+                        expired_mask = all_trainings['vencimento'] < today
+                        trainings_expired_count = expired_mask.sum()
+                        overall_status = 'Em Dia' if aso_status == 'Válido' and trainings_expired_count == 0 else 'Pendente'
+                        status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
+                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
                         st.markdown("##### Resumo de Status")
