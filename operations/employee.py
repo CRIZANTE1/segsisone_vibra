@@ -121,24 +121,34 @@ class EmployeeManager:
             st.error(f"Erro ao inicializar as abas: {str(e)}")
             return False
 
+
     def get_latest_aso_by_employee(self, employee_id):
+        """
+        Retorna o ASO mais recente PARA CADA TIPO (Admissional, Periódico, etc.),
+        prevenindo o SettingWithCopyWarning.
+        """
         if self.aso_df.empty:
             return pd.DataFrame()
-        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
-        if not aso_docs.empty:
-            if 'tipo_aso' not in aso_docs.columns:
-                aso_docs['tipo_aso'] = 'Não Identificado'
-            aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('Não Identificado')
             
-            aso_docs['data_aso_dt'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
-            aso_docs.dropna(subset=['data_aso_dt'], inplace=True)
-            latest_asos = aso_docs.sort_values('data_aso_dt', ascending=False).groupby('tipo_aso').head(1)
-            latest_asos['data_aso'] = pd.to_datetime(latest_asos['data_aso'], format='%d/%m/%Y', errors='coerce').dt.date
-            latest_asos['vencimento'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-            latest_asos = latest_asos.drop(columns=['data_aso_dt'])
-            return latest_asos.sort_values('data_aso', ascending=False)
-        return pd.DataFrame()
-
+        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
+        if aso_docs.empty:
+            return pd.DataFrame()
+    
+        if 'tipo_aso' not in aso_docs.columns:
+            aso_docs['tipo_aso'] = 'Não Identificado'
+        aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('Não Identificado').astype(str).str.strip()
+        
+        aso_docs['data_aso_dt'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
+        aso_docs.dropna(subset=['data_aso_dt'], inplace=True)
+        if aso_docs.empty: return pd.DataFrame()
+        
+        latest_asos = aso_docs.sort_values('data_aso_dt', ascending=False).groupby('tipo_aso').head(1).copy()
+        
+        latest_asos['data_aso'] = latest_asos['data_aso_dt'].dt.date
+        latest_asos['vencimento'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+        latest_asos = latest_asos.drop(columns=['data_aso_dt'])
+        
+        return latest_asos.sort_values('data_aso', ascending=False)
 
     def get_all_trainings_by_employee(self, employee_id):
         """
