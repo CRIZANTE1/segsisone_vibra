@@ -122,10 +122,8 @@ def front_page():
                         else:
                             aso_status = 'Apenas Demissional'
                 
-                    # --- Lógica de Treinamentos ---
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
                     
-                    # --- CORREÇÃO AQUI: Inicializamos as variáveis com 0 ---
                     trainings_total = 0
                     trainings_expired_count = 0
                     
@@ -134,7 +132,6 @@ def front_page():
                         expired_mask = all_trainings['vencimento'] < today
                         trainings_expired_count = expired_mask.sum()
                 
-                    # --- CÁLCULO DE STATUS GERAL ---
                     if aso_status == 'Vencido' or trainings_expired_count > 0:
                         overall_status = 'Pendente'
                         status_icon = "⚠️"
@@ -152,13 +149,19 @@ def front_page():
                         col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
                         st.markdown("---")
                         st.markdown("##### ASO Mais Recente")
-                        if not latest_aso.empty:
+                        if not latest_asos_by_type.empty:
                             aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
                             for col in aso_display_cols:
-                                if col not in latest_aso.columns: latest_aso[col] = "N/A"
-                            aso_reordered_df = latest_aso[aso_display_cols]
-                            st.dataframe(aso_reordered_df.style.apply(highlight_expired, axis=1), column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None,}, hide_index=True, use_container_width=True)
-                        else: st.info("Nenhum ASO encontrado.")
+                                if col not in latest_asos_by_type.columns:
+                                    latest_asos_by_type[col] = "N/A"
+                            aso_reordered_df = latest_asos_by_type[aso_display_cols]
+                            st.dataframe(
+                                aso_reordered_df.style.apply(highlight_expired, axis=1),
+                                column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
+                                hide_index=True, use_container_width=True
+                            )
+                        else:
+                            st.info("Nenhum ASO encontrado.")
                         st.markdown("##### Todos os Treinamentos")
                         if not all_trainings.empty:
                             training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
