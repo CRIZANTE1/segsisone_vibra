@@ -100,29 +100,32 @@ def front_page():
             employees = employee_manager.get_employees_by_company(selected_company)
             if not employees.empty:
                 for index, employee in employees.iterrows():
-                    employee_id = employee['id']; employee_name = employee['nome']; employee_role = employee['cargo']
+                    employee_id = employee['id']
+                    employee_name = employee['nome']
+                    employee_role = employee['cargo']
                     today = date.today()
                 
+                    # --- Lógica de ASO ---
                     aso_status = 'Não encontrado'
                     aso_vencimento = None
                     latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
                     
                     if not latest_asos_by_type.empty:
                         aptitude_asos = latest_asos_by_type[~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])].copy()
-                        
                         if not aptitude_asos.empty:
                             current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                             aso_vencimento = current_aptitude_aso.get('vencimento')
-                            
                             if pd.notna(aso_vencimento) and isinstance(aso_vencimento, date):
                                 aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
                             else:
-                                aso_status = 'Venc. Indefinido' 
+                                aso_status = 'Venc. Indefinido'
                         else:
                             aso_status = 'Apenas Demissional'
-                            
+                
+                    # --- Lógica de Treinamentos ---
                     all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
-    
+                    
+                    # --- CORREÇÃO AQUI: Inicializamos as variáveis com 0 ---
                     trainings_total = 0
                     trainings_expired_count = 0
                     
@@ -131,14 +134,15 @@ def front_page():
                         expired_mask = all_trainings['vencimento'] < today
                         trainings_expired_count = expired_mask.sum()
                 
+                    # --- CÁLCULO DE STATUS GERAL ---
                     if aso_status == 'Vencido' or trainings_expired_count > 0:
                         overall_status = 'Pendente'
                         status_icon = "⚠️"
                     else:
                         overall_status = 'Em Dia'
                         status_icon = "✅"
-
-                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+                
+                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
 
                     with st.expander(expander_title):
                         st.markdown("##### Resumo de Status")
