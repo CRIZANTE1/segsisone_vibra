@@ -176,7 +176,7 @@ if selected_company_id:
                         )
                         st.dataframe(details_df, hide_index=True, use_container_width=True)
 
-    else:
+else:
         st.header("Visão Geral de Todas as Pendências")
         st.info("Selecione uma empresa no menu acima para tratar os itens e ver o histórico detalhado.")
     
