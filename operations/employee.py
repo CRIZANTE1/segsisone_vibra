@@ -481,26 +481,32 @@ class EmployeeManager:
         from gdrive.config import TRAINING_SHEET_NAME
     
         # 1. Extrai os dados essenciais do dicionário.
+        #    Esta função agora espera um dicionário com estas chaves.
         funcionario_id = training_data.get('funcionario_id')
         data = training_data.get('data')
         norma = training_data.get('norma')
         vencimento = training_data.get('vencimento')
         anexo = training_data.get('anexo')
         
-        # 2. Valida os campos críticos. Se algum faltar, a função para.
+        # 2. Valida os campos críticos. Se algum faltar, a função para com uma mensagem clara.
         if not all([funcionario_id, data, norma, vencimento, anexo]):
-            # Log detalhado para depuração
-            missing = [k for k, v in {'Funcionário': funcionario_id, 'Data': data, 'Norma': norma, 'Vencimento': vencimento, 'Anexo': anexo}.items() if not v]
+            missing = [k for k, v in {
+                'ID do Funcionário': funcionario_id, 
+                'Data': data, 
+                'Norma': norma, 
+                'Vencimento': vencimento, 
+                'Anexo': anexo
+            }.items() if not v]
             st.error(f"Não foi possível salvar o treinamento. Dados críticos faltando: {', '.join(missing)}")
             return None
     
-        # 3. Extrai dados opcionais com valores padrão.
+        # 3. Extrai dados opcionais com valores padrão seguros.
         modulo = training_data.get('modulo', 'N/A')
         status = training_data.get('status', 'Válido')
         tipo_treinamento = training_data.get('tipo_treinamento', 'Não identificado')
         carga_horaria = training_data.get('carga_horaria', '0')
     
-        # 4. Monta a linha para salvar na planilha.
+        # 4. Monta a lista de dados para a nova linha na planilha.
         new_data = [
             str(funcionario_id),
             data.strftime("%d/%m/%Y"),
@@ -514,18 +520,19 @@ class EmployeeManager:
         ]
         
         try:
+            # A função adc_dados_aba gera o 'id' único do registro e o retorna.
             training_id = self.sheet_ops.adc_dados_aba(TRAINING_SHEET_NAME, new_data)
             if training_id:
                 st.cache_data.clear()
                 self.load_data()
                 return training_id
-            # Adiciona um erro se a escrita na planilha falhar por algum motivo
-            st.error("A escrita na planilha falhou e não retornou um ID.")
+            
+            # Fallback se a função da planilha não retornar um ID.
+            st.error("A escrita na planilha falhou e não retornou um ID de registro.")
             return None
         except Exception as e:
             st.error(f"Erro ao adicionar treinamento na planilha: {str(e)}")
             return None
-        
 
     def get_company_name(self, company_id):
         if self.companies_df.empty:
