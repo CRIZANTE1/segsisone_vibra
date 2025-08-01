@@ -433,7 +433,7 @@ def front_page():
                                                 'carga_horaria': training_info.get('carga_horaria', 0)
                                             }
                                                             
-                                            training_id = employee_manager.add_training(**training_data_to_save)
+                                            training_id = employee_manager.add_training(training_data_to_save)
                                             
                                             if training_id:
                                                 if audit_result and "não conforme" in audit_result.get("summary", "").lower():
