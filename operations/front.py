@@ -378,27 +378,38 @@ def front_page():
                         if training_info and training_info.get('data'):
                             with st.container(border=True):
                                 st.markdown("### Confirme as Informações Extraídas")
+                                
                                 data = training_info.get('data')
                                 norma_bruta = training_info.get('norma')
-                                norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
-                                modulo = training_info.get('modulo')
+                                modulo = training_info.get('modulo') # Este é o módulo original OU o inferido
                                 tipo_treinamento = training_info.get('tipo_treinamento')
                                 carga_horaria = training_info.get('carga_horaria', 0)
-                                vencimento = employee_manager.calcular_vencimento_treinamento(data=data, norma=norma_padronizada, modulo=modulo, tipo_treinamento=tipo_treinamento)
                                 
+                                # 2. Padroniza a norma
+                                norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
+                                
+                                # 3. AGORA, com o módulo correto em mãos, calcula o vencimento
+                                vencimento = employee_manager.calcular_vencimento_treinamento(
+                                    data=data, 
+                                    norma=norma_padronizada, 
+                                    modulo=modulo, # Passa o módulo (original ou inferido)
+                                    tipo_treinamento=tipo_treinamento
+                                )
+                                
+                                # 4. Exibe as informações para o usuário
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
-                                st.write(f"**Módulo:** {modulo or 'N/A'}")
+                                st.write(f"**Módulo:** {modulo or 'N/A'}") # Mostra o módulo final
                                 st.write(f"**Tipo:** {tipo_treinamento}")
                                 st.write(f"**Carga Horária:** {carga_horaria} horas")
                                 
                                 if vencimento:
                                     st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
                                 else:
-                                    st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada nas configurações.")
+                                    st.error(f"**Falha ao Calcular Vencimento:** A norma '{norma_padronizada}' com módulo '{modulo}' não foi encontrada.")
                                 
                                 display_audit_results(audit_result)
-    
+        
                                 if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
                                     with st.spinner("Salvando Treinamento e processando auditoria..."):
                                         anexo_training = st.session_state.Treinamento_anexo_para_salvar
