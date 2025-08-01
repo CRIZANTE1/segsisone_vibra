@@ -421,9 +421,8 @@ def front_page():
                                         )
                                         
                                         if arquivo_id:
-                                      
                                             training_data_to_save = {
-                                                'funcionario_id': selected_employee_training, 
+                                                'funcionario_id': selected_employee_training,
                                                 'data': training_info.get('data'),
                                                 'vencimento': vencimento,
                                                 'norma': norma_padronizada,
