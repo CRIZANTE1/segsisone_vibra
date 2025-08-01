@@ -473,27 +473,44 @@ class EmployeeManager:
         return norma_upper
 
 
-    def add_training(self, funcionario_id, data, vencimento, norma, modulo, status, anexo, tipo_treinamento, carga_horaria):
+    def add_training(self, training_data: dict):
         """
-        Adiciona um novo registro de treinamento.
-        O primeiro parâmetro agora corresponde à coluna da planilha.
+        Adiciona um novo registro de treinamento a partir de um dicionário,
+        com validação robusta e tratamento de campos opcionais.
         """
         from gdrive.config import TRAINING_SHEET_NAME
+    
+        # 1. Extrai os dados essenciais do dicionário.
+        funcionario_id = training_data.get('funcionario_id')
+        data = training_data.get('data')
+        norma = training_data.get('norma')
+        vencimento = training_data.get('vencimento')
+        anexo = training_data.get('anexo')
         
-        if not all([data, norma, vencimento]):
-            st.error("Dados essenciais (data, norma, vencimento) para o treinamento estão faltando.")
+        # 2. Valida os campos críticos. Se algum faltar, a função para.
+        if not all([funcionario_id, data, norma, vencimento, anexo]):
+            # Log detalhado para depuração
+            missing = [k for k, v in {'Funcionário': funcionario_id, 'Data': data, 'Norma': norma, 'Vencimento': vencimento, 'Anexo': anexo}.items() if not v]
+            st.error(f"Não foi possível salvar o treinamento. Dados críticos faltando: {', '.join(missing)}")
             return None
-            
+    
+        # 3. Extrai dados opcionais com valores padrão.
+        modulo = training_data.get('modulo', 'N/A')
+        status = training_data.get('status', 'Válido')
+        tipo_treinamento = training_data.get('tipo_treinamento', 'Não identificado')
+        carga_horaria = training_data.get('carga_horaria', '0')
+    
+        # 4. Monta a linha para salvar na planilha.
         new_data = [
-            str(funcionario_id), 
-            data.strftime("%d/%m/%Y"), 
-            vencimento.strftime("%d/%m/%Y"), 
-            self._padronizar_norma(norma), 
-            str(modulo), 
-            str(status), 
-            str(anexo), 
-            str(tipo_treinamento), 
-            str(carga_horaria)
+            str(funcionario_id),
+            data.strftime("%d/%m/%Y"),
+            vencimento.strftime("%d/%m/%Y"),
+            self._padronizar_norma(norma),
+            str(modulo) if modulo else 'N/A',
+            str(status),
+            str(anexo),
+            str(tipo_treinamento) if tipo_treinamento else 'Não identificado',
+            str(carga_horaria) if carga_horaria is not None else '0'
         ]
         
         try:
@@ -502,9 +519,11 @@ class EmployeeManager:
                 st.cache_data.clear()
                 self.load_data()
                 return training_id
+            # Adiciona um erro se a escrita na planilha falhar por algum motivo
+            st.error("A escrita na planilha falhou e não retornou um ID.")
             return None
         except Exception as e:
-            st.error(f"Erro ao adicionar treinamento: {str(e)}")
+            st.error(f"Erro ao adicionar treinamento na planilha: {str(e)}")
             return None
         
 
