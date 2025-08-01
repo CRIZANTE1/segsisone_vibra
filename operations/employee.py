@@ -531,29 +531,46 @@ class EmployeeManager:
         return latest_aso, latest_trainings
 
     def calcular_vencimento_treinamento(self, data, norma, modulo=None, tipo_treinamento='formação'):
+        """
+        Calcula o vencimento de um treinamento de forma robusta e precisa.
+        - Usa 'relativedelta' para adicionar anos corretamente.
+        - Possui uma lógica de fallback para a NR-20 caso o módulo não seja encontrado.
+        """
         if not isinstance(data, date):
             return None
+            
         norma_padronizada = self._padronizar_norma(norma)
         if not norma_padronizada:
-            return None
-        
-        modulo_normalizado = modulo.strip().capitalize() if modulo else None
-        
+            return None        
+        modulo_normalizado = str(modulo).strip().capitalize() if modulo and str(modulo).lower() != 'n/a' else None
         config = None
+        anos_validade = None # Inicializamos como None
+    
         if norma_padronizada == "NR-20":
-            if modulo_normalizado:
-                for key, value in self.nr20_config.items():
-                    if key.lower() == modulo_normalizado.lower():
-                        config = value
-                        break
+            if modulo_normalizado and modulo_normalizado in self.nr20_config:
+                config = self.nr20_config[modulo_normalizado]
+                anos_validade = config.get('reciclagem_anos')
+            
+            if anos_validade is None:
+
+                st.warning(f"Módulo da NR-20 ('{modulo}') não reconhecido. Assumindo o prazo de validade mais curto (1 ano) por segurança.")
+                anos_validade = 1 # Usa o prazo mais curto como padrão seguro    
         else:
+            # Lógica para outras NRs
             config = self.nr_config.get(norma_padronizada)
-        
-        if config:
-            anos_validade = config.get('reciclagem_anos', 1)
-            return data + timedelta(days=anos_validade * 365)
-        
+            if config:
+                anos_validade = config.get('reciclagem_anos')
+    
+        if anos_validade is not None:
+            try:
+                from dateutil.relativedelta import relativedelta
+                return data + relativedelta(years=int(anos_validade))
+            except ImportError:
+                return data + timedelta(days=int(anos_validade * 365.25))
+    
+        st.error(f"Não foi possível encontrar regras de vencimento para a norma '{norma_padronizada}'.")
         return None
+    
     def archive_training(self, training_id: str, archive: bool = True):
         """Marca um treinamento como arquivado ou ativo."""
         from gdrive.config import TRAINING_SHEET_NAME
