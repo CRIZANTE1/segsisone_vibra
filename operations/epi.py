@@ -72,7 +72,7 @@ class EPIManager:
         latest_epis = epi_docs.groupby('descricao_normalizada').head(1).copy()        
         latest_epis = latest_epis.drop(columns=['data_entrega_dt', 'descricao_normalizada'])
         
-        return latest_epis.sort_values_by('data_entrega') # Ordena para exibição
+        return latest_epis.sort_values('data_entrega', ascending=False) # Ordena para exibição
 
     def analyze_epi_pdf(self, pdf_file):
         """Analisa o PDF da Ficha de EPI usando IA para extrair os itens."""
