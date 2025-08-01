@@ -47,11 +47,32 @@ class EPIManager:
             st.error(f"Erro ao carregar dados de EPI: {str(e)}")
             self.epi_df = pd.DataFrame()
 
+
     def get_epi_by_employee(self, employee_id):
-        """Retorna todos os registros de EPI para um funcionário específico."""
+        """
+        Retorna uma lista contendo APENAS o registro mais recente para cada tipo
+        de EPI (agrupado pela descrição), garantindo que a lista esteja sempre atualizada.
+        """
         if self.epi_df.empty:
             return pd.DataFrame()
-        return self.epi_df[self.epi_df['funcionario_id'] == str(employee_id)]
+            
+        epi_docs = self.epi_df[self.epi_df['funcionario_id'] == str(employee_id)].copy()
+        if epi_docs.empty:
+            return pd.DataFrame()
+    
+        if 'data_entrega' not in epi_docs.columns:
+            return pd.DataFrame() # Não podemos prosseguir sem a data
+    
+        epi_docs['data_entrega_dt'] = pd.to_datetime(epi_docs['data_entrega'], format='%d/%m/%Y', errors='coerce')
+        epi_docs.dropna(subset=['data_entrega_dt'], inplace=True)
+        if epi_docs.empty: return pd.DataFrame()
+    
+        epi_docs['descricao_normalizada'] = epi_docs['descricao_epi'].astype(str).str.strip().str.lower()
+        epi_docs = epi_docs.sort_values('data_entrega_dt', ascending=False)        
+        latest_epis = epi_docs.groupby('descricao_normalizada').head(1).copy()        
+        latest_epis = latest_epis.drop(columns=['data_entrega_dt', 'descricao_normalizada'])
+        
+        return latest_epis.sort_values_by('data_entrega') # Ordena para exibição
 
     def analyze_epi_pdf(self, pdf_file):
         """Analisa o PDF da Ficha de EPI usando IA para extrair os itens."""
