@@ -104,17 +104,23 @@ def front_page():
                     employee_role = employee['cargo']
                     today = date.today()
                 
-                    # --- Lógica de ASO ---
                     aso_status = 'Não encontrado'
                     aso_vencimento = None
                     latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
-                    
+                
                     if not latest_asos_by_type.empty:
-                        aptitude_asos = latest_asos_by_type[~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])].copy()
+                        aptitude_asos = latest_asos_by_type[
+                            ~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])
+                        ].copy()
+                        
+                        # 3. Desses, pega o mais recente de todos para determinar o status
                         if not aptitude_asos.empty:
+                            # Ordena pela data do ASO e pega a primeira linha (a mais recente)
                             current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
-                            aso_vencimento = current_aptitude_aso.get('vencimento')
-                            if pd.notna(aso_vencimento) and isinstance(aso_vencimento, date):
+                            
+                            vencimento_obj = current_aptitude_aso.get('vencimento')
+                            if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
+                                aso_vencimento = vencimento_obj
                                 aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
                             else:
                                 aso_status = 'Venc. Indefinido'
