@@ -70,7 +70,7 @@ class MatrixManager:
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
-    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=95):
+    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=90):
         """
         Encontra os treinamentos obrigatórios e RETORNA tanto a lista de treinamentos
         quanto o nome da função correspondente.
