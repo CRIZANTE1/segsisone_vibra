@@ -25,9 +25,9 @@ if not check_admin_permission():
 @st.cache_resource
 def get_admin_managers():
     """Instancia os gerenciadores necessários para a página de Administração."""
-    return EmployeeManager(), MatrixManager()
+    return EmployeeManager(), MatrixManager(), NRAnalyzer()
 
-employee_manager, matrix_manager = get_admin_managers()
+employee_manager, matrix_manager, nr_analyzer = get_admin_managers()
 
 # --- Exibição das Métricas ---
 st.header("Visão Geral das Pendências")
