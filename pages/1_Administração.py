@@ -6,6 +6,7 @@ import collections.abc
 from operations.employee import EmployeeManager
 from operations.matrix_manager import MatrixManager
 from ui.metrics import display_minimalist_metrics
+from analysis.nr_analyzer import NRAnalyzer 
 from auth.auth_utils import check_admin_permission, is_user_logged_in
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
@@ -212,7 +213,11 @@ with tab_recomendacoes:
         if st.button("Gerar Recomendações da IA", type="primary"):
             selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
             with st.spinner(f"A IA está pensando nos treinamentos para '{selected_function_name}'..."):
-                recommendations, message = matrix_manager.get_training_recommendations_for_function(selected_function_name)
+                # --- CORREÇÃO: Passamos a instância do nr_analyzer como argumento ---
+                recommendations, message = matrix_manager.get_training_recommendations_for_function(
+                    selected_function_name, 
+                    nr_analyzer
+                )
             
             if recommendations is not None:
                 st.session_state.recommendations = recommendations
