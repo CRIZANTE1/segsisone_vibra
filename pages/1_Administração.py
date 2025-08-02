@@ -177,15 +177,12 @@ with tab_matriz:
                 
                 # --- CORREÇÃO AQUI: Aplainar a lista 'current_mappings' ---
                 if current_mappings:
-                    # Esta função de aplanamento lida com listas aninhadas
                     def flatten(l):
                         for el in l:
                             if isinstance(el, collections.abc.Iterable) and not isinstance(el, (str, bytes)):
                                 yield from flatten(el)
                             else:
                                 yield el
-                    
-                    # Usa a função para garantir que a lista seja plana
                     all_options.update(list(flatten(current_mappings)))
                 
                 final_options = sorted(list(all_options))
