@@ -18,6 +18,49 @@ if not is_user_logged_in():
 if not check_admin_permission():
     st.stop()
 
+
+
+@st.dialog("Tratar Não Conformidade")
+def treat_item_dialog(item_data): 
+        st.subheader(item_data['item_nao_conforme'])
+        
+        prazo_atual = None
+        if item_data.get('prazo') and isinstance(item_data['prazo'], str) and item_data['prazo'].strip():
+            try:
+                prazo_atual = datetime.strptime(item_data['prazo'], "%d/%m/%Y").date()
+            except (ValueError, TypeError):
+                prazo_atual = None
+
+        with st.form("action_plan_form"):
+            plano_de_acao = st.text_area("Plano de Ação", value=item_data.get('plano_de_acao', ''))
+            responsavel = st.text_input("Responsável", value=item_data.get('responsavel', ''))
+            prazo = st.date_input("Prazo para Conclusão", value=prazo_atual)
+            status_options = ["Aberto", "Em Andamento", "Concluído", "Cancelado"]
+            try:
+                current_status_index = status_options.index(item_data.get('status', 'Aberto'))
+            except ValueError:
+                current_status_index = 0
+            status = st.selectbox("Status", status_options, index=current_status_index)
+            submitted = st.form_submit_button("Salvar Alterações")
+
+            if submitted:
+                updates = {
+                    "plano_de_acao": plano_de_acao,
+                    "responsavel": responsavel,
+                    "prazo": prazo,
+                    "status": status
+                }
+                if action_plan_manager.update_action_item(item_data['id'], updates):
+                    st.success("Plano de ação atualizado com sucesso!")
+                    del st.session_state.current_item_to_treat
+                    st.rerun()
+                else:
+                    st.error("Falha ao atualizar o plano de ação.")
+
+    if 'current_item_to_treat' in st.session_state:
+        treat_item_dialog(st.session_state.current_item_to_treat)
+        
+        
 @st.cache_resource
 def get_managers():
     return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
@@ -177,7 +220,6 @@ if selected_company_id:
                         st.dataframe(details_df, hide_index=True, use_container_width=True)
 
 else:
-    # --- MODO 2: VISÃO GERAL QUANDO NENHUMA EMPRESA ESTÁ SELECIONADA ---
     st.header("Visão Geral de Todas as Pendências")
     st.info("Selecione uma empresa no menu acima para tratar os itens e ver o histórico detalhado.")
 
@@ -220,45 +262,4 @@ else:
         )
 
 
-
     
-    
-    @st.dialog("Tratar Não Conformidade")
-    def treat_item_dialog(item_data): 
-        st.subheader(item_data['item_nao_conforme'])
-        
-        prazo_atual = None
-        if item_data.get('prazo') and isinstance(item_data['prazo'], str) and item_data['prazo'].strip():
-            try:
-                prazo_atual = datetime.strptime(item_data['prazo'], "%d/%m/%Y").date()
-            except (ValueError, TypeError):
-                prazo_atual = None
-
-        with st.form("action_plan_form"):
-            plano_de_acao = st.text_area("Plano de Ação", value=item_data.get('plano_de_acao', ''))
-            responsavel = st.text_input("Responsável", value=item_data.get('responsavel', ''))
-            prazo = st.date_input("Prazo para Conclusão", value=prazo_atual)
-            status_options = ["Aberto", "Em Andamento", "Concluído", "Cancelado"]
-            try:
-                current_status_index = status_options.index(item_data.get('status', 'Aberto'))
-            except ValueError:
-                current_status_index = 0
-            status = st.selectbox("Status", status_options, index=current_status_index)
-            submitted = st.form_submit_button("Salvar Alterações")
-
-            if submitted:
-                updates = {
-                    "plano_de_acao": plano_de_acao,
-                    "responsavel": responsavel,
-                    "prazo": prazo,
-                    "status": status
-                }
-                if action_plan_manager.update_action_item(item_data['id'], updates):
-                    st.success("Plano de ação atualizado com sucesso!")
-                    del st.session_state.current_item_to_treat
-                    st.rerun()
-                else:
-                    st.error("Falha ao atualizar o plano de ação.")
-
-    if 'current_item_to_treat' in st.session_state:
-        treat_item_dialog(st.session_state.current_item_to_treat)
