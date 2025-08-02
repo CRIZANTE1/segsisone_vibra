@@ -242,79 +242,75 @@ class MatrixManager:
 
 
 
+
     def get_training_recommendations_for_function(self, function_name: str, nr_analyzer):
-            """
-            Usa a busca semântica e o modelo de auditoria para gerar recomendações,
-            com o prompt corrigido para evitar erros de formatação.
-            """
-            # --- CORREÇÃO DO PROMPT AQUI ---
-            # Define como uma string de template normal (sem o 'f' na frente)
-            prompt_template = """
-            **Persona:** Você é um Engenheiro de Segurança do Trabalho Sênior, especialista em criar Matrizes de Treinamento. Sua tarefa é analisar o nome de uma função e, com base nos trechos da base de conhecimento fornecidos, recomendar os treinamentos de NR obrigatórios.
-        
-            **Função a ser Analisada:** "{function_name}"
-        
-            **Base de Conhecimento para Consulta (Trechos Mais Relevantes):**
-            {relevant_knowledge}
-        
-            **Sua Tarefa:**
-            1.  Raciocínio: Pense nas atividades e riscos típicos associados à função '{function_name}'.
-            2.  Consulta: Use a base de conhecimento fornecida para encontrar as NRs que se aplicam a esses riscos.
-            3.  Formatação da Resposta: Retorne suas recomendações em um formato JSON ESTRITO.
-        
-            **Estrutura JSON de Saída Obrigatória:**
-            ```json
-            [
-              {{
-                "treinamento_recomendado": "NR-10 BÁSICO",
-                "justificativa_normativa": "A função envolve interação com instalações elétricas, conforme NR-10."
-              }},
-              {{
-                "treinamento_recomendado": "NR-35 TRABALHO EM ALTURA",
-                "justificativa_normativa": "Atividades de manutenção podem exigir trabalho em plataformas ou escadas, conforme NR-35."
-              }}
-            ]
-            ```
-            **Importante:** Responda APENAS com o bloco de código JSON. Se a função não exigir treinamentos, retorne `[]`.
-            """
-            
-            try:
-                query = f"Riscos, atividades e treinamentos de segurança obrigatórios para a função de {function_name}"
-                relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
-                
-                # Formata o template de uma vez com todas as variáveis necessárias
-                final_prompt = prompt_template.format(
-                    function_name=function_name,
-                    relevant_knowledge=relevant_knowledge
-                )
-                
-                # Agora a chamada à IA será executada corretamente
-                response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
-                
-                if not response_text:
-                    return None, "A IA não retornou uma resposta."
+        """
+        Usa a busca semântica e o modelo de auditoria para gerar recomendações,
+        com o prompt e a estrutura try-except corrigidos.
+        """
+        prompt_template = """
+        **Persona:** Você é um Engenheiro de Segurança do Trabalho Sênior, especialista em criar Matrizes de Treinamento. Sua tarefa é analisar o nome de uma função e, com base nos trechos da base de conhecimento fornecidos, recomendar os treinamentos de NR obrigatórios.
     
+        **Função a ser Analisada:** "{function_name}"
+    
+        **Base de Conhecimento para Consulta (Trechos Mais Relevantes):**
+        {relevant_knowledge}
+    
+        **Sua Tarefa:**
+        1.  Raciocínio: Pense nas atividades e riscos típicos associados à função '{function_name}'.
+        2.  Consulta: Use a base de conhecimento fornecida para encontrar as NRs que se aplicam a esses riscos.
+        3.  Formatação da Resposta: Retorne suas recomendações em um formato JSON ESTRITO.
+    
+        **Estrutura JSON de Saída Obrigatória:**
+        ```json
+        [
+          {{
+            "treinamento_recomendado": "NR-10 BÁSICO",
+            "justificativa_normativa": "A função envolve interação com instalações elétricas, conforme NR-10."
+          }},
+          {{
+            "treinamento_recomendado": "NR-35 TRABALHO EM ALTURA",
+            "justificativa_normativa": "Atividades de manutenção podem exigir trabalho em plataformas ou escadas, conforme NR-35."
+          }}
+        ]
+        ```
+        **Importante:** Responda APENAS com o bloco de código JSON. Se a função não exigir treinamentos, retorne `[]`.
+        """
+        
+        try:
+            query = f"Riscos, atividades e treinamentos de segurança obrigatórios para a função de {function_name}"
+            relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
+            
+            final_prompt = prompt_template.format(
+                function_name=function_name,
+                relevant_knowledge=relevant_knowledge
+            )
+            
+            response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
+            
+            if not response_text:
+                return None, "A IA não retornou uma resposta."
+    
+            # --- ESTRUTURA TRY-EXCEPT CORRIGIDA ---
+            # O parser de JSON está no seu próprio bloco try-except,
+            # que é executado apenas se a 'response_text' não for vazia.
             try:
-                # 1. Tenta encontrar o JSON dentro de um bloco de código markdown
                 match = re.search(r'```json\s*(\[.*\])\s*```', response_text, re.DOTALL)
                 if match:
                     json_str = match.group(1)
                 else:
-                    # 2. Se não encontrar, tenta encontrar qualquer coisa entre colchetes
                     match = re.search(r'(\[.*\])', response_text, re.DOTALL)
                     if match:
-                        json_str = match.group(1)
+                        json_str = match.group(0) # Corrigido para group(0) para pegar o JSON inteiro
                     else:
-                        # 3. Se ainda não encontrar, assume que a resposta inteira pode ser o JSON
                         json_str = response_text
     
-                # 4. Tenta decodificar a string JSON encontrada
                 recommendations = json.loads(json_str)
                 return recommendations, "Recomendações geradas com sucesso."
     
             except json.JSONDecodeError:
-                return None, f"A resposta da IA não era um JSON válido. Resposta recebida: {response_text}"
-            # --- FIM DO PARSER ROBUSTO ---
+                return None, f"A resposta da IA não era um JSON válido. Resposta: '{response_text}'"
     
         except Exception as e:
+            # Este 'except' externo captura erros na chamada da API ou na busca semântica
             return None, f"Ocorreu um erro ao obter recomendações: {e}"
