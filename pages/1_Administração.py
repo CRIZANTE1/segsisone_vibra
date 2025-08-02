@@ -167,30 +167,35 @@ with tab_matriz:
             if selected_function_id:
                 selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
                 
-                current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
+                # --- LÓGICA DO CHECKBOX (REFINADA) ---
+                
+                # 1. Pega os mapeamentos atuais e os NORMALIZA (remove espaços)
+                current_mappings_raw = matrix_manager.get_required_trainings_for_function(selected_function_name)
+                current_mappings_clean = {norm.strip() for norm in current_mappings_raw if isinstance(norm, str)}
 
+                # 2. Constrói a lista de TODAS as opções possíveis, já NORMALIZADAS
                 all_options = set()
-                all_options.update(employee_manager.nr_config.keys())
-                all_options.update(employee_manager.nr20_config.keys())
+                
+                # Adiciona normas padrão, já limpas
+                all_options.update({key.strip() for key in employee_manager.nr_config.keys()})
+                all_options.update({key.strip() for key in employee_manager.nr20_config.keys()})
+                
+                # Adiciona normas únicas da matriz, já limpas
                 if not matrix_manager.matrix_df.empty:
-                    all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].unique())
+                    all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].str.strip().unique())
                 
-                if current_mappings:
-                    flat_current_mappings = []
-                    for item in current_mappings:
-                        if isinstance(item, list):
-                            flat_current_mappings.extend(item)
-                        elif isinstance(item, str):
-                            flat_current_mappings.append(item)
-                    all_options.update(flat_current_mappings)
+                # Garante que os mapeamentos atuais estejam na lista
+                all_options.update(current_mappings_clean)
                 
-                final_options = sorted([opt for opt in all_options if opt and isinstance(opt, str)])
+                # 3. Remove valores vazios/nulos e ordena
+                final_options = sorted([opt for opt in all_options if opt])
                 
                 st.markdown("**Selecione os Treinamentos Obrigatórios:**")
                 
                 checkbox_states = {}
                 for norm in final_options:
-                    is_checked = norm in current_mappings
+                    # 4. A verificação agora é feita contra o conjunto de mapeamentos limpos
+                    is_checked = norm in current_mappings_clean
                     checkbox_states[norm] = st.checkbox(norm, value=is_checked, key=f"cb_{selected_function_id}_{norm}")
                 
                 if st.button("Salvar Mapeamentos para esta Função", type="primary"):
