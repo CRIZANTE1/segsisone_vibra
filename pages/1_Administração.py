@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
+import collections.abc 
 
 from operations.employee import EmployeeManager
 from operations.matrix_manager import MatrixManager
