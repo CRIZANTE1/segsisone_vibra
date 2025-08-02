@@ -151,8 +151,8 @@ if selected_company_id:
                     st.info(f"**Status Atual:** {row['status']}")
                 with col2:
                     if st.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
-                    st.session_state.current_item_to_treat = row.to_dict()
-                    st.rerun() # Garante que a página recarregue para abrir o diálogo
+                        st.session_state.current_item_to_treat = row.to_dict()
+                        st.rerun() # Garante que a página recarregue para abrir o diálogo
                         
     st.markdown("---")
     with st.expander("📖 Ver Histórico Completo de Auditorias"):        
