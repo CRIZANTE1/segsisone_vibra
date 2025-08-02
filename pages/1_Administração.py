@@ -91,12 +91,33 @@ with tab_funcionario:
                             else:
                                 st.error(f"Falha: {message}")
 
-# --- ABA DE GERENCIAMENTO DA MATRIZ ---
 with tab_matriz:
     st.header("Matriz de Treinamento por Função")
-    col1, col2 = st.columns(2)
+    
+    st.subheader("1. Importar Matriz a partir de um Documento (PDF)")
+    
+    uploaded_matrix_file = st.file_uploader(
+        "Selecione um arquivo PDF com a sua matriz de treinamentos",
+        type="pdf",
+        key="matrix_uploader"
+    )
+
+    if uploaded_matrix_file:
+        if st.button("Processar Matriz com IA", type="primary"):
+            with st.spinner("A IA está lendo e interpretando sua matriz..."):
+                # A função que fará a mágica (vamos criá-la no próximo passo)
+                success, message = matrix_manager.process_matrix_pdf(uploaded_matrix_file)
+            
+            if success:
+                st.success(message)
+                st.rerun() # Recarrega para mostrar os novos dados
+            else:
+                st.error(message)
+
+    st.markdown("---")
+    
     with col1:
-        st.subheader("1. Cadastrar/Ver Funções")
+        st.subheader("1. Cadastrar Funções Manualmente")
         with st.form("form_add_function"):
             func_name = st.text_input("Nome da Nova Função (ex: Soldador)")
             func_desc = st.text_area("Descrição (opcional)")
