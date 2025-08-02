@@ -162,24 +162,27 @@ with tab_matriz:
                 options=matrix_manager.functions_df['id'].tolist(),
                 format_func=lambda id: matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == id, 'nome_funcao'].iloc[0]
             )
-            
-            # Pega os treinamentos que já estão mapeados para esta função
-            current_mappings = matrix_manager.get_required_trainings_for_function(
-                matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
-            )
+            selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
+                        
+            current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
 
-            all_norms = sorted(list(employee_manager.nr_config.keys()))
-            if 'NR-20' not in all_norms: all_norms.insert(0, 'NR-20')
+            if not matrix_manager.matrix_df.empty:
+                used_norms = matrix_manager.matrix_df['norma_obrigatoria'].unique().tolist()
+            else:
+                used_norms = []
+                
+            standard_norms = list(employee_manager.nr_config.keys()) + ['NR-20']
+            
+            all_possible_norms = sorted(list(set(used_norms + standard_norms)))
             
             required_norms = st.multiselect(
                 "Selecione os Treinamentos Obrigatórios", 
-                options=all_norms,
-                default=current_mappings 
+                options=all_possible_norms,
+                default=current_mappings
             )
             
             if st.button("Salvar Mapeamentos para esta Função"):
                 with st.spinner("Atualizando mapeamentos..."):
-                    # Lógica para adicionar os novos e remover os desmarcados
                     success, message = matrix_manager.update_function_mappings(selected_function_id, required_norms)
                 
                 if success:
