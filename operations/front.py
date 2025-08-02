@@ -214,23 +214,42 @@ def front_page():
                                 missing_trainings = []
                                 status_list = []
                                 
-                                SIMILARITY_THRESHOLD = 85
+                                SIMILARITY_THRESHOLD = 85 # Limiar para a correspondência fuzzy
                         
                                 for required in required_trainings:
                                     found = False
+                                    # Normaliza o requisito para busca
+                                    required_lower = required.lower()
+                                    
                                     for current in current_trainings_norms:
-                                        score = fuzz.token_sort_ratio(required, current)
+                                        current_lower = current.lower()
                                         
+                                        # --- LÓGICA DE COMPARAÇÃO HÍBRIDA ---
+                                        
+                                        # 1. Tentativa de correspondência exata (mais rápida e precisa)
+                                        if required_lower == current_lower:
+                                            found = True
+                                            break
+                                        
+                                        # 2. Tentativa com FuzzyWuzzy para erros de digitação e ordem
+                                        score = fuzz.token_sort_ratio(required_lower, current_lower)
                                         if score >= SIMILARITY_THRESHOLD:
                                             found = True
                                             break
+                                            
+                                        # 3. Tentativa de correspondência de prefixo (NR-12 vs NR-12 MÁQUINAS)
+                                        #    Verifica se o mais curto é o início do mais longo.
+                                        if current_lower.startswith(required_lower) or required_lower.startswith(current_lower):
+                                            found = True
+                                            break
+                        
+                                    # --- FIM DA LÓGICA HÍBRIDA ---
                                     
                                     if found:
                                         status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
                                     else:
                                         status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
                                         missing_trainings.append(required)
-                                # --- FIM DA LÓGICA DE COMPARAÇÃO ---
                                 
                                 if not missing_trainings:
                                     st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
