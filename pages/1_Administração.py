@@ -33,8 +33,9 @@ st.header("Visão Geral das Pendências")
 display_minimalist_metrics(employee_manager)
 
 # --- UI com Abas para Cadastro ---
-tab_empresa, tab_funcionario, tab_matriz = st.tabs([
-    "Cadastrar Empresa", "Cadastrar Funcionário", "Gerenciar Matriz de Treinamento"
+tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs([
+    "Cadastrar Empresa", "Cadastrar Funcionário", 
+    "Gerenciar Matriz Manualmente", "Assistente de Matriz (IA)" 
 ])
 
 # --- ABA DE CADASTRO DE EMPRESA ---
@@ -91,7 +92,7 @@ with tab_funcionario:
                                 st.success(f"Sucesso: {message} (ID: {employee_id})")
                             else:
                                 st.error(f"Falha: {message}")
-
+                                
 with tab_matriz:
     st.header("Matriz de Treinamento por Função")
     
@@ -192,3 +193,78 @@ with tab_matriz:
         st.json(json_view, expanded=False) # Começa recolhido por padrão
     else:
         st.info("Nenhum mapeamento de treinamento foi criado ainda.")
+
+
+with tab_recomendacoes:
+    st.header("🤖 Assistente de Matriz de Treinamentos com IA")
+    st.info("Selecione uma função e a IA irá analisar sua base de conhecimento para recomendar os treinamentos obrigatórios.")
+
+    if matrix_manager.functions_df.empty:
+        st.warning("Nenhuma função cadastrada. Por favor, cadastre funções na aba 'Gerenciar Matriz Manualmente' primeiro.")
+    else:
+        selected_function_id = st.selectbox(
+            "Selecione a Função para obter recomendações",
+            options=matrix_manager.functions_df['id'].tolist(),
+            format_func=lambda id: matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == id, 'nome_funcao'].iloc[0],
+            key="rec_func_select"
+        )
+        
+        if st.button("Gerar Recomendações da IA", type="primary"):
+            selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
+            with st.spinner(f"A IA está pensando nos treinamentos para '{selected_function_name}'..."):
+                recommendations, message = matrix_manager.get_training_recommendations_for_function(selected_function_name)
+            
+            if recommendations is not None:
+                st.session_state.recommendations = recommendations
+                st.session_state.selected_function_for_rec = selected_function_id
+            else:
+                st.error(message)
+
+    # Se houver recomendações no session_state, exibe a seção de confirmação
+    if 'recommendations' in st.session_state:
+        st.markdown("---")
+        st.subheader("Recomendações Geradas")
+        
+        recommendations = st.session_state.recommendations
+        
+        if not recommendations:
+            st.success("A IA não identificou nenhum treinamento de NR obrigatório para esta função.")
+        else:
+            # Prepara os dados para exibição e seleção
+            rec_data = pd.DataFrame(recommendations)
+            rec_data['aceitar'] = True # Adiciona uma coluna de checkbox, todos marcados por padrão
+            
+            st.write("Marque os treinamentos que você deseja adicionar à matriz para esta função:")
+            
+            edited_df = st.data_editor(
+                rec_data,
+                column_config={
+                    "aceitar": st.column_config.CheckboxColumn("Aceitar?", default=True),
+                    "treinamento_recomendado": "Treinamento",
+                    "justificativa_normativa": "Justificativa da IA (não será salvo)"
+                },
+                use_container_width=True,
+                hide_index=True,
+                key="rec_editor"
+            )
+
+            if st.button("Salvar Mapeamentos Selecionados"):
+                # Filtra apenas as recomendações que o usuário deixou marcadas
+                accepted_recommendations = edited_df[edited_df['aceitar']]
+                norms_to_add = accepted_recommendations['treinamento_recomendado'].tolist()
+                
+                if not norms_to_add:
+                    st.warning("Nenhum treinamento foi selecionado para salvar.")
+                else:
+                    function_id_to_save = st.session_state.selected_function_for_rec
+                    with st.spinner("Salvando mapeamentos..."):
+                        success, message = matrix_manager.update_function_mappings(function_id_to_save, norms_to_add)
+                    
+                    if success:
+                        st.success(message)
+                        # Limpa o estado para resetar a interface
+                        del st.session_state.recommendations
+                        del st.session_state.selected_function_for_rec
+                        st.rerun()
+                    else:
+                        st.error(message)
