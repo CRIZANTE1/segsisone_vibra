@@ -86,7 +86,8 @@ class MatrixManager:
         matched_function_name = best_match[0]        
         function_id = self.functions_df[self.functions_df['nome_funcao'] == matched_function_name].iloc[0]['id']        
         required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]        
-        return required['norma_obrigatoria'].tolist()
+        return required['norma_obrigatoria'].tolist(), matched_function_name
+
 
     
     def analyze_matrix_pdf(self, pdf_file):
