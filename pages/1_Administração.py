@@ -166,38 +166,35 @@ with tab_matriz:
             if selected_function_id:
                 selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
                 
-                # --- LÓGICA DO MULTISELECT (SIMPLIFICADA E CORRIGIDA) ---
                 
                 # 1. Pega os mapeamentos atuais para a função selecionada
                 current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
 
                 # 2. Constrói a lista de TODAS as opções possíveis
-                all_options = set() # Usamos um set para evitar duplicatas desde o início
-
-                # Fonte 1: Normas padrão do sistema
+                all_options = set()
                 all_options.update(employee_manager.nr_config.keys())
                 all_options.update(employee_manager.nr20_config.keys())
-
-                # Fonte 2: Normas únicas que já estão em uso na matriz
                 if not matrix_manager.matrix_df.empty:
                     all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].unique())
-                
-                # Fonte 3 (A GARANTIA): Adiciona os mapeamentos atuais à lista de opções
-                # Isso garante que qualquer valor em `default` também estará em `options`
                 all_options.update(current_mappings)
-
-                # 4. Converte para lista e ordena
                 final_options = sorted(list(all_options))
                 
-                required_norms = st.multiselect(
-                    "Selecione os Treinamentos Obrigatórios", 
-                    options=final_options,
-                    default=current_mappings
-                )
+                st.markdown("**Selecione os Treinamentos Obrigatórios:**")
                 
-                if st.button("Salvar Mapeamentos para esta Função"):
+                # 3. Itera sobre as opções e cria um checkbox para cada uma
+                #    Armazena o estado de cada checkbox em um dicionário
+                checkbox_states = {}
+                for norm in final_options:
+                    # O valor padrão é True se a norma já estiver mapeada
+                    is_checked = norm in current_mappings
+                    checkbox_states[norm] = st.checkbox(norm, value=is_checked, key=f"cb_{selected_function_id}_{norm}")
+                
+                if st.button("Salvar Mapeamentos para esta Função", type="primary"):
+                    # 4. Coleta os nomes das normas de todos os checkboxes que estão marcados
+                    new_required_norms = [norm for norm, checked in checkbox_states.items() if checked]
+                    
                     with st.spinner("Atualizando mapeamentos..."):
-                        success, message = matrix_manager.update_function_mappings(selected_function_id, required_norms)
+                        success, message = matrix_manager.update_function_mappings(selected_function_id, new_required_norms)
                     
                     if success:
                         st.success(message)
