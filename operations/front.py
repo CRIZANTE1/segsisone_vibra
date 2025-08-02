@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, date
 import pandas as pd
+from fuzzywuzzy import fuzz
 
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
@@ -212,15 +213,24 @@ def front_page():
                                 
                                 missing_trainings = []
                                 status_list = []
+                                
+                                SIMILARITY_THRESHOLD = 85
+                        
                                 for required in required_trainings:
-                                    norm_base = required.split(' ')[0].replace('-', '').upper()
-                                    found = any(norm_base in current.replace('-', '').upper() for current in current_trainings_norms)
+                                    found = False
+                                    for current in current_trainings_norms:
+                                        score = fuzz.token_sort_ratio(required, current)
+                                        
+                                        if score >= SIMILARITY_THRESHOLD:
+                                            found = True
+                                            break
                                     
                                     if found:
                                         status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
                                     else:
                                         status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
                                         missing_trainings.append(required)
+                                # --- FIM DA LÓGICA DE COMPARAÇÃO ---
                                 
                                 if not missing_trainings:
                                     st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
@@ -229,9 +239,6 @@ def front_page():
                                     st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(missing_bases)}")
                                     
                                 st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
-            
-            else:
-                st.info("Nenhum funcionário cadastrado para esta empresa.")
      #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
