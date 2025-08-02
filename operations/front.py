@@ -9,6 +9,7 @@ from analysis.nr_analyzer import NRAnalyzer
 
 from gdrive.gdrive_upload import GoogleDriveUploader
 from auth.auth_utils import check_admin_permission
+from operations.matrix_manager import MatrixManager
 from ui.ui_helpers import (
     mostrar_info_normas,
     highlight_expired,
@@ -55,13 +56,15 @@ def front_page():
         st.session_state.nr_analyzer = NRAnalyzer()
     if 'gdrive_uploader' not in st.session_state:
         st.session_state.gdrive_uploader = GoogleDriveUploader()
+    if 'matrix_manager' not in st.session_state: 
+        st.session_state.matrix_manager = MatrixManager()    
 
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
     nr_analyzer = st.session_state.nr_analyzer
     gdrive_uploader = st.session_state.gdrive_uploader
-    
+    matrix_manager = st.session_state.matrix_manager
     
     
     st.title("Gestão de Documentação Inteligente")
@@ -192,8 +195,44 @@ def front_page():
                             )
                         else:
                             st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
-                
- 
+                #---------------------------------------------------------------------------------------------------------------------------------------
+                        st.markdown("---")
+                        st.markdown("##### Matriz de Conformidade de Treinamentos")
+                        
+                        employee_function = employee.get('cargo', '').strip()
+                        if not employee_function:
+                            st.info("Função do funcionário não cadastrada para análise de matriz.")
+                        else:
+                            required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
+                            
+                            if not required_trainings:
+                                st.success("✅ Nenhuma obrigatoriedade de treinamento mapeada para esta função.")
+                            else:
+                                current_trainings_norms = all_trainings['norma'].tolist()
+                                
+                                missing_trainings = []
+                                status_list = []
+                                for required in required_trainings:
+                                    norm_base = required.split(' ')[0].replace('-', '').upper()
+                                    found = any(norm_base in current.replace('-', '').upper() for current in current_trainings_norms)
+                                    
+                                    if found:
+                                        status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
+                                    else:
+                                        status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
+                                        missing_trainings.append(required)
+                                
+                                if not missing_trainings:
+                                    st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                else:
+                                    missing_bases = sorted(list(set([norm.split(' ')[0] for norm in missing_trainings])))
+                                    st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(missing_bases)}")
+                                    
+                                st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
+            
+            else:
+                st.info("Nenhum funcionário cadastrado para esta empresa.")
+     #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
             if check_admin_permission():
