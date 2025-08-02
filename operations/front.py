@@ -204,60 +204,58 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
+                            # --- CORREÇÃO AQUI: A função agora retorna duas variáveis ---
+                            # Chamamos a função (que agora usa fuzzywuzzy internamente)
                             required_trainings, matched_function = matrix_manager.get_required_trainings_for_function(employee_function)
                             
-                            if not required_trainings:
-                                st.success("✅ Nenhuma obrigatoriedade de treinamento mapeada para esta função.")
+                            # Se nenhuma função correspondente foi encontrada na matriz, exibe a mensagem correta
+                            if not matched_function:
+                                st.info(f"✅ A função '{employee_function}' não possui treinamentos obrigatórios mapeados na matriz.")
                             else:
-                                current_trainings_norms = all_trainings['norma'].tolist()
+                                # Se encontrou uma função, exibe qual foi usada para a análise, caso seja diferente
+                                if employee_function.lower() != matched_function.lower():
+                                    st.caption(f"Analisando com base na função mais próxima encontrada na matriz: **'{matched_function}'**")
                                 
-                                missing_trainings = []
-                                status_list = []
-                                
-                                SIMILARITY_THRESHOLD = 85 # Limiar para a correspondência fuzzy
-                        
-                                for required in required_trainings:
-                                    found = False
-                                    # Normaliza o requisito para busca
-                                    required_lower = required.lower()
-                                    
-                                    for current in current_trainings_norms:
-                                        current_lower = current.lower()
-                                        
-                                        # --- LÓGICA DE COMPARAÇÃO HÍBRIDA ---
-                                        
-                                        # 1. Tentativa de correspondência exata (mais rápida e precisa)
-                                        if required_lower == current_lower:
-                                            found = True
-                                            break
-                                        
-                                        # 2. Tentativa com FuzzyWuzzy para erros de digitação e ordem
-                                        score = fuzz.token_sort_ratio(required_lower, current_lower)
-                                        if score >= SIMILARITY_THRESHOLD:
-                                            found = True
-                                            break
-                                            
-                                        # 3. Tentativa de correspondência de prefixo (NR-12 vs NR-12 MÁQUINAS)
-                                        #    Verifica se o mais curto é o início do mais longo.
-                                        if current_lower.startswith(required_lower) or required_lower.startswith(current_lower):
-                                            found = True
-                                            break
-                        
-                                    # --- FIM DA LÓGICA HÍBRIDA ---
-                                    
-                                    if found:
-                                        status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
-                                    else:
-                                        status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
-                                        missing_trainings.append(required)
-                                
-                                if not missing_trainings:
-                                    st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                # Se não há treinamentos requeridos para a função encontrada
+                                if not required_trainings:
+                                     st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function}'.")
                                 else:
-                                    missing_bases = sorted(list(set([norm.split(' ')[0] for norm in missing_trainings])))
-                                    st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(missing_bases)}")
+                                    current_trainings_norms = all_trainings['norma'].tolist()
                                     
-                                st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
+                                    missing_trainings = []
+                                    status_list = []
+                                    SIMILARITY_THRESHOLD = 85
+                        
+                                    for required in required_trainings:
+                                        found = False
+                                        required_lower = required.lower()
+                                        for current in current_trainings_norms:
+                                            current_lower = current.lower()
+                                            
+                                            # Lógica Híbrida de Comparação (que já está correta)
+                                            if required_lower == current_lower:
+                                                found = True
+                                                break
+                                            if fuzz.token_sort_ratio(required_lower, current_lower) >= SIMILARITY_THRESHOLD:
+                                                found = True
+                                                break
+                                            if current_lower.startswith(required_lower) or required_lower.startswith(current_lower):
+                                                found = True
+                                                break
+                        
+                                        if found:
+                                            status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
+                                        else:
+                                            status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
+                                            missing_trainings.append(required)
+                                    
+                                    if not missing_trainings:
+                                        st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                    else:
+                                        missing_bases = sorted(list(set([norm.split(' ')[0] for norm in missing_trainings])))
+                                        st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(missing_bases)}")
+                                        
+                                    st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
      #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
