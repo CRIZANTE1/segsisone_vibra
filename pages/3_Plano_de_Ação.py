@@ -18,6 +18,12 @@ if not is_user_logged_in():
 if not check_admin_permission():
     st.stop()
 
+        
+@st.cache_resource
+def get_managers():
+    return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
+
+action_plan_manager, employee_manager, docs_manager = get_managers()
 
 
 @st.dialog("Tratar Não Conformidade")
@@ -59,13 +65,7 @@ def treat_item_dialog(item_data):
 
     if 'current_item_to_treat' in st.session_state:
         treat_item_dialog(st.session_state.current_item_to_treat)
-        
-        
-@st.cache_resource
-def get_managers():
-    return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
 
-action_plan_manager, employee_manager, docs_manager = get_managers()
 
 selected_company_id = st.selectbox(
     "Selecione uma empresa",
