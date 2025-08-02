@@ -70,7 +70,7 @@ class MatrixManager:
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
-    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=90):
+    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=95):
         """
         Encontra os treinamentos obrigatórios para uma função usando correspondência
         aproximada (fuzzy matching) para encontrar a função mais similar na matriz.
