@@ -1,26 +1,15 @@
-#----------------------------- Não foi implementado ----------------------------#
 import streamlit as st
 import pandas as pd
 from datetime import date
 from operations.employee import EmployeeManager
 
 def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
-    """
-    Calcula as métricas de pendências para TODAS as empresas.
-    
-    Args:
-        employee_manager: Uma instância da classe EmployeeManager que já contém
-                          os DataFrames carregados (aso_df, training_df).
-
-    Returns:
-        Um dicionário com as métricas calculadas.
-    """
     today = date.today()
     metrics = {
         'total_companies': 0,
         'companies_with_pendencies': 0,
         'total_pendencies': 0,
-        'most_pendent_company': ('Nenhuma', 0) # (Nome da empresa, contagem)
+        'most_pendent_company': ('Nenhuma', 0)
     }
 
     companies_df = employee_manager.companies_df
@@ -28,46 +17,45 @@ def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
         return metrics
 
     metrics['total_companies'] = len(companies_df)
-    
     pendencies_by_company = {}
+    
+    # --- CORREÇÃO AQUI: Definimos o mapeamento no início ---
+    # Garante que a variável sempre exista, mesmo que vazia.
+    if not employee_manager.employees_df.empty:
+        employee_to_company = employee_manager.employees_df.set_index('id')['empresa_id']
+    else:
+        employee_to_company = pd.Series()
 
     # Processar ASOs Vencidos
     if not employee_manager.aso_df.empty:
         asos = employee_manager.aso_df.copy()
         asos['vencimento_dt'] = pd.to_datetime(asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        asos.dropna(subset=['vencimento_dt'], inplace=True)
-        
-        # Pega o ASO mais recente de cada funcionário (que não seja demissional)
-        latest_asos = asos[~asos['tipo_aso'].str.lower().isin(['demissional'])]
-        latest_asos = latest_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1)
-        
-        expired_asos = latest_asos[latest_asos['vencimento_dt'] < today]
-        
-        if not expired_asos.empty:
-            # Mapeia funcionário -> empresa
-            employee_to_company = employee_manager.employees_df.set_index('id')['empresa_id']
-            expired_asos['empresa_id'] = expired_asos['funcionario_id'].map(employee_to_company)
+        latest_asos = asos[~asos['tipo_aso'].str.lower().isin(['demissional'])].dropna(subset=['vencimento_dt'])
+        if not latest_asos.empty:
+            latest_asos = latest_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1)
+            expired_asos = latest_asos[latest_asos['vencimento_dt'] < today].copy()
             
-            aso_pendencies = expired_asos.groupby('empresa_id').size()
-            for company_id, count in aso_pendencies.items():
-                pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
+            if not expired_asos.empty and not employee_to_company.empty:
+                expired_asos.loc[:, 'empresa_id'] = expired_asos['funcionario_id'].map(employee_to_company)
+                aso_pendencies = expired_asos.groupby('empresa_id').size()
+                for company_id, count in aso_pendencies.items():
+                    pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
 
     # Processar Treinamentos Vencidos
     if not employee_manager.training_df.empty:
         trainings = employee_manager.training_df.copy()
         trainings['vencimento_dt'] = pd.to_datetime(trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        trainings.dropna(subset=['vencimento_dt'], inplace=True)
-        
-        # Pega o treinamento mais recente de cada tipo (por norma)
-        latest_trainings = trainings.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
-        
-        expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today]
-        
-        if not expired_trainings.empty:
-            expired_trainings.loc[:, 'empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
-            training_pendencies = expired_trainings.groupby('empresa_id').size()
-            for company_id, count in training_pendencies.items():
-                pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
+        latest_trainings = trainings.dropna(subset=['vencimento_dt'])
+        if not latest_trainings.empty:
+            latest_trainings = latest_trainings.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
+            expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today].copy()
+            
+            if not expired_trainings.empty and not employee_to_company.empty:
+                # Agora esta linha funcionará, pois 'employee_to_company' sempre existe
+                expired_trainings.loc[:, 'empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
+                training_pendencies = expired_trainings.groupby('empresa_id').size()
+                for company_id, count in training_pendencies.items():
+                    pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
 
     if pendencies_by_company:
         metrics['companies_with_pendencies'] = len(pendencies_by_company)
