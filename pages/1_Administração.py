@@ -153,7 +153,7 @@ with tab_matriz:
                     st.error(msg)
         
     with col2:
-        st.subheader("3. Mapear Treinamentos para Funções")
+        st.write("**Mapear Treinamentos para Funções**")
         if matrix_manager.functions_df.empty:
             st.warning("Cadastre uma função à esquerda primeiro.")
         else:
@@ -162,31 +162,41 @@ with tab_matriz:
                 options=matrix_manager.functions_df['id'].tolist(),
                 format_func=lambda id: matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == id, 'nome_funcao'].iloc[0]
             )
+            
+            # Pega os treinamentos que já estão mapeados para esta função
+            current_mappings = matrix_manager.get_required_trainings_for_function(
+                matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
+            )
+
             all_norms = sorted(list(employee_manager.nr_config.keys()))
             if 'NR-20' not in all_norms: all_norms.insert(0, 'NR-20')
             
-            required_norm = st.selectbox("Selecione o Treinamento Obrigatório", options=all_norms)
+            required_norms = st.multiselect(
+                "Selecione os Treinamentos Obrigatórios", 
+                options=all_norms,
+                default=current_mappings 
+            )
             
-            if st.button("Mapear Treinamento"):
-                if selected_function_id and required_norm:
-                    map_id, msg = matrix_manager.add_training_to_function(selected_function_id, required_norm)
-                    if map_id:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
+            if st.button("Salvar Mapeamentos para esta Função"):
+                with st.spinner("Atualizando mapeamentos..."):
+                    # Lógica para adicionar os novos e remover os desmarcados
+                    success, message = matrix_manager.update_function_mappings(selected_function_id, required_norms)
+                
+                if success:
+                    st.success(message)
+                    st.rerun()
+                else:
+                    st.error(message)
 
     st.markdown("---")
     st.subheader("Matriz de Treinamentos Atual no Sistema")
     
-    # --- NOVA VISUALIZAÇÃO EM JSON DA MATRIZ ATUAL ---
     if not matrix_manager.matrix_df.empty and not matrix_manager.functions_df.empty:
         # Agrupa os mapeamentos por função para criar a estrutura de dicionário
         func_id_to_name = matrix_manager.functions_df.set_index('id')['nome_funcao']
         display_df = matrix_manager.matrix_df.copy()
         display_df['nome_funcao'] = display_df['id_funcao'].map(func_id_to_name)
         
-        # Agrupa para criar o dicionário aninhado
         json_view = display_df.groupby('nome_funcao')['norma_obrigatoria'].apply(list).to_dict()
         
         st.json(json_view, expanded=False) # Começa recolhido por padrão
