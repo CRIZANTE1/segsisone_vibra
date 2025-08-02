@@ -277,24 +277,37 @@ class MatrixManager:
         """
         
         try:
-            # --- LÓGICA RAG ---
             query = f"Riscos, atividades e treinamentos de segurança obrigatórios para a função de {function_name}"
-            
             relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
-
             final_prompt = prompt.format(relevant_knowledge=relevant_knowledge)
             
             response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
             
             if not response_text:
                 return None, "A IA não retornou uma resposta."
-
-            match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if not match:
-                return None, "A resposta da IA não estava no formato JSON esperado."
-            
-            recommendations = json.loads(match.group(0))
-            return recommendations, "Recomendações geradas com sucesso."
-
+    
+            # --- PARSER DE JSON MAIS ROBUSTO AQUI ---
+            try:
+                # 1. Tenta encontrar o JSON dentro de um bloco de código markdown
+                match = re.search(r'```json\s*(\[.*\])\s*```', response_text, re.DOTALL)
+                if match:
+                    json_str = match.group(1)
+                else:
+                    # 2. Se não encontrar, tenta encontrar qualquer coisa entre colchetes
+                    match = re.search(r'(\[.*\])', response_text, re.DOTALL)
+                    if match:
+                        json_str = match.group(1)
+                    else:
+                        # 3. Se ainda não encontrar, assume que a resposta inteira pode ser o JSON
+                        json_str = response_text
+    
+                # 4. Tenta decodificar a string JSON encontrada
+                recommendations = json.loads(json_str)
+                return recommendations, "Recomendações geradas com sucesso."
+    
+            except json.JSONDecodeError:
+                return None, f"A resposta da IA não era um JSON válido. Resposta recebida: {response_text}"
+            # --- FIM DO PARSER ROBUSTO ---
+    
         except Exception as e:
             return None, f"Ocorreu um erro ao obter recomendações: {e}"
