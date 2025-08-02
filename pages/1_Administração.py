@@ -105,19 +105,20 @@ with tab_matriz:
     if uploaded_matrix_file:
         if st.button("Processar Matriz com IA", type="primary"):
             with st.spinner("A IA está lendo e interpretando sua matriz..."):
-                # A função que fará a mágica (vamos criá-la no próximo passo)
                 success, message = matrix_manager.process_matrix_pdf(uploaded_matrix_file)
             
             if success:
                 st.success(message)
-                st.rerun() # Recarrega para mostrar os novos dados
+                st.rerun()
             else:
                 st.error(message)
 
     st.markdown("---")
-    
+        
+    col1, col2 = st.columns(2)
+
     with col1:
-        st.subheader("1. Cadastrar Funções Manualmente")
+        st.subheader("2. Cadastrar/Ver Funções")
         with st.form("form_add_function"):
             func_name = st.text_input("Nome da Nova Função (ex: Soldador)")
             func_desc = st.text_area("Descrição (opcional)")
@@ -134,7 +135,7 @@ with tab_matriz:
         st.dataframe(matrix_manager.functions_df[['nome_funcao', 'descricao']], use_container_width=True)
 
     with col2:
-        st.subheader("2. Mapear Treinamentos para Funções")
+        st.subheader("3. Mapear Treinamentos para Funções")
         if matrix_manager.functions_df.empty:
             st.warning("Cadastre uma função à esquerda primeiro.")
         else:
