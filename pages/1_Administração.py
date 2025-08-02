@@ -167,28 +167,29 @@ with tab_matriz:
             if selected_function_id:
                 selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
                 
-                
                 current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
 
-                all_options = set() # Usamos um set para evitar duplicatas
-
-                # Fonte 1: Normas padrão do sistema
+                all_options = set()
                 all_options.update(employee_manager.nr_config.keys())
-                all_options.update(employee_manager.nr20_config.keys()) # Adiciona "Básico", "Intermediário", etc.
-
+                all_options.update(employee_manager.nr20_config.keys())
                 if not matrix_manager.matrix_df.empty:
                     all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].unique())
                 
-                all_options.update(current_mappings)
+                if current_mappings:
+                    flat_current_mappings = []
+                    for item in current_mappings:
+                        if isinstance(item, list):
+                            flat_current_mappings.extend(item)
+                        elif isinstance(item, str):
+                            flat_current_mappings.append(item)
+                    all_options.update(flat_current_mappings)
                 
-                # 3. Remove valores vazios ou nulos e ordena
                 final_options = sorted([opt for opt in all_options if opt and isinstance(opt, str)])
                 
                 st.markdown("**Selecione os Treinamentos Obrigatórios:**")
                 
                 checkbox_states = {}
                 for norm in final_options:
-                    # O valor padrão é True se a norma já estiver mapeada
                     is_checked = norm in current_mappings
                     checkbox_states[norm] = st.checkbox(norm, value=is_checked, key=f"cb_{selected_function_id}_{norm}")
                 
