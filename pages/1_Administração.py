@@ -163,28 +163,25 @@ with tab_matriz:
                 format_func=lambda id: matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == id, 'nome_funcao'].iloc[0]
             )
             selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
-            
-            # --- LÓGICA DO MULTISELECT (SIMPLIFICADA E AUTOMÁTICA) ---
-            
+                        
             current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
 
-            # 1. PEGA TODOS OS NOMES ÚNICOS DIRETAMENTE DA PLANILHA 'matriz_treinamentos'
-            if not matrix_manager.matrix_df.empty:
-                # .unique() pega todos os valores únicos e .tolist() converte para uma lista
-                all_possible_norms = matrix_manager.matrix_df['norma_obrigatoria'].unique().tolist()
-            else:
-                all_possible_norms = []
+            all_possible_norms = []
             
-            # 2. (Opcional, mas recomendado) Adiciona as normas padrão para o caso de a matriz estar vazia
-            standard_norms = list(employee_manager.nr_config.keys()) + ['NR-20']
+            standard_norms = list(employee_manager.nr_config.keys()) + list(employee_manager.nr20_config.keys())
             all_possible_norms.extend(standard_norms)
             
-            # 3. Remove duplicatas e ordena
-            all_possible_norms = sorted(list(set(all_possible_norms)))
+            if not matrix_manager.matrix_df.empty:
+                used_norms = matrix_manager.matrix_df['norma_obrigatoria'].unique().tolist()
+                all_possible_norms.extend(used_norms)
+
+ 
+            all_possible_norms.extend(current_mappings)
+            final_options = sorted(list(set(all_possible_norms)))
             
             required_norms = st.multiselect(
                 "Selecione os Treinamentos Obrigatórios", 
-                options=all_possible_norms,
+                options=final_options,
                 default=current_mappings
             )
             
