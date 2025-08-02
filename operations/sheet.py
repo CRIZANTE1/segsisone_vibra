@@ -180,6 +180,40 @@ class SheetOperations:
             logging.error(f"Erro ao remover usuário: {e}", exc_info=True)
             st.error(f"Erro ao remover usuário: {e}")
 
+
+    def adc_dados_aba_em_lote(self, aba_name: str, new_data_list: list):
+        """
+        Adiciona múltiplas linhas de dados a uma aba de uma vez.
+        O Google Sheets adiciona os IDs automaticamente se a primeira coluna for 'id'.
+        """
+        worksheet = self._get_worksheet(aba_name)
+        if not worksheet: return None
+        if not new_data_list: return []
+    
+        try:
+            logging.info(f"Tentando adicionar {len(new_data_list)} linhas em lote na aba '{aba_name}'...")
+            rows_to_append = []
+            existing_ids = worksheet.col_values(1)[1:]
+            
+            for row_data in new_data_list:
+                while True:
+                    new_id = random.randint(10000, 99999)
+                    if str(new_id) not in existing_ids:
+                        existing_ids.append(str(new_id)) # Adiciona à lista local para evitar colisões no mesmo lote
+                        break
+                rows_to_append.append([new_id] + row_data)
+            
+            worksheet.append_rows(rows_to_append, value_input_option='USER_ENTERED')
+            
+            logging.info(f"{len(rows_to_append)} linhas adicionadas com sucesso.")
+            return True
+    
+        except Exception as e:
+            logging.error(f"Erro ao adicionar dados em lote na aba '{aba_name}': {e}", exc_info=True)
+            st.error(f"Erro ao adicionar dados em lote: {e}")
+            return False
+
+    
     def carregar_dados(self):
         """Wrapper para carregar dados da aba 'control_stock'."""
         return self.carregar_dados_aba('control_stock')
@@ -198,4 +232,5 @@ class SheetOperations:
             
 
             
+
 
