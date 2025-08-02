@@ -68,28 +68,61 @@ def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
 
 def display_minimalist_metrics(employee_manager: EmployeeManager):
     """
-    Calcula e exibe as métricas de pendências em um formato minimalista.
+    Calcula e exibe as métricas de pendências em um formato visualmente
+    aprimorado, com ícones, cores e informações mais claras.
     """
     metrics = calculate_overall_metrics(employee_manager)
     
     st.markdown("---")
+    
+    
+    # 1. Indicador de Saúde Geral
+    total_companies = metrics['total_companies']
+    companies_with_pendencies = metrics['companies_with_pendencies']
+    
+    if total_companies > 0:
+        health_score = 100 * (1 - (companies_with_pendencies / total_companies))
+        if health_score == 100:
+            st.success(f"**Saúde Geral: Excelente ({health_score:.0f}%)**")
+            st.write("Parabéns! Nenhuma empresa possui pendências de documentos.")
+        elif health_score >= 75:
+            st.info(f"**Saúde Geral: Bom ({health_score:.0f}%)**")
+        else:
+            st.error(f"**Saúde Geral: Atenção Necessária ({health_score:.0f}%)**")
+
+    # 2. Métricas Detalhadas em Colunas
     col1, col2, col3 = st.columns(3)
     
+    # Coluna 1: Empresas com Pendências
+    delta_color_companies = "inverse" if companies_with_pendencies > 0 else "off"
     col1.metric(
-        label="Empresas com Pendências",
-        value=f"{metrics['companies_with_pendencies']} de {metrics['total_companies']}",
-        help="Número de empresas que possuem pelo menos um documento vencido (ASO ou Treinamento)."
+        label="🚨 Empresas com Pendências",
+        value=f"{companies_with_pendencies}",
+        delta=f"de {total_companies} empresas",
+        delta_color=delta_color_companies,
+        help="Número de empresas com pelo menos um documento vencido."
     )
     
+    # Coluna 2: Total de Pendências
+    total_pendencies = metrics['total_pendencies']
+    delta_color_pendencies = "inverse" if total_pendencies > 0 else "off"
     col2.metric(
-        label="Total de Pendências",
-        value=metrics['total_pendencies'],
-        help="Soma de todos os ASOs e Treinamentos vencidos em todas as empresas."
+        label="⚠️ Total de Documentos Vencidos",
+        value=f"{total_pendencies}",
+        delta="itens (ASOs + Treinamentos)",
+        delta_color=delta_color_pendencies,
+        help="Soma de todos os documentos vencidos em todas as empresas."
     )
     
+    # Coluna 3: Empresa Mais Crítica (agora com mais detalhes)
+    most_pendent_name, most_pendent_count = metrics['most_pendent_company']
+    delta_color_critical = "off" if most_pendent_count == 0 else "inverse"
     col3.metric(
-        label="Empresa Mais Crítica",
-        value=metrics['most_pendent_company'][0],
-        help=f"A empresa com o maior número de pendências ({metrics['most_pendent_company'][1]} itens)."
+        label="🔥 Ponto de Atenção Principal",
+        value=most_pendent_name,
+        delta=f"{most_pendent_count} pendência(s)",
+        delta_color=delta_color_critical,
+        help="A empresa que atualmente concentra o maior número de pendências."
     )
+    
     st.markdown("---")
