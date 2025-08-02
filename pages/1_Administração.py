@@ -162,38 +162,48 @@ with tab_matriz:
                 options=matrix_manager.functions_df['id'].tolist(),
                 format_func=lambda id: matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == id, 'nome_funcao'].iloc[0]
             )
-            selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
-                        
-            current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
-
-            all_possible_norms = []
             
-            standard_norms = list(employee_manager.nr_config.keys()) + list(employee_manager.nr20_config.keys())
-            all_possible_norms.extend(standard_norms)
-            
-            if not matrix_manager.matrix_df.empty:
-                used_norms = matrix_manager.matrix_df['norma_obrigatoria'].unique().tolist()
-                all_possible_norms.extend(used_norms)
-
- 
-            all_possible_norms.extend(current_mappings)
-            final_options = sorted(list(set([str(norm) for norm in all_possible_norms if isinstance(norm, str)])))
-            
-            required_norms = st.multiselect(
-                "Selecione os Treinamentos Obrigatórios", 
-                options=final_options,
-                default=current_mappings
-            )
-            
-            if st.button("Salvar Mapeamentos para esta Função"):
-                with st.spinner("Atualizando mapeamentos..."):
-                    success, message = matrix_manager.update_function_mappings(selected_function_id, required_norms)
+            if selected_function_id:
+                selected_function_name = matrix_manager.functions_df.loc[matrix_manager.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
                 
-                if success:
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
+                # --- LÓGICA DO MULTISELECT (SIMPLIFICADA E CORRIGIDA) ---
+                
+                # 1. Pega os mapeamentos atuais para a função selecionada
+                current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
+
+                # 2. Constrói a lista de TODAS as opções possíveis
+                all_options = set() # Usamos um set para evitar duplicatas desde o início
+
+                # Fonte 1: Normas padrão do sistema
+                all_options.update(employee_manager.nr_config.keys())
+                all_options.update(employee_manager.nr20_config.keys())
+
+                # Fonte 2: Normas únicas que já estão em uso na matriz
+                if not matrix_manager.matrix_df.empty:
+                    all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].unique())
+                
+                # Fonte 3 (A GARANTIA): Adiciona os mapeamentos atuais à lista de opções
+                # Isso garante que qualquer valor em `default` também estará em `options`
+                all_options.update(current_mappings)
+
+                # 4. Converte para lista e ordena
+                final_options = sorted(list(all_options))
+                
+                required_norms = st.multiselect(
+                    "Selecione os Treinamentos Obrigatórios", 
+                    options=final_options,
+                    default=current_mappings
+                )
+                
+                if st.button("Salvar Mapeamentos para esta Função"):
+                    with st.spinner("Atualizando mapeamentos..."):
+                        success, message = matrix_manager.update_function_mappings(selected_function_id, required_norms)
+                    
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
 
     st.markdown("---")
     st.subheader("Matriz de Treinamentos Atual no Sistema")
