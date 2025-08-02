@@ -63,8 +63,7 @@ def treat_item_dialog(item_data):
                 else:
                     st.error("Falha ao atualizar o plano de ação.")
 
-    if 'current_item_to_treat' in st.session_state:
-        treat_item_dialog(st.session_state.current_item_to_treat)
+    
 
 selected_company_id = st.selectbox(
     "Selecione uma empresa",
@@ -73,6 +72,11 @@ selected_company_id = st.selectbox(
     index=None,
     placeholder="Escolha uma empresa..."
 )
+
+if 'current_item_to_treat' in st.session_state:
+        treat_item_dialog(st.session_state.current_item_to_treat)
+    
+st.markdown("---")
 
 if selected_company_id:
     company_name = employee_manager.get_company_name(selected_company_id) or f"Empresa (ID: {selected_company_id})"
