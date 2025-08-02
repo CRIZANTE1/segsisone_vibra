@@ -12,7 +12,7 @@ class MatrixManager:
         self.columns_functions = ['id', 'nome_funcao', 'descricao']
         self.columns_matrix = ['id', 'id_funcao', 'norma_obrigatoria']
         self._initialize_sheets()
-        self.load_data()
+        #self.load_data()
         self._functions_df = None
         self._matrix_df = None
         self.pdf_analyzer = PDFQA()
