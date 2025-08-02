@@ -1,17 +1,19 @@
 import streamlit as st
 import pandas as pd
+import json
+import re
 from operations.sheet import SheetOperations
 from gdrive.config import FUNCTION_SHEET_NAME, TRAINING_MATRIX_SHEET_NAME
-from AI.api_Operation import PDFQA 
+from AI.api_Operation import PDFQA
 
 class MatrixManager:
     def __init__(self):
-        self.sheet_ops = SheetOperations()        
+        self.sheet_ops = SheetOperations()
         self.columns_functions = ['id', 'nome_funcao', 'descricao']
         self.columns_matrix = ['id', 'id_funcao', 'norma_obrigatoria']
         self._initialize_sheets()
         self.load_data()
-        self.pdf_analyzer = PDFQA()
+        self.pdf_analyzer = PDFQA() 
 
     def _initialize_sheets(self):
         if not self.sheet_ops.carregar_dados_aba(FUNCTION_SHEET_NAME):
@@ -29,13 +31,23 @@ class MatrixManager:
     def add_function(self, name, description):
         if not self.functions_df.empty and name.lower() in self.functions_df['nome_funcao'].str.lower().values:
             return None, f"A função '{name}' já existe."
-        return self.sheet_ops.adc_dados_aba(FUNCTION_SHEET_NAME, [name, description]), "Função adicionada com sucesso."
+        new_id = self.sheet_ops.adc_dados_aba(FUNCTION_SHEET_NAME, [name, description])
+        if new_id:
+            # Força o recarregamento dos dados após a adição
+            self.load_data()
+            return new_id, "Função adicionada com sucesso."
+        return None, "Falha ao adicionar função."
+
 
     def add_training_to_function(self, function_id, required_norm):
-        # Evita duplicatas
-        if not self.matrix_df.empty and self.matrix_df[(self.matrix_df['id_funcao'] == function_id) & (self.matrix_df['norma_obrigatoria'] == required_norm)].shape[0] > 0:
+        if not self.matrix_df.empty and not self.matrix_df[(self.matrix_df['id_funcao'] == function_id) & (self.matrix_df['norma_obrigatoria'] == required_norm)].empty:
             return None, "Este treinamento já está mapeado para esta função."
-        return self.sheet_ops.adc_dados_aba(TRAINING_MATRIX_SHEET_NAME, [function_id, required_norm]), "Treinamento mapeado com sucesso."
+        new_id = self.sheet_ops.adc_dados_aba(TRAINING_MATRIX_SHEET_NAME, [function_id, required_norm])
+        if new_id:
+            # Força o recarregamento dos dados após a adição
+            self.load_data()
+            return new_id, "Treinamento mapeado com sucesso."
+        return None, "Falha ao mapear treinamento."
 
     def get_required_trainings_for_function(self, function_name: str):
         if self.functions_df.empty or self.matrix_df.empty:
@@ -50,7 +62,7 @@ class MatrixManager:
         
         return required['norma_obrigatoria'].tolist()
 
-
+    # --- MÉTODO FALTANTE ADICIONADO AQUI ---
     def process_matrix_pdf(self, pdf_file):
         prompt = """
         **Persona:** Você é um especialista em RH e Segurança do Trabalho, focado em organização de dados. Sua tarefa é analisar um documento de Matriz de Treinamento e extrair a relação entre Funções e os Treinamentos de Normas Regulamentadoras (NRs) obrigatórios para cada uma.
