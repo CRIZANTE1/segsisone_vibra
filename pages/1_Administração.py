@@ -118,34 +118,24 @@ with tab_matriz:
     if 'extracted_matrix_data' in st.session_state:
         st.markdown("---")
         st.subheader("Dados Extraídos para Confirmação")
-        st.info("Por favor, revise os dados extraídos pela IA. Se estiverem corretos, clique em 'Salvar' para adicioná-los ao sistema.")
+        st.info("Revise os dados extraídos. Se corretos, clique em 'Salvar' para adicioná-los.")
         
-        try:
-            # Transforma os dados em um formato mais legível para o DataFrame
-            display_list = []
-            for item in st.session_state.extracted_matrix_data:
-                func = item.get('funcao', 'N/A')
-                norms = ", ".join(item.get('normas_obrigatorias', []))
-                display_list.append({'Função Identificada': func, 'Treinamentos Obrigatórios': norms})
-            
-            st.dataframe(pd.DataFrame(display_list), use_container_width=True)
+        matrix_to_display = {
+            item.get('funcao'): item.get('normas_obrigatorias', [])
+            for item in st.session_state.extracted_matrix_data
+        }
+        st.json(matrix_to_display, expanded=True)
 
-            if st.button("Confirmar e Salvar Matriz", type="primary"):
-                with st.spinner("Salvando dados na planilha..."):
-                    # Etapa 2: Salva os dados confirmados
-                    added_funcs, added_maps = matrix_manager.save_extracted_matrix(st.session_state.extracted_matrix_data)
-                
-                st.success(f"Matriz salva com sucesso! {added_funcs} novas funções e {added_maps} novos mapeamentos adicionados.")
-                # Limpa o session_state e recarrega
-                del st.session_state.extracted_matrix_data
-                st.rerun()
-
-        except Exception as e:
-            st.error(f"Erro ao exibir dados extraídos: {e}")
+        if st.button("Confirmar e Salvar Matriz", type="primary"):
+            with st.spinner("Salvando dados na planilha..."):
+                added_funcs, added_maps = matrix_manager.save_extracted_matrix(st.session_state.extracted_matrix_data)
+            st.success(f"Matriz salva! {added_funcs} novas funções e {added_maps} mapeamentos adicionados.")
             del st.session_state.extracted_matrix_data
+            st.rerun()
 
     st.markdown("---")
-        
+    
+    st.subheader("2. Gerenciar Manualmente")    
     col1, col2 = st.columns(2)
 
     with col1:
@@ -190,11 +180,18 @@ with tab_matriz:
                         st.error(msg)
 
     st.markdown("---")
-    st.subheader("Matriz de Treinamentos Atual")
+    st.subheader("Matriz de Treinamentos Atual no Sistema")
+    
+    # --- NOVA VISUALIZAÇÃO EM JSON DA MATRIZ ATUAL ---
     if not matrix_manager.matrix_df.empty and not matrix_manager.functions_df.empty:
+        # Agrupa os mapeamentos por função para criar a estrutura de dicionário
         func_id_to_name = matrix_manager.functions_df.set_index('id')['nome_funcao']
-        display_matrix = matrix_manager.matrix_df.copy()
-        display_matrix['nome_funcao'] = display_matrix['id_funcao'].map(func_id_to_name)
-        st.dataframe(display_matrix[['nome_funcao', 'norma_obrigatoria']], use_container_width=True, hide_index=True)
+        display_df = matrix_manager.matrix_df.copy()
+        display_df['nome_funcao'] = display_df['id_funcao'].map(func_id_to_name)
+        
+        # Agrupa para criar o dicionário aninhado
+        json_view = display_df.groupby('nome_funcao')['norma_obrigatoria'].apply(list).to_dict()
+        
+        st.json(json_view, expanded=False) # Começa recolhido por padrão
     else:
         st.info("Nenhum mapeamento de treinamento foi criado ainda.")
