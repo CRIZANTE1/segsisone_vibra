@@ -5,6 +5,8 @@ import re
 from operations.sheet import SheetOperations
 from gdrive.config import FUNCTION_SHEET_NAME, TRAINING_MATRIX_SHEET_NAME
 from AI.api_Operation import PDFQA
+from fuzzywuzzy import process 
+
 
 class MatrixManager:
     def __init__(self):
@@ -68,12 +70,22 @@ class MatrixManager:
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
-    def get_required_trainings_for_function(self, function_name: str):
-        if self.functions_df.empty or self.matrix_df.empty: return []
-        function = self.functions_df[self.functions_df['nome_funcao'].str.lower() == function_name.lower()]
-        if function.empty: return []
-        function_id = function.iloc[0]['id']
-        required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]
+    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=90):
+        """
+        Encontra os treinamentos obrigatórios para uma função usando correspondência
+        aproximada (fuzzy matching) para encontrar a função mais similar na matriz.
+        """
+        if self.functions_df.empty or self.matrix_df.empty:
+            return []
+        
+        all_functions = self.functions_df['nome_funcao'].tolist()
+        best_match = process.extractOne(employee_function, all_functions, score_cutoff=score_cutoff)        
+        if not best_match:
+            return []
+
+        matched_function_name = best_match[0]        
+        function_id = self.functions_df[self.functions_df['nome_funcao'] == matched_function_name].iloc[0]['id']        
+        required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]        
         return required['norma_obrigatoria'].tolist()
 
     
