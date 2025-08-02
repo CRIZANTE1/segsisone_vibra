@@ -177,7 +177,7 @@ with tab_matriz:
 
  
             all_possible_norms.extend(current_mappings)
-            final_options = sorted(list(set(all_possible_norms)))
+            final_options = sorted(list(set([str(norm) for norm in all_possible_norms if isinstance(norm, str)])))
             
             required_norms = st.multiselect(
                 "Selecione os Treinamentos Obrigatórios", 
