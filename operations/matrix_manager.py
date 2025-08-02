@@ -62,64 +62,98 @@ class MatrixManager:
         
         return required['norma_obrigatoria'].tolist()
 
-    # --- MÉTODO FALTANTE ADICIONADO AQUI ---
     def process_matrix_pdf(self, pdf_file):
-        prompt = """
-        **Persona:** Você é um especialista em RH e Segurança do Trabalho, focado em organização de dados. Sua tarefa é analisar um documento de Matriz de Treinamento e extrair a relação entre Funções e os Treinamentos de Normas Regulamentadoras (NRs) obrigatórios para cada uma.
-
-        **Sua Tarefa (em 2 etapas):**
-        1.  **Extração de Dados:** Leia o documento e identifique todas as Funções (Cargos) e os treinamentos de NR associados a cada uma.
-        2.  **Formatação da Resposta:** Apresente os dados extraídos em um formato JSON ESTRITO, como uma lista de objetos.
-
-        **Estrutura JSON de Saída Obrigatória:**
-        ```json
-        [
-          {
-            "funcao": "Eletricista de Manutenção",
-            "normas_obrigatorias": ["NR-10", "NR-35"]
-          },
-          {
-            "funcao": "Soldador",
-            "normas_obrigatorias": ["NR-34", "NR-33", "NR-18"]
-          }
-        ]
-        ```
-        **Importante:** Responda APENAS com o bloco de código JSON.
+            prompt = """
+            **Persona:** Você é um especialista em RH e Segurança do Trabalho, focado em organização de dados. Sua tarefa é analisar um documento de Matriz de Treinamento e extrair a relação entre Funções e os Treinamentos de Normas Regulamentadoras (NRs) obrigatórios para cada uma.
+    
+            **Sua Tarefa (em 2 etapas):**
+            1.  **Extração de Dados:** Leia o documento e identifique todas as Funções (Cargos) e os treinamentos de NR associados a cada uma.
+            2.  **Formatação da Resposta:** Apresente os dados extraídos em um formato JSON ESTRITO, como uma lista de objetos.
+    
+            **Estrutura JSON de Saída Obrigatória:**
+            ```json
+            [
+              {
+                "funcao": "Eletricista de Manutenção",
+                "normas_obrigatorias": ["NR-10", "NR-35"]
+              },
+              {
+                "funcao": "Soldador",
+                "normas_obrigatorias": ["NR-34", "NR-33", "NR-18"]
+              }
+            ]
+            ```
+            **Importante:** Responda APENAS com o bloco de código JSON.
+            """
+            
+            try:
+                response_text, _ = self.pdf_analyzer.answer_question([pdf_file], prompt, task_type='extraction')
+                if not response_text:
+                    return None, "A IA não retornou uma resposta."
+    
+                match = re.search(r'\[.*\]', response_text, re.DOTALL)
+                if not match:
+                    return None, "A resposta da IA não estava no formato JSON esperado."
+                
+                matrix_data = json.loads(match.group(0))
+                return matrix_data, "Dados extraídos com sucesso."
+    
+            except (json.JSONDecodeError, Exception) as e:
+                return None, f"Ocorreu um erro ao analisar o PDF: {e}"
+    
+    def save_extracted_matrix(self, extracted_data: list):
         """
-        
-        try:
-            response_text, _ = self.pdf_analyzer.answer_question([pdf_file], prompt, task_type='extraction')
-            if not response_text:
-                return False, "A IA não retornou uma resposta para a matriz."
-
-            match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if not match:
-                return False, "A resposta da IA não estava no formato JSON esperado."
+        Recebe os dados já validados pelo usuário e os salva na planilha de forma otimizada.
+        """
+        if not extracted_data:
+            return 0, 0
             
-            matrix_data = json.loads(match.group(0))
+        added_functions = 0
+        added_mappings = 0
 
-            added_functions = 0
-            added_mappings = 0
+        # Para evitar múltiplas leituras, trabalhamos com os DataFrames em memória
+        current_functions_df = self.functions_df.copy()
+        current_matrix_df = self.matrix_df.copy()
+
+        for item in extracted_data:
+            function_name = item.get("funcao")
+            required_norms = item.get("normas_obrigatorias", [])
             
-            for item in matrix_data:
-                function_name = item.get("funcao")
-                required_norms = item.get("normas_obrigatorias", [])
-                
-                if not function_name or not required_norms:
-                    continue
+            if not function_name or not required_norms:
+                continue
 
+            # Verifica se a função já existe no DataFrame em memória
+            existing_function = current_functions_df[current_functions_df['nome_funcao'].str.lower() == function_name.lower()]
+            
+            if existing_function.empty:
+                # Adiciona a função na planilha
                 func_id, _ = self.add_function(function_name, "Importado via IA")
-                # A função add_function já recarrega os dados, então podemos buscar o ID
-                function_id = self.functions_df[self.functions_df['nome_funcao'].str.lower() == function_name.lower()].iloc[0]['id']
-                
-                if func_id: added_functions += 1
+                if func_id:
+                    added_functions += 1
+                    # Adiciona a nova função ao DataFrame em memória para futuras verificações no mesmo loop
+                    new_func_data = {'id': str(func_id), 'nome_funcao': function_name, 'descricao': "Importado via IA"}
+                    current_functions_df = pd.concat([current_functions_df, pd.DataFrame([new_func_data])], ignore_index=True)
+                    function_id_to_use = str(func_id)
+                else:
+                    continue # Pula se falhou ao adicionar a função
+            else:
+                function_id_to_use = existing_function.iloc[0]['id']
 
-                for norm in required_norms:
-                    map_id, _ = self.add_training_to_function(function_id, norm)
+            # Adiciona os mapeamentos
+            for norm in required_norms:
+                # Evita duplicatas verificando no DataFrame em memória
+                is_duplicate = not current_matrix_df[(current_matrix_df['id_funcao'] == function_id_to_use) & (current_matrix_df['norma_obrigatoria'] == norm)].empty
+                if not is_duplicate:
+                    map_id, _ = self.add_training_to_function(function_id_to_use, norm)
                     if map_id:
                         added_mappings += 1
+                        # Adiciona o novo mapeamento ao DF em memória
+                        new_map_data = {'id': str(map_id), 'id_funcao': function_id_to_use, 'norma_obrigatoria': norm}
+                        current_matrix_df = pd.concat([current_matrix_df, pd.DataFrame([new_map_data])], ignore_index=True)
 
-            return True, f"Matriz processada! {added_functions} novas funções e {added_mappings} novos mapeamentos adicionados."
-
-        except (json.JSONDecodeError, AttributeError, Exception) as e:
-            return False, f"Ocorreu um erro ao processar a matriz: {e}"
+        # Recarrega todos os dados da planilha uma única vez no final
+        self.load_data()
+        st.cache_resource.clear() # Limpa o cache para garantir que outras páginas vejam as mudanças
+        
+        return added_functions, added_mappings
+         
