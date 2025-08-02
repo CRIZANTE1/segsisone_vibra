@@ -151,10 +151,7 @@ with tab_matriz:
                     st.rerun()
                 else:
                     st.error(msg)
-        st.markdown("---")
-        st.write("**Funções Cadastradas:**")
-        st.dataframe(matrix_manager.functions_df[['nome_funcao', 'descricao']], use_container_width=True)
-
+        
     with col2:
         st.subheader("3. Mapear Treinamentos para Funções")
         if matrix_manager.functions_df.empty:
