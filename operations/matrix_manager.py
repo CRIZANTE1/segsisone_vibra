@@ -55,7 +55,7 @@ class MatrixManager:
             return None, f"A função '{name}' já existe."
         new_id = self.sheet_ops.adc_dados_aba(FUNCTION_SHEET_NAME, [name, description])
         if new_id:
-            self._load_functions_data() 
+            self._functions_df = None # Invalida o cache para forçar recarga na próxima vez
             return new_id, "Função adicionada com sucesso."
         return None, "Falha ao adicionar função."
 
@@ -64,7 +64,7 @@ class MatrixManager:
             return None, "Este treinamento já está mapeado para esta função."
         new_id = self.sheet_ops.adc_dados_aba(TRAINING_MATRIX_SHEET_NAME, [str(function_id), required_norm])
         if new_id:
-            self._load_matrix_data() 
+            self._matrix_df = None # Invalida o cache
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
@@ -119,45 +119,58 @@ class MatrixManager:
             return None, f"Ocorreu um erro ao analisar o PDF: {e}"
 
     def save_extracted_matrix(self, extracted_data: list):
-        """
-        Recebe os dados já validados e os salva na planilha de forma otimizada.
-        """
-        if not extracted_data: return 0, 0
-            
-        added_functions, added_mappings = 0, 0
+        if not extracted_data:
+            return 0, 0
+        
+        # Garante que temos os dados mais recentes antes de começar
         current_functions_df = self.functions_df.copy()
         current_matrix_df = self.matrix_df.copy()
 
+        new_functions_to_add = []
+        new_mappings_to_add = []
+
+        # ETAPA 1: Coleta todas as novas funções
+        for item in extracted_data:
+            function_name = item.get("funcao")
+            if function_name and function_name.lower() not in current_functions_df['nome_funcao'].str.lower().values:
+                # Evita adicionar a mesma nova função duas vezes no mesmo lote
+                if function_name not in [f[0] for f in new_functions_to_add]:
+                    new_functions_to_add.append([function_name, "Importado via IA"])
+        
+        # ETAPA 2: Adiciona as novas funções em UMA ÚNICA chamada de API
+        if new_functions_to_add:
+            # A função adc_dados_aba_em_lote precisa ser criada em SheetOperations
+            self.sheet_ops.adc_dados_aba_em_lote(FUNCTION_SHEET_NAME, new_functions_to_add)
+            self._functions_df = None # Invalida o cache
+
+        # Recarrega o DataFrame de funções para ter os IDs das novas funções
+        updated_functions_df = self.functions_df.copy()
+        
+        # ETAPA 3: Coleta todos os novos mapeamentos
         for item in extracted_data:
             function_name = item.get("funcao")
             required_norms = item.get("normas_obrigatorias", [])
+            if not function_name or not required_norms:
+                continue
             
-            if not function_name or not required_norms: continue
-
-            existing_function = current_functions_df[current_functions_df['nome_funcao'].str.lower() == function_name.lower()]
-            
-            if existing_function.empty:
-                func_id, _ = self.add_function(function_name, "Importado via IA")
-                if func_id:
-                    added_functions += 1
-                    new_func_data = {'id': str(func_id), 'nome_funcao': function_name, 'descricao': "Importado via IA"}
-                    current_functions_df = pd.concat([current_functions_df, pd.DataFrame([new_func_data])], ignore_index=True)
-                    function_id_to_use = str(func_id)
-                else:
-                    continue
-            else:
-                function_id_to_use = existing_function.iloc[0]['id']
+            # Pega o ID da função do DataFrame atualizado
+            function_entry = updated_functions_df[updated_functions_df['nome_funcao'].str.lower() == function_name.lower()]
+            if function_entry.empty:
+                continue
+            function_id = function_entry.iloc[0]['id']
 
             for norm in required_norms:
-                is_duplicate = not current_matrix_df[(current_matrix_df['id_funcao'] == function_id_to_use) & (current_matrix_df['norma_obrigatoria'] == norm)].empty
+                is_duplicate = not current_matrix_df[(current_matrix_df['id_funcao'] == str(function_id)) & (current_matrix_df['norma_obrigatoria'] == norm)].empty
                 if not is_duplicate:
-                    map_id, _ = self.add_training_to_function(function_id_to_use, norm)
-                    if map_id:
-                        added_mappings += 1
-                        new_map_data = {'id': str(map_id), 'id_funcao': function_id_to_use, 'norma_obrigatoria': norm}
-                        current_matrix_df = pd.concat([current_matrix_df, pd.DataFrame([new_map_data])], ignore_index=True)
+                    new_mappings_to_add.append([str(function_id), norm])
+                    # Adiciona ao DF em memória para evitar duplicatas no mesmo lote
+                    new_map_data = {'id_funcao': str(function_id), 'norma_obrigatoria': norm}
+                    current_matrix_df = pd.concat([current_matrix_df, pd.DataFrame([new_map_data])], ignore_index=True)
 
-        self.load_data()
+        # ETAPA 4: Adiciona os novos mapeamentos em UMA ÚNICA chamada de API
+        if new_mappings_to_add:
+            self.sheet_ops.adc_dados_aba_em_lote(TRAINING_MATRIX_SHEET_NAME, new_mappings_to_add)
+            self._matrix_df = None # Invalida o cache
+
         st.cache_resource.clear()
-        
-        return added_functions, added_mappings
+        return len(new_functions_to_add), len(new_mappings_to_add)
