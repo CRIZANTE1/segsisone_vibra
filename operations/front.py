@@ -204,7 +204,7 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
-                            required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
+                            required_trainings, matched_function = matrix_manager.get_required_trainings_for_function(employee_function)
                             
                             if not required_trainings:
                                 st.success("✅ Nenhuma obrigatoriedade de treinamento mapeada para esta função.")
