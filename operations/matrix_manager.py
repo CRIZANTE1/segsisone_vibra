@@ -240,3 +240,64 @@ class MatrixManager:
             
         except Exception as e:
             return False, f"Erro ao atualizar mapeamentos: {e}"
+
+
+
+    def get_training_recommendations_for_function(self, function_name: str):
+        """
+        Usa a IA para analisar uma função e recomendar treinamentos obrigatórios.
+        """
+        prompt = f"""
+        **Persona:** Você é um Engenheiro de Segurança do Trabalho Sênior, especialista em criar Matrizes de Treinamento. Sua tarefa é analisar o nome de uma função e, com base no seu conhecimento geral e nos trechos da base de conhecimento fornecidos, recomendar os treinamentos de NR obrigatórios.
+
+        **Função a ser Analisada:** "{function_name}"
+
+        **Base de Conhecimento para Consulta (Trechos Relevantes):**
+        {{relevant_knowledge}}
+
+        **Sua Tarefa:**
+        1.  **Raciocínio:** Pense nas atividades e riscos típicos associados à função '{function_name}'.
+        2.  **Consulta:** Use a base de conhecimento para encontrar as NRs que se aplicam a esses riscos.
+        3.  **Formatação da Resposta:** Retorne suas recomendações em um formato JSON ESTRITO. A estrutura deve ser uma lista de objetos, onde cada objeto contém o nome do treinamento recomendado e a referência normativa que justifica a recomendação.
+
+        **Estrutura JSON de Saída Obrigatória:**
+        ```json
+        [
+          {{
+            "treinamento_recomendado": "NR-10 BÁSICO",
+            "justificativa_normativa": "A função envolve interação com instalações elétricas, conforme NR-10."
+          }},
+          {{
+            "treinamento_recomendado": "NR-35 TRABALHO EM ALTURA",
+            "justificativa_normativa": "Atividades de manutenção podem exigir trabalho em plataformas ou escadas, conforme NR-35."
+          }}
+        ]
+        ```
+        **Importante:** Responda APENAS com o bloco de código JSON. Se a função não exigir nenhum treinamento de NR (ex: "Recepcionista"), retorne uma lista vazia `[]`.
+        """
+        
+        try:
+            # Para a busca semântica, criamos uma consulta baseada na função
+            from analysis.nr_analyzer import NRAnalyzer # Importação local para evitar dependência circular
+            nr_analyzer = NRAnalyzer()
+            query = f"Riscos e treinamentos obrigatórios para a função de {function_name}"
+            relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10) # Pega mais chunks para ter mais contexto
+
+            # Substitui o placeholder no prompt pelo conhecimento relevante
+            final_prompt = prompt.format(relevant_knowledge=relevant_knowledge)
+            
+            # Usa o modelo de auditoria, pois esta é uma tarefa de raciocínio
+            response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
+            
+            if not response_text:
+                return None, "A IA não retornou uma resposta."
+
+            match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if not match:
+                return None, "A resposta da IA não estava no formato JSON esperado."
+            
+            recommendations = json.loads(match.group(0))
+            return recommendations, "Recomendações geradas com sucesso."
+
+        except Exception as e:
+            return None, f"Ocorreu um erro ao obter recomendações: {e}"
