@@ -40,12 +40,15 @@ class MatrixManager:
         if not self.sheet_ops.carregar_dados_aba(TRAINING_MATRIX_SHEET_NAME):
             self.sheet_ops.criar_aba(TRAINING_MATRIX_SHEET_NAME, self.columns_matrix)
 
-    def load_data(self):
+    def _load_functions_data(self):
+        """Função interna para carregar os dados da aba 'funcoes'."""
         functions_data = self.sheet_ops.carregar_dados_aba(FUNCTION_SHEET_NAME)
-        self.functions_df = pd.DataFrame(functions_data[1:], columns=functions_data[0]) if functions_data and len(functions_data) > 1 else pd.DataFrame(columns=self.columns_functions)
+        self._functions_df = pd.DataFrame(functions_data[1:], columns=functions_data[0]) if functions_data and len(functions_data) > 1 else pd.DataFrame(columns=self.columns_functions)
         
+    def _load_matrix_data(self):
+        """Função interna para carregar os dados da aba 'matriz_treinamentos'."""
         matrix_data = self.sheet_ops.carregar_dados_aba(TRAINING_MATRIX_SHEET_NAME)
-        self.matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0]) if matrix_data and len(matrix_data) > 1 else pd.DataFrame(columns=self.columns_matrix)
+        self._matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0]) if matrix_data and len(matrix_data) > 1 else pd.DataFrame(columns=self.columns_matrix)
 
     def add_function(self, name, description):
         if not self.functions_df.empty and name.lower() in self.functions_df['nome_funcao'].str.lower().values:
