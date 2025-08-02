@@ -72,20 +72,25 @@ class MatrixManager:
 
     def get_required_trainings_for_function(self, employee_function: str, score_cutoff=95):
         """
-        Encontra os treinamentos obrigatórios para uma função usando correspondência
-        aproximada (fuzzy matching) para encontrar a função mais similar na matriz.
+        Encontra os treinamentos obrigatórios e RETORNA tanto a lista de treinamentos
+        quanto o nome da função correspondente.
         """
         if self.functions_df.empty or self.matrix_df.empty:
-            return []
-        
-        all_functions = self.functions_df['nome_funcao'].tolist()
-        best_match = process.extractOne(employee_function, all_functions, score_cutoff=score_cutoff)        
-        if not best_match:
-            return []
+            return [], None # Retorna dois valores: (lista_vazia, None)
 
-        matched_function_name = best_match[0]        
-        function_id = self.functions_df[self.functions_df['nome_funcao'] == matched_function_name].iloc[0]['id']        
-        required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]        
+        all_functions = self.functions_df['nome_funcao'].tolist()
+        
+        best_match = process.extractOne(employee_function, all_functions, score_cutoff=score_cutoff)
+        
+        if not best_match:
+            # Se não encontrou, retorna dois valores
+            return [], None
+
+        matched_function_name = best_match[0]
+        
+        function_id = self.functions_df[self.functions_df['nome_funcao'] == matched_function_name].iloc[0]['id']
+        required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]
+        
         return required['norma_obrigatoria'].tolist(), matched_function_name
 
 
