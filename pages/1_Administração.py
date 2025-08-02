@@ -170,28 +170,25 @@ with tab_matriz:
                 
                 current_mappings = matrix_manager.get_required_trainings_for_function(selected_function_name)
 
-                all_options = set()
+                all_options = set() # Usamos um set para evitar duplicatas
+
+                # Fonte 1: Normas padrão do sistema
                 all_options.update(employee_manager.nr_config.keys())
-                all_options.update(employee_manager.nr20_config.keys())
+                all_options.update(employee_manager.nr20_config.keys()) # Adiciona "Básico", "Intermediário", etc.
+
                 if not matrix_manager.matrix_df.empty:
                     all_options.update(matrix_manager.matrix_df['norma_obrigatoria'].unique())
                 
-                # --- CORREÇÃO AQUI: Aplainar a lista 'current_mappings' ---
-                if current_mappings:
-                    def flatten(l):
-                        for el in l:
-                            if isinstance(el, collections.abc.Iterable) and not isinstance(el, (str, bytes)):
-                                yield from flatten(el)
-                            else:
-                                yield el
-                    all_options.update(list(flatten(current_mappings)))
+                all_options.update(current_mappings)
                 
-                final_options = sorted(list(all_options))
+                # 3. Remove valores vazios ou nulos e ordena
+                final_options = sorted([opt for opt in all_options if opt and isinstance(opt, str)])
                 
                 st.markdown("**Selecione os Treinamentos Obrigatórios:**")
                 
                 checkbox_states = {}
                 for norm in final_options:
+                    # O valor padrão é True se a norma já estiver mapeada
                     is_checked = norm in current_mappings
                     checkbox_states[norm] = st.checkbox(norm, value=is_checked, key=f"cb_{selected_function_id}_{norm}")
                 
