@@ -82,13 +82,23 @@ class MatrixManager:
         Apenas analisa o PDF e retorna os dados extraídos pela IA.
         """
         prompt = """
-        **Persona:** Você é um especialista em RH e Segurança do Trabalho...
-        **Sua Tarefa:** ...
+        **Persona:** Você é um especialista em RH e Segurança do Trabalho, focado em organização de dados. Sua tarefa é analisar um documento de Matriz de Treinamento e extrair a relação entre Funções e os Treinamentos de Normas Regulamentadoras (NRs) obrigatórios para cada uma.
+
+        **Sua Tarefa (em 2 etapas):**
+        1.  **Extração de Dados:** Leia o documento e identifique todas as Funções (Cargos) e os treinamentos de NR associados a cada uma.
+        2.  **Formatação da Resposta:** Apresente os dados extraídos em um formato JSON ESTRITO, como uma lista de objetos.
+
         **Estrutura JSON de Saída Obrigatória:**
         ```json
         [
-          {"funcao": "Eletricista", "normas_obrigatorias": ["NR-10", "NR-35"]},
-          {"funcao": "Soldador", "normas_obrigatorias": ["NR-34", "NR-33"]}
+          {
+            "funcao": "Eletricista de Manutenção",
+            "normas_obrigatorias": ["NR-10", "NR-35"]
+          },
+          {
+            "funcao": "Soldador",
+            "normas_obrigatorias": ["NR-34", "NR-33", "NR-18"]
+          }
         ]
         ```
         **Importante:** Responda APENAS com o bloco de código JSON.
