@@ -19,7 +19,8 @@ AUDIT_RESULTS_SHEET_NAME = "auditorias"
 COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
 EPI_SHEET_NAME = "fichas_epi"
 ACTION_PLAN_SHEET_NAME = "planos_de_acao"
-
+FUNCTION_SHEET_NAME = "funcoes"
+TRAINING_MATRIX_SHEET_NAME = "matriz_treinamentos"
 
 def get_credentials_dict():
     """
@@ -63,3 +64,4 @@ def get_credentials_dict():
            
             print(f"Erro ao carregar credenciais do arquivo local: {str(e)}")
             raise
+
