@@ -6,7 +6,7 @@ from operations.sheet import SheetOperations
 from gdrive.config import FUNCTION_SHEET_NAME, TRAINING_MATRIX_SHEET_NAME
 from AI.api_Operation import PDFQA
 from fuzzywuzzy import process 
-
+from analysis.nr_analyzer import NRAnalyzer
 
 class MatrixManager:
     def __init__(self):
@@ -245,19 +245,20 @@ class MatrixManager:
 
     def get_training_recommendations_for_function(self, function_name: str):
         """
-        Usa a IA para analisar uma função e recomendar treinamentos obrigatórios.
+        Usa a busca semântica (embeddings) para encontrar contexto e o modelo de auditoria
+        para gerar recomendações de treinamento para uma função.
         """
         prompt = f"""
-        **Persona:** Você é um Engenheiro de Segurança do Trabalho Sênior, especialista em criar Matrizes de Treinamento. Sua tarefa é analisar o nome de uma função e, com base no seu conhecimento geral e nos trechos da base de conhecimento fornecidos, recomendar os treinamentos de NR obrigatórios.
+        **Persona:** Você é um Engenheiro de Segurança do Trabalho Sênior, especialista em criar Matrizes de Treinamento. Sua tarefa é analisar o nome de uma função e, com base nos trechos da base de conhecimento fornecidos, recomendar os treinamentos de NR obrigatórios.
 
         **Função a ser Analisada:** "{function_name}"
 
-        **Base de Conhecimento para Consulta (Trechos Relevantes):**
+        **Base de Conhecimento para Consulta (Trechos Mais Relevantes):**
         {{relevant_knowledge}}
 
         **Sua Tarefa:**
         1.  **Raciocínio:** Pense nas atividades e riscos típicos associados à função '{function_name}'.
-        2.  **Consulta:** Use a base de conhecimento para encontrar as NRs que se aplicam a esses riscos.
+        2.  **Consulta:** Use a base de conhecimento fornecida para encontrar as NRs que se aplicam a esses riscos.
         3.  **Formatação da Resposta:** Retorne suas recomendações em um formato JSON ESTRITO. A estrutura deve ser uma lista de objetos, onde cada objeto contém o nome do treinamento recomendado e a referência normativa que justifica a recomendação.
 
         **Estrutura JSON de Saída Obrigatória:**
@@ -277,16 +278,15 @@ class MatrixManager:
         """
         
         try:
-            # Para a busca semântica, criamos uma consulta baseada na função
-            from analysis.nr_analyzer import NRAnalyzer # Importação local para evitar dependência circular
-            nr_analyzer = NRAnalyzer()
-            query = f"Riscos e treinamentos obrigatórios para a função de {function_name}"
-            relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10) # Pega mais chunks para ter mais contexto
+            query = f"Riscos, atividades e treinamentos de segurança obrigatórios para a função de {function_name}"
+            
+            # 2. Usa o método de busca semântica do NRAnalyzer para encontrar os chunks relevantes
+            relevant_knowledge = self.nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
 
-            # Substitui o placeholder no prompt pelo conhecimento relevante
+            # 3. Insere o conhecimento relevante no prompt
             final_prompt = prompt.format(relevant_knowledge=relevant_knowledge)
             
-            # Usa o modelo de auditoria, pois esta é uma tarefa de raciocínio
+            # 4. Chama a IA com o prompt enriquecido, usando o modelo de AUDITORIA
             response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
             
             if not response_text:
@@ -295,6 +295,12 @@ class MatrixManager:
             match = re.search(r'\[.*\]', response_text, re.DOTALL)
             if not match:
                 return None, "A resposta da IA não estava no formato JSON esperado."
+            
+            recommendations = json.loads(match.group(0))
+            return recommendations, "Recomendações geradas com sucesso."
+
+        except Exception as e:
+            return None, f"Ocorreu um erro ao obter recomendações: {e}"
             
             recommendations = json.loads(match.group(0))
             return recommendations, "Recomendações geradas com sucesso."
