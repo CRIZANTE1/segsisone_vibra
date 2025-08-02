@@ -6,7 +6,6 @@ from operations.sheet import SheetOperations
 from gdrive.config import FUNCTION_SHEET_NAME, TRAINING_MATRIX_SHEET_NAME
 from AI.api_Operation import PDFQA
 from fuzzywuzzy import process 
-from analysis.nr_analyzer import NRAnalyzer
 
 class MatrixManager:
     def __init__(self):
@@ -278,15 +277,13 @@ class MatrixManager:
         """
         
         try:
+            # --- LÓGICA RAG ---
             query = f"Riscos, atividades e treinamentos de segurança obrigatórios para a função de {function_name}"
             
-            # 2. Usa o método de busca semântica do NRAnalyzer para encontrar os chunks relevantes
-            relevant_knowledge = self.nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
+            relevant_knowledge = nr_analyzer._find_semantically_relevant_chunks(query, top_k=10)
 
-            # 3. Insere o conhecimento relevante no prompt
             final_prompt = prompt.format(relevant_knowledge=relevant_knowledge)
             
-            # 4. Chama a IA com o prompt enriquecido, usando o modelo de AUDITORIA
             response_text, _ = self.pdf_analyzer.answer_question([], final_prompt, task_type='audit')
             
             if not response_text:
@@ -295,12 +292,6 @@ class MatrixManager:
             match = re.search(r'\[.*\]', response_text, re.DOTALL)
             if not match:
                 return None, "A resposta da IA não estava no formato JSON esperado."
-            
-            recommendations = json.loads(match.group(0))
-            return recommendations, "Recomendações geradas com sucesso."
-
-        except Exception as e:
-            return None, f"Ocorreu um erro ao obter recomendações: {e}"
             
             recommendations = json.loads(match.group(0))
             return recommendations, "Recomendações geradas com sucesso."
