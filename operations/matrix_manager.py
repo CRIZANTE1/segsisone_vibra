@@ -13,8 +13,27 @@ class MatrixManager:
         self.columns_matrix = ['id', 'id_funcao', 'norma_obrigatoria']
         self._initialize_sheets()
         self.load_data()
+        self._functions_df = None
+        self._matrix_df = None
         self.pdf_analyzer = PDFQA()
 
+
+
+    @property
+    def functions_df(self):
+        """Carrega o DataFrame de funções apenas quando for acessado pela primeira vez."""
+        if self._functions_df is None:
+            self._load_functions_data()
+        return self._functions_df
+
+    @property
+    def matrix_df(self):
+        """Carrega o DataFrame da matriz apenas quando for acessado pela primeira vez."""
+        if self._matrix_df is None:
+            self._load_matrix_data()
+        return self._matrix_df
+
+    
     def _initialize_sheets(self):
         if not self.sheet_ops.carregar_dados_aba(FUNCTION_SHEET_NAME):
             self.sheet_ops.criar_aba(FUNCTION_SHEET_NAME, self.columns_functions)
@@ -33,7 +52,7 @@ class MatrixManager:
             return None, f"A função '{name}' já existe."
         new_id = self.sheet_ops.adc_dados_aba(FUNCTION_SHEET_NAME, [name, description])
         if new_id:
-            self.load_data()
+            self._load_functions_data() 
             return new_id, "Função adicionada com sucesso."
         return None, "Falha ao adicionar função."
 
@@ -42,7 +61,7 @@ class MatrixManager:
             return None, "Este treinamento já está mapeado para esta função."
         new_id = self.sheet_ops.adc_dados_aba(TRAINING_MATRIX_SHEET_NAME, [str(function_id), required_norm])
         if new_id:
-            self.load_data()
+            self._load_matrix_data() 
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
