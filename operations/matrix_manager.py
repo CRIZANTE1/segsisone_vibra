@@ -242,7 +242,7 @@ class MatrixManager:
 
 
 
-    def get_training_recommendations_for_function(self, function_name: str):
+    def get_training_recommendations_for_function(self, function_name: str, nr_analyzer):
         """
         Usa a busca semântica (embeddings) para encontrar contexto e o modelo de auditoria
         para gerar recomendações de treinamento para uma função.
