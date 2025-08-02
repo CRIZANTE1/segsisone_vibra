@@ -192,3 +192,51 @@ class MatrixManager:
 
         st.cache_resource.clear()
         return len(new_functions_to_add), len(new_mappings_to_add)
+
+
+
+    def update_function_mappings(self, function_id, new_required_norms: list):
+        """
+        Sincroniza os mapeamentos de uma função. Adiciona os novos e remove os que
+        foram desmarcados.
+        """
+        try:
+            # Pega os mapeamentos atuais do DataFrame em memória
+            current_mappings = self.get_required_trainings_for_function(
+                 self.functions_df.loc[self.functions_df['id'] == function_id, 'nome_funcao'].iloc[0]
+            )
+    
+            # 1. Identifica os mapeamentos a serem adicionados
+            to_add = [norm for norm in new_required_norms if norm not in current_mappings]
+            
+            # 2. Identifica os mapeamentos a serem removidos
+            to_remove = [norm for norm in current_mappings if norm not in new_required_norms]
+    
+            added_count = 0
+            removed_count = 0
+    
+            # Adiciona os novos
+            for norm in to_add:
+                map_id, _ = self.add_training_to_function(function_id, norm)
+                if map_id:
+                    added_count += 1
+            
+            # Remove os antigos (precisamos de uma função de remoção em SheetOperations)
+            for norm in to_remove:
+                # Encontra o ID do registro a ser deletado
+                mapping_to_delete = self.matrix_df[
+                    (self.matrix_df['id_funcao'] == str(function_id)) & 
+                    (self.matrix_df['norma_obrigatoria'] == norm)
+                ]
+                if not mapping_to_delete.empty:
+                    mapping_id = mapping_to_delete.iloc[0]['id']
+                    if self.sheet_ops.excluir_dados_aba(TRAINING_MATRIX_SHEET_NAME, mapping_id):
+                        removed_count += 1
+    
+            # Invalida o cache para forçar o recarregamento
+            self._matrix_df = None
+            
+            return True, f"Mapeamentos atualizados! {added_count} adicionado(s), {removed_count} removido(s)."
+            
+        except Exception as e:
+            return False, f"Erro ao atualizar mapeamentos: {e}"
