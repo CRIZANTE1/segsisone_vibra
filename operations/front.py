@@ -204,38 +204,41 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
-               
                             required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
                             
                             if not required_trainings:
                                 st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{employee_function}'.")
                             else:
-                                current_trainings_norms = [] # Inicializa como uma lista vazia
+                                current_trainings_norms = []
                                 if not all_trainings.empty:
                                     current_trainings_norms = all_trainings['norma'].tolist()
                                 
                                 missing_trainings = []
                                 status_list = []
                                 
-                                # Converte a lista de treinamentos atuais para um set de minúsculas para buscas rápidas
-                                current_set = {norm.lower() for norm in current_trainings_norms}
+                                # --- CORREÇÃO AQUI: Garante que ambos os lados da comparação sejam strings ---
+                                
+                                # Converte a lista de treinamentos atuais para um set de strings minúsculas, ignorando valores nulos
+                                current_set = {str(norm).lower() for norm in current_trainings_norms if pd.notna(norm)}
                         
                                 for required_norm in required_trainings:
-                                    # A padronização já deve garantir que os nomes sejam comparáveis,
-                                    # mas uma verificação insensível a maiúsculas/minúsculas é uma boa segurança.
-                                    if required_norm.lower() in current_set:
+                                    # Garante que o item requerido seja uma string antes de usar .lower()
+                                    if pd.notna(required_norm) and str(required_norm).lower() in current_set:
                                         status_list.append({
                                             "Treinamento Obrigatório": required_norm,
                                             "Status": "✅ Realizado"
                                         })
                                     else:
+                                        # Se for nulo ou não encontrado, considera como faltante
                                         status_list.append({
                                             "Treinamento Obrigatório": required_norm,
                                             "Status": "🔴 Faltante"
                                         })
                                         missing_trainings.append(required_norm)
                                 
-                                # Exibição dos resultados
+                                # Remove valores nulos da lista de faltantes, se houver
+                                missing_trainings = [norm for norm in missing_trainings if pd.notna(norm)]
+                        
                                 if not missing_trainings:
                                     st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
                                 else:
