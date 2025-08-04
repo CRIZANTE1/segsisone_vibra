@@ -239,7 +239,33 @@ class MatrixManager:
 
 
 
+    def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
+        """
+        Encontra o nome da função na matriz que mais se aproxima de um cargo de funcionário.
+        Usa fuzzy matching para lidar com variações (ex: "Eletricista Pleno" vs "Eletricista").
+        
+        Args:
+            employee_cargo (str): O cargo do funcionário.
+            score_cutoff (int): A pontuação mínima de similaridade (0-100) para considerar uma correspondência.
 
+        Returns:
+            O nome da função correspondente da matriz, ou None se nenhuma correspondência boa for encontrada.
+        """
+        if self.functions_df.empty or not employee_cargo:
+            return None
+
+        # Pega a lista de todas as funções cadastradas na matriz
+        function_names = self.functions_df['nome_funcao'].tolist()
+
+        # Usa process.extractOne para encontrar a melhor correspondência
+        # Ele retorna uma tupla: (string_correspondente, pontuação_de_similaridade)
+        best_match = process.extractOne(employee_cargo, function_names)
+        
+        if best_match and best_match[1] >= score_cutoff:
+            return best_match[0] # Retorna o nome da função se a pontuação for boa o suficiente
+        
+        return None # Retorna None se não encontrou uma correspondência suficientemente boa
+        
     def get_training_recommendations_for_function(self, function_name: str, nr_analyzer):
         """
         Usa a busca semântica e o modelo de auditoria para gerar recomendações,
