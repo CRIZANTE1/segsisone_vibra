@@ -204,39 +204,37 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
-                            required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
+                            required_trainings_list = matrix_manager.get_required_trainings_for_function(employee_function)
                             
-                            if not required_trainings:
+                            if not required_trainings_list:
                                 st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{employee_function}'.")
                             else:
                                 current_trainings_norms = []
                                 if not all_trainings.empty:
+                                    # Garante que a lista de atuais também seja uma lista pura
                                     current_trainings_norms = all_trainings['norma'].tolist()
                                 
                                 missing_trainings = []
                                 status_list = []
                                 
-                                # --- CORREÇÃO AQUI: Garante que ambos os lados da comparação sejam strings ---
-                                
-                                # Converte a lista de treinamentos atuais para um set de strings minúsculas, ignorando valores nulos
+                                # Converte a lista de treinamentos atuais para um set de strings minúsculas
                                 current_set = {str(norm).lower() for norm in current_trainings_norms if pd.notna(norm)}
                         
-                                for required_norm in required_trainings:
-                                    # Garante que o item requerido seja uma string antes de usar .lower()
-                                    if pd.notna(required_norm) and str(required_norm).lower() in current_set:
+                                # Itera sobre a lista de strings
+                                for required_norm_str in required_trainings_list:
+                                    # Garante que cada item é tratado como uma string
+                                    if pd.notna(required_norm_str) and str(required_norm_str).lower() in current_set:
                                         status_list.append({
-                                            "Treinamento Obrigatório": required_norm,
+                                            "Treinamento Obrigatório": required_norm_str,
                                             "Status": "✅ Realizado"
                                         })
                                     else:
-                                        # Se for nulo ou não encontrado, considera como faltante
                                         status_list.append({
-                                            "Treinamento Obrigatório": required_norm,
+                                            "Treinamento Obrigatório": required_norm_str,
                                             "Status": "🔴 Faltante"
                                         })
-                                        missing_trainings.append(required_norm)
+                                        missing_trainings.append(required_norm_str)
                                 
-                                # Remove valores nulos da lista de faltantes, se houver
                                 missing_trainings = [norm for norm in missing_trainings if pd.notna(norm)]
                         
                                 if not missing_trainings:
