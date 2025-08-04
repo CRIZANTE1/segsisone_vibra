@@ -204,39 +204,34 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
-                            required_trainings_list = matrix_manager.get_required_trainings_for_function(employee_function)
+                            # 1. Obtém a lista de normas requeridas (agora garantido ser uma lista)
+                            required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
                             
-                            if not required_trainings_list:
+                            if not required_trainings:
                                 st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{employee_function}'.")
                             else:
+                                # 2. Obtém a lista de normas que o funcionário possui
                                 current_trainings_norms = []
                                 if not all_trainings.empty:
-                                    # Garante que a lista de atuais também seja uma lista pura
                                     current_trainings_norms = all_trainings['norma'].tolist()
                                 
-                                missing_trainings = []
-                                status_list = []
-                                
-                                # Converte a lista de treinamentos atuais para um set de strings minúsculas
+                                # 3. Converte a lista de atuais para um set de minúsculas para comparação eficiente
                                 current_set = {str(norm).lower() for norm in current_trainings_norms if pd.notna(norm)}
                         
-                                # Itera sobre a lista de strings
-                                for required_norm_str in required_trainings_list:
-                                    # Garante que cada item é tratado como uma string
-                                    if pd.notna(required_norm_str) and str(required_norm_str).lower() in current_set:
-                                        status_list.append({
-                                            "Treinamento Obrigatório": required_norm_str,
-                                            "Status": "✅ Realizado"
-                                        })
-                                    else:
-                                        status_list.append({
-                                            "Treinamento Obrigatório": required_norm_str,
-                                            "Status": "🔴 Faltante"
-                                        })
-                                        missing_trainings.append(required_norm_str)
-                                
-                                missing_trainings = [norm for norm in missing_trainings if pd.notna(norm)]
+                                # 4. Compara as duas listas
+                                missing_trainings = []
+                                status_list = []
                         
+                                for req_norm in required_trainings:
+                                    # Garante que estamos comparando uma string
+                                    if pd.notna(req_norm) and str(req_norm).lower() in current_set:
+                                        status_list.append({"Treinamento Obrigatório": req_norm, "Status": "✅ Realizado"})
+                                    else:
+                                        status_list.append({"Treinamento Obrigatório": req_norm, "Status": "🔴 Faltante"})
+                                        if pd.notna(req_norm):
+                                            missing_trainings.append(req_norm)
+                                
+                                # 5. Exibe os resultados
                                 if not missing_trainings:
                                     st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
                                 else:
