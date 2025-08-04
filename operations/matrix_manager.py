@@ -72,6 +72,7 @@ class MatrixManager:
     def get_required_trainings_for_function(self, function_name: str) -> list:
         """
         Retorna uma LISTA de nomes de normas obrigatórias para uma função.
+        Garante que o retorno seja sempre uma lista de Python.
         """
         if self.functions_df.empty or self.matrix_df.empty:
             return []
@@ -87,7 +88,9 @@ class MatrixManager:
         if required_df.empty:
             return []
         
-        return required_df['norma_obrigatoria'].tolist()
+        required_list = required_df['norma_obrigatoria'].dropna().tolist()
+        
+        return required_list
 
 
 
