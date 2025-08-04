@@ -69,28 +69,26 @@ class MatrixManager:
             return new_id, "Treinamento mapeado com sucesso."
         return None, "Falha ao mapear treinamento."
 
-    def get_required_trainings_for_function(self, employee_function: str, score_cutoff=92):
+    def get_required_trainings_for_function(self, function_name: str) -> list:
         """
-        Encontra os treinamentos obrigatórios e RETORNA tanto a lista de treinamentos
-        quanto o nome da função correspondente.
+        Retorna uma LISTA de nomes de normas obrigatórias para uma função.
         """
         if self.functions_df.empty or self.matrix_df.empty:
-            return [], None # Retorna dois valores: (lista_vazia, None)
+            return []
+        
+        function = self.functions_df[self.functions_df['nome_funcao'].str.lower() == function_name.lower()]
+        if function.empty:
+            return []
+            
+        function_id = function.iloc[0]['id']
+        
+        required_df = self.matrix_df[self.matrix_df['id_funcao'] == function_id]
+        
+        if required_df.empty:
+            return []
+        
+        return required_df['norma_obrigatoria'].tolist()
 
-        all_functions = self.functions_df['nome_funcao'].tolist()
-        
-        best_match = process.extractOne(employee_function, all_functions, score_cutoff=score_cutoff)
-        
-        if not best_match:
-            # Se não encontrou, retorna dois valores
-            return [], None
-
-        matched_function_name = best_match[0]
-        
-        function_id = self.functions_df[self.functions_df['nome_funcao'] == matched_function_name].iloc[0]['id']
-        required = self.matrix_df[self.matrix_df['id_funcao'] == function_id]
-        
-        return required['norma_obrigatoria'].tolist()
 
 
     
