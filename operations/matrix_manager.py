@@ -239,7 +239,7 @@ class MatrixManager:
 
 
 
-    def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
+    def find_closest_function(self, employee_cargo: str, score_cutoff: int = 75) -> str | None:
         """
         Encontra o nome da função na matriz que mais se aproxima de um cargo de funcionário.
         Usa fuzzy matching para lidar com variações (ex: "Eletricista Pleno" vs "Eletricista").
