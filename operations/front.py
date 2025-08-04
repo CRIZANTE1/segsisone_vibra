@@ -204,42 +204,36 @@ def front_page():
                         if not employee_function:
                             st.info("Função do funcionário não cadastrada para análise de matriz.")
                         else:
+                            # 1. Obtém uma lista de strings limpa e garantida
                             required_trainings = matrix_manager.get_required_trainings_for_function(employee_function)
                             
                             if not required_trainings:
                                 st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{employee_function}'.")
                             else:
+                                # 2. Obtém a lista de treinamentos atuais
                                 current_trainings_norms = []
                                 if not all_trainings.empty and 'norma' in all_trainings.columns:
                                     current_trainings_norms = all_trainings['norma'].dropna().tolist()
                                 
-                                # Garante que todos os elementos sejam strings antes de criar os sets
-                                required_set = {str(norm).lower() for norm in required_trainings if pd.notna(norm)}
-                                current_set = {str(norm).lower() for norm in current_trainings_norms if pd.notna(norm)}
+                                # 3. Prepara os sets para comparação (agora sem 'pd.notna')
+                                required_set = {norm.lower() for norm in required_trainings}
+                                current_set = {norm.lower() for norm in current_trainings_norms}
                         
-                                missing_trainings_lower = list(required_set - current_set)
+                                # 4. Compara e exibe
+                                missing_trainings = sorted(list(required_set - current_set))
                                 
                                 status_list = []
-                                for req_norm in required_trainings:
-                                    # Pula qualquer entrada nula ou vazia na lista de requisitos
-                                    if not pd.notna(req_norm) or not str(req_norm).strip():
-                                        continue
-                                    
-                                    status = "✅ Realizado" if str(req_norm).lower() in current_set else "🔴 Faltante"
-                                    status_list.append({"Treinamento Obrigatório": req_norm, "Status": status})
+                                for req_norm in sorted(list(required_set)): # Itera sobre o set para a tabela
+                                    status = "✅ Realizado" if req_norm in current_set else "🔴 Faltante"
+                                    # Recupera a capitalização original para exibição
+                                    original_case_norm = next((norm for norm in required_trainings if norm.lower() == req_norm), req_norm)
+                                    status_list.append({"Treinamento Obrigatório": original_case_norm, "Status": status})
                                 
-                                # --- CORREÇÃO PRINCIPAL AQUI ---
-                                # Filtra a lista de faltantes para garantir que contenha apenas strings
-                                final_missing_list = [
-                                    norm for norm in required_trainings 
-                                    if pd.notna(norm) and str(norm).lower() in missing_trainings_lower
-                                ]
-                        
-                                if not final_missing_list:
+                                if not missing_trainings:
                                     st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
                                 else:
-                                    # A lista agora está garantida de conter apenas strings
-                                    st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(final_missing_list))}")
+                                    original_case_missing = [norm for norm in required_trainings if norm.lower() in missing_trainings]
+                                    st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(original_case_missing))}")
                                     
                                 if status_list:
                                     st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
