@@ -200,74 +200,55 @@ def front_page():
                         st.markdown("---")
                         st.markdown("##### Matriz de Conformidade de Treinamentos")
                         
-                        employee_function = employee.get('cargo', '').strip()
-                        if not employee_function:
-                            st.info("Função do funcionário não cadastrada para análise de matriz.")
+                        employee_cargo = employee.get('cargo', '').strip()
+                        if not employee_cargo:
+                            st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
                         else:
-                            required_trainings_raw = matrix_manager.get_required_trainings_for_function(employee_function)
+                            # --- FLUXO CORRETO COM BUSCA FUZZY DE FUNÇÃO ---
                             
-                            # "Achata" a lista para lidar com dados mal formatados
-                            required_trainings = []
-                            if required_trainings_raw:
-                                for item in required_trainings_raw:
-                                    if isinstance(item, list):
-                                        required_trainings.extend(item)
-                                    elif isinstance(item, str) and ',' in item:
-                                        required_trainings.extend([norm.strip() for norm in item.split(',')])
-                                    elif pd.notna(item) and str(item).strip():
-                                        required_trainings.append(item)
-                        
-                            if not required_trainings:
-                                st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{employee_function}'.")
+                            # 1. Usa fuzzywuzzy para encontrar a FUNÇÃO mais próxima na matriz
+                            matched_function_name = matrix_manager.find_closest_function(employee_cargo)
+                            
+                            if not matched_function_name:
+                                st.info(f"✅ O cargo '{employee_cargo}' não corresponde a nenhuma função com treinamentos obrigatórios na matriz.")
                             else:
-                                current_trainings_norms = []
-                                if not all_trainings.empty and 'norma' in all_trainings.columns:
-                                    current_trainings_norms = all_trainings['norma'].dropna().tolist()
+                                # Mostra qual função foi usada para a análise, para transparência
+                                if employee_cargo.lower() != matched_function_name.lower():
+                                    st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
+                        
+                                # 2. Usa o nome da função correspondente para buscar os treinamentos requeridos (já padronizados)
+                                required_trainings = matrix_manager.get_required_trainings_for_function(matched_function_name)
                                 
-                                missing_trainings = []
-                                status_list = []
-                                SIMILARITY_THRESHOLD = 85 # Limiar de similaridade (ajuste se necessário)
-                                
-                                # --- LÓGICA FUZZYWUZZY REINTRODUZIDA E APRIMORADA ---
-                                for required in required_trainings:
-                                    found_match = False
-                                    required_lower = str(required).lower()
-                                    
-                                    # Se não houver treinamentos atuais, todos os requeridos estão faltando
-                                    if not current_trainings_norms:
-                                        found_match = False
-                                    else:
-                                        for current in current_trainings_norms:
-                                            current_lower = str(current).lower()
-                                            
-                                            # --- REGRAS DE CORRESPONDÊNCIA, DA MAIS RÍGIDA À MAIS FLEXÍVEL ---
-                                            # 1. Correspondência exata
-                                            if required_lower == current_lower:
-                                                found_match = True
-                                                break
-                                            # 2. Uma norma está contida na outra (ex: "NR-10" em "NR-10 Básico")
-                                            if required_lower in current_lower or current_lower in required_lower:
-                                                found_match = True
-                                                break
-                                            # 3. Correspondência por similaridade (fuzzy matching)
-                                            if fuzz.token_sort_ratio(required_lower, current_lower) >= SIMILARITY_THRESHOLD:
-                                                found_match = True
-                                                break
-                                    
-                                    # Monta a lista de status baseada no resultado da busca
-                                    if found_match:
-                                        status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
-                                    else:
-                                        status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
-                                        missing_trainings.append(required)
-                                
-                                if not missing_trainings:
-                                    st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                if not required_trainings:
+                                    st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function_name}'.")
                                 else:
-                                    st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(missing_trainings))}")
+                                    # 3. Pega os treinamentos que o funcionário possui (já padronizados ao salvar)
+                                    current_trainings_norms = []
+                                    if not all_trainings.empty and 'norma' in all_trainings.columns:
+                                        current_trainings_norms = all_trainings['norma'].dropna().tolist()
                                     
-                                if status_list:
-                                    st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
+                                    # 4. Compara as listas usando uma correspondência exata (insensível a maiúsculas/minúsculas)
+                                    required_set = {str(norm).lower() for norm in required_trainings}
+                                    current_set = {str(norm).lower() for norm in current_trainings_norms}
+                        
+                                    missing_lower = list(required_set - current_set)
+                                    
+                                    # Monta a tabela de status
+                                    status_list = []
+                                    for req in sorted(required_trainings):
+                                        status = "✅ Realizado" if str(req).lower() in current_set else "🔴 Faltante"
+                                        status_list.append({"Treinamento Obrigatório": req, "Status": status})
+                        
+                                    # Exibe os resultados
+                                    if not missing_lower:
+                                        st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                    else:
+                                        # Recupera a capitalização original dos nomes faltantes para exibição
+                                        missing_original_case = [norm for norm in required_trainings if str(norm).lower() in missing_lower]
+                                        st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(missing_original_case))}")
+                                        
+                                    if status_list:
+                                        st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
      #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
