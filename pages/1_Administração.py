@@ -165,8 +165,7 @@ with tab_matriz:
                 else:
                     st.error(msg)
         st.markdown("---")
-        st.write("**Funções Cadastradas:**")
-        st.dataframe(matrix_manager.functions_df[['nome_funcao', 'descricao']], use_container_width=True)
+        
 
     with col2:
         st.markdown("#### Mapear Treinamentos para Funções")
