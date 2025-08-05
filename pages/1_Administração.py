@@ -123,8 +123,6 @@ with tab_matriz:
         st.info("Revise a relação entre Funções e Treinamentos extraída pela IA. Se estiver correta, clique em 'Salvar'.")
         
         try:
-            # --- TRANSFORMAÇÃO DOS DADOS PARA MELHOR VISUALIZAÇÃO ---
-            # Cria um dicionário onde a chave é a função e o valor é a lista de normas.
             matrix_to_display = {
                 item.get('funcao', 'Função não identificada'): item.get('normas_obrigatorias', [])
                 for item in st.session_state.extracted_matrix_data
