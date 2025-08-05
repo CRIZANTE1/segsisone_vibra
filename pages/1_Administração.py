@@ -193,8 +193,6 @@ with tab_matriz:
                         st.error(msg)
 
     st.markdown("---")
-    
-    # --- Seção 3: VISÃO CONSOLIDADA (LÓGICA APRIMORADA) ---
     st.subheader("Visão Consolidada da Matriz de Treinamentos")
     
     functions_df = matrix_manager.functions_df
@@ -203,42 +201,47 @@ with tab_matriz:
     if functions_df.empty:
         st.info("Nenhuma função cadastrada. Adicione uma função acima para começar.")
     else:
-        # Agrupa os mapeamentos por id_funcao para criar listas de treinamentos
+        # --- LÓGICA DE CONSOLIDAÇÃO (EXISTENTE) ---
         if not matrix_df.empty:
             mappings_grouped = matrix_df.groupby('id_funcao')['norma_obrigatoria'].apply(list).reset_index()
-            mappings_grouped.rename(columns={'norma_obrigatoria': 'Treinamentos Mapeados'}, inplace=True)
             
-            # Junta o DataFrame de funções com os mapeamentos
             consolidated_df = pd.merge(
-                functions_df.drop_duplicates(subset=['id']), # Garante unicidade
+                functions_df.drop_duplicates(subset=['id']),
                 mappings_grouped,
                 left_on='id',
                 right_on='id_funcao',
                 how='left'
             )
         else:
-            # Se não houver mapeamentos, apenas prepara o DataFrame de funções
             consolidated_df = functions_df.drop_duplicates(subset=['id']).copy()
-            consolidated_df['Treinamentos Mapeados'] = [[] for _ in range(len(consolidated_df))]
-
-        # Formata a lista de treinamentos para uma exibição amigável
-        consolidated_df['Treinamentos Mapeados'] = consolidated_df['Treinamentos Mapeados'].apply(
-            lambda x: ', '.join(sorted(x)) if isinstance(x, list) and x else 'Nenhum treinamento mapeado'
+            consolidated_df['norma_obrigatoria'] = [[] for _ in range(len(consolidated_df))]
+    
+        # --- TRANSFORMAÇÃO PARA DICIONÁRIO E EXIBIÇÃO EM JSON ---
+    
+        # Garante que a coluna exista e preenche valores nulos (funções sem mapeamentos) com listas vazias
+        if 'norma_obrigatoria' not in consolidated_df.columns:
+            consolidated_df['norma_obrigatoria'] = [[] for _ in range(len(consolidated_df))]
+        consolidated_df['norma_obrigatoria'] = consolidated_df['norma_obrigatoria'].apply(
+            lambda x: x if isinstance(x, list) else []
         )
-
-        # Seleciona e renomeia as colunas para a tabela final
-        display_df = consolidated_df[['nome_funcao', 'Treinamentos Mapeados', 'descricao']]
-        display_df.rename(columns={
-            'nome_funcao': 'Função',
-            'descricao': 'Descrição'
-        }, inplace=True)
-        
-        st.dataframe(
-            display_df,
-            use_container_width=True, 
-            hide_index=True
-        )
-        
+    
+        # Cria o dicionário final para exibição
+        # A chave será 'nome_funcao', o valor será a lista de 'norma_obrigatoria'
+        matrix_to_display = pd.Series(
+            consolidated_df.norma_obrigatoria.values,
+            index=consolidated_df.nome_funcao
+        ).to_dict()
+    
+        # Ordena as listas de treinamentos dentro do dicionário
+        for function_name, trainings in matrix_to_display.items():
+            # Se a lista estiver vazia, adiciona a mensagem
+            if not trainings:
+                matrix_to_display[function_name] = ["Nenhum treinamento mapeado"]
+            else:
+                matrix_to_display[function_name] = sorted(trainings)
+    
+        # Exibe o dicionário final em formato JSON
+        st.json(matrix_to_display, expanded=True)
 
 with tab_recomendacoes:
     st.header("🤖 Assistente de Matriz de Treinamentos com IA")
