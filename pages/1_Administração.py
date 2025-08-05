@@ -193,20 +193,51 @@ with tab_matriz:
                         st.error(msg)
 
     st.markdown("---")
-    st.subheader("Matriz de Treinamentos Atual")
-    if not matrix_manager.matrix_df.empty and not matrix_manager.functions_df.empty:
-        functions_df_unique = matrix_manager.functions_df.drop_duplicates(subset=['id'], keep='first')
-        func_id_to_name = functions_df_unique.set_index('id')['nome_funcao']
-        display_matrix = matrix_manager.matrix_df.copy()
-        display_matrix['nome_funcao'] = display_matrix['id_funcao'].map(func_id_to_name).fillna('Função Desconhecida')
-        st.dataframe(
-            display_matrix[['nome_funcao', 'norma_obrigatoria']], 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={"nome_funcao": "Função", "norma_obrigatoria": "Treinamento Obrigatório"}
-        )
+    
+    # --- Seção 3: VISÃO CONSOLIDADA (LÓGICA APRIMORADA) ---
+    st.subheader("Visão Consolidada da Matriz de Treinamentos")
+    
+    functions_df = matrix_manager.functions_df
+    matrix_df = matrix_manager.matrix_df
+    
+    if functions_df.empty:
+        st.info("Nenhuma função cadastrada. Adicione uma função acima para começar.")
     else:
-        st.info("Nenhum mapeamento de treinamento foi criado ainda.")
+        # Agrupa os mapeamentos por id_funcao para criar listas de treinamentos
+        if not matrix_df.empty:
+            mappings_grouped = matrix_df.groupby('id_funcao')['norma_obrigatoria'].apply(list).reset_index()
+            mappings_grouped.rename(columns={'norma_obrigatoria': 'Treinamentos Mapeados'}, inplace=True)
+            
+            # Junta o DataFrame de funções com os mapeamentos
+            consolidated_df = pd.merge(
+                functions_df.drop_duplicates(subset=['id']), # Garante unicidade
+                mappings_grouped,
+                left_on='id',
+                right_on='id_funcao',
+                how='left'
+            )
+        else:
+            # Se não houver mapeamentos, apenas prepara o DataFrame de funções
+            consolidated_df = functions_df.drop_duplicates(subset=['id']).copy()
+            consolidated_df['Treinamentos Mapeados'] = [[] for _ in range(len(consolidated_df))]
+
+        # Formata a lista de treinamentos para uma exibição amigável
+        consolidated_df['Treinamentos Mapeados'] = consolidated_df['Treinamentos Mapeados'].apply(
+            lambda x: ', '.join(sorted(x)) if isinstance(x, list) and x else 'Nenhum treinamento mapeado'
+        )
+
+        # Seleciona e renomeia as colunas para a tabela final
+        display_df = consolidated_df[['nome_funcao', 'Treinamentos Mapeados', 'descricao']]
+        display_df.rename(columns={
+            'nome_funcao': 'Função',
+            'descricao': 'Descrição'
+        }, inplace=True)
+        
+        st.dataframe(
+            display_df,
+            use_container_width=True, 
+            hide_index=True
+        )
         
 
 with tab_recomendacoes:
