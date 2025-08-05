@@ -122,12 +122,7 @@ with tab_matriz:
         st.info("Revise os dados extraídos pela IA. Se estiverem corretos, clique em 'Salvar' para adicioná-los ao sistema.")
         
         try:
-            display_list = []
-            for item in st.session_state.extracted_matrix_data:
-                func = item.get('funcao', 'N/A')
-                norms = ", ".join(item.get('normas_obrigatorias', []))
-                display_list.append({'Função Identificada': func, 'Treinamentos Obrigatórios': norms})
-            st.dataframe(pd.DataFrame(display_list), use_container_width=True)
+            st.json(st.session_state.extracted_matrix_data, expanded=True)
 
             if st.button("Confirmar e Salvar Matriz", type="primary"):
                 with st.spinner("Salvando dados na planilha..."):
@@ -138,10 +133,10 @@ with tab_matriz:
                 st.rerun()
 
         except Exception as e:
-            st.error(f"Erro ao exibir dados extraídos: {e}")
+            st.error(f"Erro ao exibir ou processar dados extraídos: {e}")
             del st.session_state.extracted_matrix_data
 
-    st.markdown("---")
+    st.markdown("---"
     
     st.subheader("2. Gerenciamento Manual")
     col1, col2 = st.columns(2)
