@@ -143,11 +143,11 @@ with tab_matriz:
 
     st.markdown("---")
     
-    st.subheader("2. Gerenciar Manualmente")    
+    st.subheader("2. Gerenciamento Manual")
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("2. Cadastrar/Ver Funções")
+        st.markdown("#### Adicionar/Ver Funções")
         with st.form("form_add_function"):
             func_name = st.text_input("Nome da Nova Função (ex: Soldador)")
             func_desc = st.text_area("Descrição (opcional)")
@@ -159,9 +159,12 @@ with tab_matriz:
                     st.rerun()
                 else:
                     st.error(msg)
-            
+        st.markdown("---")
+        st.write("**Funções Cadastradas:**")
+        st.dataframe(matrix_manager.functions_df[['nome_funcao', 'descricao']], use_container_width=True)
+
     with col2:
-        st.subheader("3. Mapear Treinamentos para Funções")
+        st.markdown("#### Mapear Treinamentos para Funções")
         if matrix_manager.functions_df.empty:
             st.warning("Cadastre uma função à esquerda primeiro.")
         else:
@@ -184,22 +187,22 @@ with tab_matriz:
                     else:
                         st.error(msg)
 
-
     st.markdown("---")
-    st.subheader("Matriz de Treinamentos Atual no Sistema")
-    
+    st.subheader("Matriz de Treinamentos Atual")
     if not matrix_manager.matrix_df.empty and not matrix_manager.functions_df.empty:
-        # Agrupa os mapeamentos por função para criar a estrutura de dicionário
-        func_id_to_name = matrix_manager.functions_df.set_index('id')['nome_funcao']
-        display_df = matrix_manager.matrix_df.copy()
-        display_df['nome_funcao'] = display_df['id_funcao'].map(func_id_to_name)
-        
-        json_view = display_df.groupby('nome_funcao')['norma_obrigatoria'].apply(list).to_dict()
-        
-        st.json(json_view, expanded=False) # Começa recolhido por padrão
+        functions_df_unique = matrix_manager.functions_df.drop_duplicates(subset=['id'], keep='first')
+        func_id_to_name = functions_df_unique.set_index('id')['nome_funcao']
+        display_matrix = matrix_manager.matrix_df.copy()
+        display_matrix['nome_funcao'] = display_matrix['id_funcao'].map(func_id_to_name).fillna('Função Desconhecida')
+        st.dataframe(
+            display_matrix[['nome_funcao', 'norma_obrigatoria']], 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={"nome_funcao": "Função", "norma_obrigatoria": "Treinamento Obrigatório"}
+        )
     else:
         st.info("Nenhum mapeamento de treinamento foi criado ainda.")
-
+        
 
 with tab_recomendacoes:
     st.header("🤖 Assistente de Matriz de Treinamentos com IA")
