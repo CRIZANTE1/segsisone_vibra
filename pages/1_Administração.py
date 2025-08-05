@@ -100,41 +100,46 @@ with tab_matriz:
     st.subheader("1. Importar Matriz a partir de um Documento (PDF)")
     
     uploaded_matrix_file = st.file_uploader(
-        "Selecione um arquivo PDF...", type="pdf", key="matrix_uploader"
+        "Selecione um arquivo PDF com a sua matriz de treinamentos",
+        type="pdf",
+        key="matrix_uploader"
     )
 
-    # --- NOVO FLUXO DE ANÁLISE E CONFIRMAÇÃO ---
     if uploaded_matrix_file:
         if st.button("Analisar Matriz com IA"):
             with st.spinner("A IA está lendo e interpretando sua matriz..."):
-                # Etapa 1: Apenas analisa e retorna os dados
                 extracted_data, message = matrix_manager.analyze_matrix_pdf(uploaded_matrix_file)
             
             if extracted_data:
                 st.success(message)
-                # Salva os dados extraídos no session_state para confirmação
                 st.session_state.extracted_matrix_data = extracted_data
             else:
                 st.error(message)
 
-    # Se houver dados extraídos aguardando confirmação, exibe a tabela
     if 'extracted_matrix_data' in st.session_state:
         st.markdown("---")
         st.subheader("Dados Extraídos para Confirmação")
-        st.info("Revise os dados extraídos. Se corretos, clique em 'Salvar' para adicioná-los.")
+        st.info("Revise os dados extraídos pela IA. Se estiverem corretos, clique em 'Salvar' para adicioná-los ao sistema.")
         
-        matrix_to_display = {
-            item.get('funcao'): item.get('normas_obrigatorias', [])
-            for item in st.session_state.extracted_matrix_data
-        }
-        st.json(matrix_to_display, expanded=True)
+        try:
+            display_list = []
+            for item in st.session_state.extracted_matrix_data:
+                func = item.get('funcao', 'N/A')
+                norms = ", ".join(item.get('normas_obrigatorias', []))
+                display_list.append({'Função Identificada': func, 'Treinamentos Obrigatórios': norms})
+            st.dataframe(pd.DataFrame(display_list), use_container_width=True)
 
-        if st.button("Confirmar e Salvar Matriz", type="primary"):
-            with st.spinner("Salvando dados na planilha..."):
-                added_funcs, added_maps = matrix_manager.save_extracted_matrix(st.session_state.extracted_matrix_data)
-            st.success(f"Matriz salva! {added_funcs} novas funções e {added_maps} mapeamentos adicionados.")
+            if st.button("Confirmar e Salvar Matriz", type="primary"):
+                with st.spinner("Salvando dados na planilha..."):
+                    added_funcs, added_maps = matrix_manager.save_extracted_matrix(st.session_state.extracted_matrix_data)
+                
+                st.success(f"Matriz salva! {added_funcs} novas funções e {added_maps} mapeamentos adicionados.")
+                del st.session_state.extracted_matrix_data
+                st.rerun()
+
+        except Exception as e:
+            st.error(f"Erro ao exibir dados extraídos: {e}")
             del st.session_state.extracted_matrix_data
-            st.rerun()
 
     st.markdown("---")
     
