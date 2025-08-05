@@ -116,17 +116,29 @@ with tab_matriz:
             else:
                 st.error(message)
 
+    # Se houver dados extraídos aguardando confirmação, exibe a visualização aprimorada
     if 'extracted_matrix_data' in st.session_state:
         st.markdown("---")
         st.subheader("Dados Extraídos para Confirmação")
-        st.info("Revise os dados extraídos pela IA. Se estiverem corretos, clique em 'Salvar' para adicioná-los ao sistema.")
+        st.info("Revise a relação entre Funções e Treinamentos extraída pela IA. Se estiver correta, clique em 'Salvar'.")
         
         try:
-            st.json(st.session_state.extracted_matrix_data, expanded=True)
+            # --- TRANSFORMAÇÃO DOS DADOS PARA MELHOR VISUALIZAÇÃO ---
+            # Cria um dicionário onde a chave é a função e o valor é a lista de normas.
+            matrix_to_display = {
+                item.get('funcao', 'Função não identificada'): item.get('normas_obrigatorias', [])
+                for item in st.session_state.extracted_matrix_data
+            }
+            
+            # Exibe o dicionário formatado com st.json
+            st.json(matrix_to_display, expanded=True)
 
             if st.button("Confirmar e Salvar Matriz", type="primary"):
                 with st.spinner("Salvando dados na planilha..."):
-                    added_funcs, added_maps = matrix_manager.save_extracted_matrix(st.session_state.extracted_matrix_data)
+                    # A função de salvar ainda recebe a lista original de dicionários
+                    added_funcs, added_maps = matrix_manager.save_extracted_matrix(
+                        st.session_state.extracted_matrix_data
+                    )
                 
                 st.success(f"Matriz salva! {added_funcs} novas funções e {added_maps} mapeamentos adicionados.")
                 del st.session_state.extracted_matrix_data
