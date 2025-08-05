@@ -34,3 +34,4 @@ def load_models():
     except Exception as e:
         st.error(f"Erro crítico ao carregar os modelos de IA: {e}")
         return None, None
+
