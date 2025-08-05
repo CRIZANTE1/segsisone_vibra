@@ -136,7 +136,7 @@ with tab_matriz:
             st.error(f"Erro ao exibir ou processar dados extraídos: {e}")
             del st.session_state.extracted_matrix_data
 
-    st.markdown("---"
+    st.markdown("---")
     
     st.subheader("2. Gerenciamento Manual")
     col1, col2 = st.columns(2)
