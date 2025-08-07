@@ -118,182 +118,182 @@ def front_page():
     with tab_situacao:
         if selected_company:
             if check_permission(level='editor'):
-            st.subheader("Documentos da Empresa")
-            company_docs = docs_manager.get_docs_by_company(selected_company).copy()
-            if not company_docs.empty:
-                company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
-                company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-                company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
-                for col in company_doc_cols:
-                    if col not in company_docs.columns: company_docs[col] = "N/A"
-                company_docs_reordered = company_docs[company_doc_cols]
-                st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
-            else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
-            
-            st.markdown("---")
-            st.subheader("Funcionários")
-            employees = employee_manager.get_employees_by_company(selected_company)
-            if not employees.empty:
-                for index, employee in employees.iterrows():
-                    employee_id = employee['id']
-                    employee_name = employee['nome']
-                    employee_role = employee['cargo']
-                    today = date.today()
+                st.subheader("Documentos da Empresa")
+                company_docs = docs_manager.get_docs_by_company(selected_company).copy()
+                if not company_docs.empty:
+                    company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
+                    company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                    company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
+                    for col in company_doc_cols:
+                        if col not in company_docs.columns: company_docs[col] = "N/A"
+                    company_docs_reordered = company_docs[company_doc_cols]
+                    st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
+                else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
                 
-                    aso_status = 'Não encontrado'
-                    aso_vencimento = None
-                    latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
-                
-                    if not latest_asos_by_type.empty:
-                        aptitude_asos = latest_asos_by_type[
-                            ~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])
-                        ].copy()
-                        
-                        # 3. Desses, pega o mais recente de todos para determinar o status
-                        if not aptitude_asos.empty:
-                            # Ordena pela data do ASO e pega a primeira linha (a mais recente)
-                            current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
-                            
-                            vencimento_obj = current_aptitude_aso.get('vencimento')
-                            if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
-                                aso_vencimento = vencimento_obj
-                                aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-                            else:
-                                aso_status = 'Venc. Indefinido'
-                        else:
-                            aso_status = 'Apenas Demissional'
-                
-                    all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+                st.markdown("---")
+                st.subheader("Funcionários")
+                employees = employee_manager.get_employees_by_company(selected_company)
+                if not employees.empty:
+                    for index, employee in employees.iterrows():
+                        employee_id = employee['id']
+                        employee_name = employee['nome']
+                        employee_role = employee['cargo']
+                        today = date.today()
                     
-                    trainings_total = 0
-                    trainings_expired_count = 0
+                        aso_status = 'Não encontrado'
+                        aso_vencimento = None
+                        latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
                     
-                    if not all_trainings.empty:
-                        trainings_total = len(all_trainings)
-                        expired_mask = all_trainings['vencimento'] < today
-                        trainings_expired_count = expired_mask.sum()
-                
-                    if aso_status == 'Vencido' or trainings_expired_count > 0:
-                        overall_status = 'Pendente'
-                        status_icon = "⚠️"
-                    else:
-                        overall_status = 'Em Dia'
-                        status_icon = "✅"
-                
-                    expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
-
-                    with st.expander(expander_title):
-                        st.markdown("##### Resumo de Status")
-                        col1, col2, col3 = st.columns(3); num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
-                        col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
-                        col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
-                        col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
-                        st.markdown("---")
-                        st.markdown("##### ASO Mais Recente")
                         if not latest_asos_by_type.empty:
-                            aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
-                            for col in aso_display_cols:
-                                if col not in latest_asos_by_type.columns:
-                                    latest_asos_by_type[col] = "N/A"
-                            aso_reordered_df = latest_asos_by_type[aso_display_cols]
-                            st.dataframe(
-                                aso_reordered_df.style.apply(highlight_expired, axis=1),
-                                column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
-                                hide_index=True, use_container_width=True
-                            )
-                        else:
-                            st.info("Nenhum ASO encontrado.")
-                        st.markdown("##### Todos os Treinamentos")
-                        if not all_trainings.empty:
-                            training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
-                            for col in training_display_cols:
-                                if col not in all_trainings.columns: all_trainings[col] = "N/A"
-                            training_reordered_df = all_trainings[training_display_cols]
-                            st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
-                        else: st.info("Nenhum treinamento encontrado.")
-
-                        st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
-                        all_epis = epi_manager.get_epi_by_employee(employee_id)
-                        if not all_epis.empty:
-                            epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
-                            st.dataframe(
-                                all_epis[epi_display_cols],
-                                column_config={
-                                    "descricao_epi": "Equipamento",
-                                    "ca_epi": "C.A.",
-                                    "data_entrega": "Data de Entrega",
-                                    "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")
-                                },
-                                hide_index=True, use_container_width=True
-                            )
-                        else:
-                            st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
-                #---------------------------------------------------------------------------------------------------------------------------------------
-                        st.markdown("---")
-                        st.markdown("##### Matriz de Conformidade de Treinamentos")
-                        
-                        employee_cargo = employee.get('cargo', '').strip()
-                        if not employee_cargo:
-                            st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
-                        else:
-                            # 1. Encontra a função correspondente na matriz
-                            matched_function_name = matrix_manager.find_closest_function(employee_cargo)
+                            aptitude_asos = latest_asos_by_type[
+                                ~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])
+                            ].copy()
                             
-                            if not matched_function_name:
-                                st.info(f"✅ O cargo '{employee_cargo}' não corresponde a nenhuma função com treinamentos obrigatórios na matriz.")
-                            else:
-                                if employee_cargo.lower() != matched_function_name.lower():
-                                    st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
-                        
-                                # 2. Busca os treinamentos requeridos para a função encontrada
-                                required_trainings = matrix_manager.get_required_trainings_for_function(matched_function_name)
+                            # 3. Desses, pega o mais recente de todos para determinar o status
+                            if not aptitude_asos.empty:
+                                # Ordena pela data do ASO e pega a primeira linha (a mais recente)
+                                current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                                 
-                                if not required_trainings:
-                                    st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function_name}'.")
+                                vencimento_obj = current_aptitude_aso.get('vencimento')
+                                if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
+                                    aso_vencimento = vencimento_obj
+                                    aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
                                 else:
-                                    current_trainings_norms = []
-                                    if not all_trainings.empty and 'norma' in all_trainings.columns:
-                                        current_trainings_norms = all_trainings['norma'].dropna().tolist()
-                                    
-                                    missing_trainings = []
-                                    status_list = []
-                                    SIMILARITY_THRESHOLD = 90 # Limiar alto para evitar falsos positivos
+                                    aso_status = 'Venc. Indefinido'
+                            else:
+                                aso_status = 'Apenas Demissional'
+                    
+                        all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
                         
-                                    # --- LÓGICA DE COMPARAÇÃO HÍBRIDA ---
-                                    for required in required_trainings:
-                                        found_match = False
-                                        # Remove espaços e converte para minúsculas para comparação
-                                        required_clean = re.sub(r'\s+', ' ', required).lower()
+                        trainings_total = 0
+                        trainings_expired_count = 0
                         
-                                        for current in current_trainings_norms:
-                                            current_clean = re.sub(r'\s+', ' ', str(current)).lower()
-                                            
-                                            # Regra 1: Uma string contém a outra (lida com "NR-10" vs "NR-10 Básico")
-                                            if required_clean in current_clean or current_clean in required_clean:
-                                                found_match = True
-                                                break
-                                            
-                                            # Regra 2 (Fallback): Usa fuzzy matching para casos com pequenas variações
-                                            # Ex: "NR20 Inflamáveis" vs "NR-20 Inflamáveis e Combustíveis"
-                                            if fuzz.token_sort_ratio(required_clean, current_clean) >= SIMILARITY_THRESHOLD:
-                                                found_match = True
-                                                break
-                                        
-                                        # Monta a lista de status
-                                        if found_match:
-                                            status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
-                                        else:
-                                            status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
-                                            missing_trainings.append(required)
+                        if not all_trainings.empty:
+                            trainings_total = len(all_trainings)
+                            expired_mask = all_trainings['vencimento'] < today
+                            trainings_expired_count = expired_mask.sum()
+                    
+                        if aso_status == 'Vencido' or trainings_expired_count > 0:
+                            overall_status = 'Pendente'
+                            status_icon = "⚠️"
+                        else:
+                            overall_status = 'Em Dia'
+                            status_icon = "✅"
+                    
+                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
+    
+                        with st.expander(expander_title):
+                            st.markdown("##### Resumo de Status")
+                            col1, col2, col3 = st.columns(3); num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
+                            col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
+                            col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
+                            col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
+                            st.markdown("---")
+                            st.markdown("##### ASO Mais Recente")
+                            if not latest_asos_by_type.empty:
+                                aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
+                                for col in aso_display_cols:
+                                    if col not in latest_asos_by_type.columns:
+                                        latest_asos_by_type[col] = "N/A"
+                                aso_reordered_df = latest_asos_by_type[aso_display_cols]
+                                st.dataframe(
+                                    aso_reordered_df.style.apply(highlight_expired, axis=1),
+                                    column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
+                                    hide_index=True, use_container_width=True
+                                )
+                            else:
+                                st.info("Nenhum ASO encontrado.")
+                            st.markdown("##### Todos os Treinamentos")
+                            if not all_trainings.empty:
+                                training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
+                                for col in training_display_cols:
+                                    if col not in all_trainings.columns: all_trainings[col] = "N/A"
+                                training_reordered_df = all_trainings[training_display_cols]
+                                st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
+                            else: st.info("Nenhum treinamento encontrado.")
+    
+                            st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
+                            all_epis = epi_manager.get_epi_by_employee(employee_id)
+                            if not all_epis.empty:
+                                epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
+                                st.dataframe(
+                                    all_epis[epi_display_cols],
+                                    column_config={
+                                        "descricao_epi": "Equipamento",
+                                        "ca_epi": "C.A.",
+                                        "data_entrega": "Data de Entrega",
+                                        "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")
+                                    },
+                                    hide_index=True, use_container_width=True
+                                )
+                            else:
+                                st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
+                    #---------------------------------------------------------------------------------------------------------------------------------------
+                            st.markdown("---")
+                            st.markdown("##### Matriz de Conformidade de Treinamentos")
+                            
+                            employee_cargo = employee.get('cargo', '').strip()
+                            if not employee_cargo:
+                                st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
+                            else:
+                                # 1. Encontra a função correspondente na matriz
+                                matched_function_name = matrix_manager.find_closest_function(employee_cargo)
+                                
+                                if not matched_function_name:
+                                    st.info(f"✅ O cargo '{employee_cargo}' não corresponde a nenhuma função com treinamentos obrigatórios na matriz.")
+                                else:
+                                    if employee_cargo.lower() != matched_function_name.lower():
+                                        st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
+                            
+                                    # 2. Busca os treinamentos requeridos para a função encontrada
+                                    required_trainings = matrix_manager.get_required_trainings_for_function(matched_function_name)
                                     
-                                    # Exibe os resultados
-                                    if not missing_trainings:
-                                        st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                    if not required_trainings:
+                                        st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function_name}'.")
                                     else:
-                                        st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(missing_trainings))}")
+                                        current_trainings_norms = []
+                                        if not all_trainings.empty and 'norma' in all_trainings.columns:
+                                            current_trainings_norms = all_trainings['norma'].dropna().tolist()
                                         
-                                    if status_list:
-                                        st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
+                                        missing_trainings = []
+                                        status_list = []
+                                        SIMILARITY_THRESHOLD = 90 # Limiar alto para evitar falsos positivos
+                            
+                                        # --- LÓGICA DE COMPARAÇÃO HÍBRIDA ---
+                                        for required in required_trainings:
+                                            found_match = False
+                                            # Remove espaços e converte para minúsculas para comparação
+                                            required_clean = re.sub(r'\s+', ' ', required).lower()
+                            
+                                            for current in current_trainings_norms:
+                                                current_clean = re.sub(r'\s+', ' ', str(current)).lower()
+                                                
+                                                # Regra 1: Uma string contém a outra (lida com "NR-10" vs "NR-10 Básico")
+                                                if required_clean in current_clean or current_clean in required_clean:
+                                                    found_match = True
+                                                    break
+                                                
+                                                # Regra 2 (Fallback): Usa fuzzy matching para casos com pequenas variações
+                                                # Ex: "NR20 Inflamáveis" vs "NR-20 Inflamáveis e Combustíveis"
+                                                if fuzz.token_sort_ratio(required_clean, current_clean) >= SIMILARITY_THRESHOLD:
+                                                    found_match = True
+                                                    break
+                                            
+                                            # Monta a lista de status
+                                            if found_match:
+                                                status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
+                                            else:
+                                                status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
+                                                missing_trainings.append(required)
+                                        
+                                        # Exibe os resultados
+                                        if not missing_trainings:
+                                            st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                        else:
+                                            st.error(f"⚠️ **Treinamentos Obrigatórios Faltantes:** {', '.join(sorted(missing_trainings))}")
+                                            
+                                        if status_list:
+                                            st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
      #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
