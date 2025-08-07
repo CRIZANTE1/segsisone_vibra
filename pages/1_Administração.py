@@ -41,58 +41,138 @@ tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs([
 
 # --- ABA DE CADASTRO DE EMPRESA ---
 with tab_empresa:
-    st.header("Formulário de Cadastro de Empresa")
-    with st.form("form_add_company", clear_on_submit=True):
-        company_name = st.text_input("Nome da Empresa", placeholder="Digite o nome completo da empresa")
-        company_cnpj = st.text_input("CNPJ", placeholder="Digite o CNPJ (apenas números)")
-        submitted = st.form_submit_button("Cadastrar Empresa")
-        if submitted:
-            if not company_name or not company_cnpj:
-                st.error("Por favor, preencha todos os campos.")
-            else:
-                cnpj_clean = "".join(filter(str.isdigit, company_cnpj))
-                with st.spinner("Cadastrando empresa..."):
-                    company_id, message = employee_manager.add_company(company_name, cnpj_clean)
-                    if company_id:
-                        st.success(f"Sucesso: {message} (ID: {company_id})")
-                        st.cache_resource.clear() # Limpa o cache para atualizar os selectboxes
-                        st.rerun()
+    st.header("Gerenciar Empresas")
+    
+    # Seção de Cadastro dentro de um expander
+    with st.expander("➕ Cadastrar Nova Empresa"):
+        with st.form("form_add_company", clear_on_submit=True):
+            company_name = st.text_input("Nome da Empresa", placeholder="Digite o nome completo da empresa")
+            company_cnpj = st.text_input("CNPJ", placeholder="Digite o CNPJ (apenas números)")
+            submitted = st.form_submit_button("Cadastrar Empresa")
+            if submitted:
+                if not company_name or not company_cnpj:
+                    st.error("Por favor, preencha todos os campos.")
+                else:
+                    cnpj_clean = "".join(filter(str.isdigit, company_cnpj))
+                    with st.spinner("Cadastrando empresa..."):
+                        company_id, message = employee_manager.add_company(company_name, cnpj_clean)
+                        if company_id:
+                            st.success(f"Sucesso: {message} (ID: {company_id})")
+                            st.rerun() # O rerun já é acionado pela limpeza de cache
+                        else:
+                            st.error(f"Falha: {message}")
+
+    st.markdown("---")
+    
+    # Seção de Gerenciamento de Empresas Existentes
+    st.subheader("Empresas Cadastradas")
+    
+    show_archived_companies = st.toggle("Mostrar empresas arquivadas", key="toggle_companies")
+    
+    # Filtra o DataFrame com base no toggle
+    if show_archived_companies:
+        companies_to_show = employee_manager.companies_df
+    else:
+        companies_to_show = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+
+    if companies_to_show.empty:
+        st.info("Nenhuma empresa para exibir com os filtros atuais.")
+    else:
+        # Itera sobre as empresas filtradas para exibição
+        for index, row in companies_to_show.sort_values('nome').iterrows():
+            with st.container(border=True):
+                col1, col2, col3 = st.columns([3, 2, 1])
+                col1.markdown(f"**{row['nome']}**")
+                col2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
+                
+                with col3:
+                    # Botão muda de acordo com o status
+                    if str(row['status']).lower() == 'ativo':
+                        if st.button("Arquivar", key=f"archive_comp_{row['id']}", use_container_width=True):
+                            employee_manager.archive_company(row['id'])
+                            st.rerun()
                     else:
-                        st.error(f"Falha: {message}")
+                        if st.button("Reativar", key=f"unarchive_comp_{row['id']}", type="primary", use_container_width=True):
+                            employee_manager.unarchive_company(row['id'])
+                            st.rerun()
 
 # --- ABA DE CADASTRO DE FUNCIONÁRIO ---
 with tab_funcionario:
-    st.header("Formulário de Cadastro de Funcionário")
-    if employee_manager.companies_df.empty:
-        st.warning("Nenhuma empresa cadastrada. Por favor, cadastre uma empresa primeiro.")
-    else:
-        company_list = employee_manager.companies_df.copy()
-        selected_company_id = st.selectbox(
-            "Selecione a Empresa do Funcionário",
-            options=company_list['id'].tolist(),
-            format_func=lambda x: employee_manager.get_company_name(x),
-            index=None,
-            placeholder="Escolha uma empresa..."
+    st.header("Gerenciar Funcionários")
+    
+    # Seção de Cadastro dentro de um expander
+    with st.expander("➕ Cadastrar Novo Funcionário"):
+        # Mostra apenas empresas ativas no selectbox de cadastro
+        active_companies = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+        if active_companies.empty:
+            st.warning("Nenhuma empresa ativa cadastrada. Por favor, cadastre ou reative uma empresa primeiro.")
+        else:
+            selected_company_id_add = st.selectbox(
+                "Selecione a Empresa do Funcionário",
+                options=active_companies['id'].tolist(),
+                format_func=lambda x: employee_manager.get_company_name(x),
+                index=None,
+                placeholder="Escolha uma empresa..."
+            )
+            if selected_company_id_add:
+                with st.form("form_add_employee", clear_on_submit=True):
+                    employee_name = st.text_input("Nome do Funcionário")
+                    employee_role = st.text_input("Cargo")
+                    admission_date = st.date_input("Data de Admissão", value=None, format="DD/MM/YYYY")
+                    submitted_employee = st.form_submit_button("Cadastrar Funcionário")
+                    if submitted_employee:
+                        if not all([employee_name, employee_role, admission_date]):
+                            st.error("Por favor, preencha todos os campos do funcionário.")
+                        else:
+                            with st.spinner("Cadastrando funcionário..."):
+                                employee_id, message = employee_manager.add_employee(
+                                    nome=employee_name, cargo=employee_role,
+                                    data_admissao=admission_date, empresa_id=selected_company_id_add
+                                )
+                                if employee_id:
+                                    st.success(f"Sucesso: {message}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"Falha: {message}")
+    
+    st.markdown("---")
+    st.subheader("Funcionários Cadastrados")
+    
+    # Filtro para visualizar funcionários de uma empresa específica
+    company_list_filter = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+    selected_company_id_filter = st.selectbox(
+        "Filtrar por Empresa",
+        options=company_list_filter['id'].tolist(),
+        format_func=lambda x: employee_manager.get_company_name(x),
+        index=None, placeholder="Selecione uma empresa para ver os funcionários..."
+    )
+    
+    if selected_company_id_filter:
+        show_archived_employees = st.toggle("Mostrar funcionários arquivados", key="toggle_employees")
+        
+        # Usa a função get_employees_by_company com o parâmetro include_archived
+        employees_to_show = employee_manager.get_employees_by_company(
+            selected_company_id_filter, 
+            include_archived=show_archived_employees
         )
-        if selected_company_id:
-            with st.form("form_add_employee", clear_on_submit=True):
-                employee_name = st.text_input("Nome do Funcionário")
-                employee_role = st.text_input("Cargo")
-                admission_date = st.date_input("Data de Admissão", value=None, format="DD/MM/YYYY")
-                submitted_employee = st.form_submit_button("Cadastrar Funcionário")
-                if submitted_employee:
-                    if not all([employee_name, employee_role, admission_date]):
-                        st.error("Por favor, preencha todos os campos do funcionário.")
-                    else:
-                        with st.spinner("Cadastrando funcionário..."):
-                            employee_id, message = employee_manager.add_employee(
-                                nome=employee_name, cargo=employee_role,
-                                data_admissao=admission_date, empresa_id=selected_company_id
-                            )
-                            if employee_id:
-                                st.success(f"Sucesso: {message} (ID: {employee_id})")
-                            else:
-                                st.error(f"Falha: {message}")
+            
+        if employees_to_show.empty:
+            st.info("Nenhum funcionário para exibir com os filtros atuais.")
+        else:
+            for index, row in employees_to_show.sort_values('nome').iterrows():
+                with st.container(border=True):
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    col1.markdown(f"**{row['nome']}**")
+                    col2.caption(f"Cargo: {row['cargo']} | Status: {row['status']}")
+                    with col3:
+                        if str(row['status']).lower() == 'ativo':
+                            if st.button("Arquivar", key=f"archive_emp_{row['id']}", use_container_width=True):
+                                employee_manager.archive_employee(row['id'])
+                                st.rerun()
+                        else:
+                            if st.button("Reativar", key=f"unarchive_emp_{row['id']}", type="primary", use_container_width=True):
+                                employee_manager.unarchive_employee(row['id'])
+                                st.rerun()
                                 
 with tab_matriz:
     st.header("Matriz de Treinamento por Função")
