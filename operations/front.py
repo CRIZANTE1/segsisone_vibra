@@ -21,6 +21,31 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
+
+def format_company_display(company_id, companies_df):
+    """
+    Formata o nome da empresa para exibição no selectbox, incluindo
+    o status se a empresa estiver arquivada.
+    """
+    try:
+        # Encontra a linha da empresa pelo ID
+        company_row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
+        name = company_row['nome']
+        status = company_row.get('status', 'Ativo') # Assume 'Ativo' se a coluna não existir
+        
+        # Adiciona um marcador visual e texto se estiver arquivada
+        if str(status).lower() == 'arquivado':
+            return f"🗄️ {name} (Arquivada)"
+        else:
+            # Mantém o formato original para empresas ativas
+            cnpj = company_row.get('cnpj', 'CNPJ não informado')
+            return f"{name} - {cnpj}"
+            
+    except (IndexError, KeyError):
+        # Fallback caso o ID não seja encontrado
+        return f"Empresa ID {company_id} não encontrada"
+
+
 def display_audit_results(audit_result):
     """Função helper para exibir os resultados da auditoria de forma consistente."""
     if not audit_result: return
@@ -70,15 +95,20 @@ def front_page():
     
     
     st.title("Gestão de Documentação Inteligente")
-
+    
     selected_company = None
     if not employee_manager.companies_df.empty:
-        df = employee_manager.companies_df.astype({'id': 'str'})
+        # Garante que os dados estejam ordenados para uma melhor experiência
+        companies_to_display = employee_manager.companies_df.sort_values(by=['status', 'nome'], ascending=[True, True])
+        
         selected_company = st.selectbox(
-            "Selecione uma empresa",
-            df['id'].tolist(),
-            format_func=lambda x: f"{df[df['id'] == x]['nome'].iloc[0]} - {df[df['id'] == x]['cnpj'].iloc[0]}",
-            key="company_select"
+            "Selecione uma empresa para ver os detalhes:",
+            options=companies_to_display['id'].tolist(),
+            # A format_func agora chama nossa nova função helper
+            format_func=lambda company_id: format_company_display(company_id, companies_to_display),
+            index=None,
+            placeholder="Selecione uma empresa...",
+            key="company_select" # Mantém a chave, se você a usa em outro lugar
         )
     
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
