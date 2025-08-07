@@ -7,7 +7,7 @@ from operations.employee import EmployeeManager
 from operations.matrix_manager import MatrixManager
 from ui.metrics import display_minimalist_metrics
 from analysis.nr_analyzer import NRAnalyzer 
-from auth.auth_utils import check_admin_permission, is_user_logged_in
+from auth.auth_utils import check_permission, is_user_logged_in
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 
@@ -17,7 +17,7 @@ st.title("⚙️ Painel de Administração")
 if not is_user_logged_in():
     st.warning("Por favor, faça login para acessar esta página.")
     st.stop()
-if not check_admin_permission():
+if not check_permission(level='admin'):
     st.error("Você não tem permissão para acessar o painel de administração.")
     st.stop()
 
