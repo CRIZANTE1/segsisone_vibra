@@ -9,6 +9,8 @@ import os
 import re
 import locale
 import json  
+from dateutil.relativedelta import relativedelta
+
 
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
@@ -75,35 +77,49 @@ class EmployeeManager:
         return self._pdf_analyzer
 
     def load_data(self):
+        """Carrega todos os DataFrames e garante a existência da coluna 'status'."""
         try:
-            from gdrive.config import ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
-            company_columns = ['id', 'nome', 'cnpj']
-            employee_columns = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao']
-            aso_columns = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
-            training_columns = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'arquivo_id', 'tipo_treinamento', 'carga_horaria']
+            from gdrive.config import (
+                ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, 
+                EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
+            )
             
-            companies_data = load_sheet_data(EMPLOYEE_SHEET_NAME)
-            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 0 else pd.DataFrame(columns=company_columns)
-            
-            employees_data = load_sheet_data(EMPLOYEE_DATA_SHEET_NAME)
-            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 0 else pd.DataFrame(columns=employee_columns)
+            # Carrega empresas e garante a coluna 'status'
+            companies_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_SHEET_NAME)
+            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 1 else pd.DataFrame()
+            if not self.companies_df.empty:
+                if 'status' not in self.companies_df.columns:
+                    self.companies_df['status'] = 'Ativo'
+                self.companies_df['status'].fillna('Ativo', inplace=True)
 
-            aso_data = load_sheet_data(ASO_SHEET_NAME)
-            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 0 else pd.DataFrame(columns=aso_columns)
-            
-            training_data = load_sheet_data(TRAINING_SHEET_NAME)
-            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 0 else pd.DataFrame(columns=training_columns)
+            # Carrega funcionários e garante a coluna 'status'
+            employees_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_DATA_SHEET_NAME)
+            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 1 else pd.DataFrame()
+            if not self.employees_df.empty:
+                if 'status' not in self.employees_df.columns:
+                    self.employees_df['status'] = 'Ativo'
+                self.employees_df['status'].fillna('Ativo', inplace=True)
 
+            # Carrega ASOs e Treinamentos (não precisam de status)
+            aso_data = self.sheet_ops.carregar_dados_aba(ASO_SHEET_NAME)
+            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 1 else pd.DataFrame()
+            
+            training_data = self.sheet_ops.carregar_dados_aba(TRAINING_SHEET_NAME)
+            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 1 else pd.DataFrame()
         except Exception as e:
             st.error(f"Erro ao carregar dados: {str(e)}")
             self.companies_df, self.employees_df, self.aso_df, self.training_df = (pd.DataFrame() for _ in range(4))
 
     def initialize_sheets(self):
+        """Inicializa as abas, garantindo a coluna 'status'."""
         try:
-            from gdrive.config import ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
+            from gdrive.config import (
+                ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, 
+                EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
+            )
             sheets_structure = {
-                EMPLOYEE_SHEET_NAME: ['id', 'nome', 'cnpj'],
-                EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao'],
+                EMPLOYEE_SHEET_NAME: ['id', 'nome', 'cnpj', 'status'],
+                EMPLOYEE_DATA_SHEET_NAME: ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao', 'status'],
                 ASO_SHEET_NAME: ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso'],
                 TRAINING_SHEET_NAME: ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'arquivo_id', 'tipo_treinamento', 'carga_horaria']
             }
@@ -111,16 +127,37 @@ class EmployeeManager:
                 data = self.sheet_ops.carregar_dados_aba(sheet_name)
                 if not data:
                     self.sheet_ops.criar_aba(sheet_name, columns)
-                else:
-                    header = data[0]
-                    if sheet_name == ASO_SHEET_NAME and 'tipo_aso' not in header:
-                        st.warning(f"A coluna 'tipo_aso' não foi encontrada na aba {ASO_SHEET_NAME} e será adicionada. Verifique sua planilha.")
-                        self.sheet_ops.limpar_e_recriar_aba(sheet_name, columns)
+                elif data and columns[0] and columns[-1] == 'status' and 'status' not in data[0]:
+                    self.sheet_ops.add_column_if_not_exists(sheet_name, 'status')
             return True
         except Exception as e:
             st.error(f"Erro ao inicializar as abas: {str(e)}")
             return False
 
+    def _set_status(self, sheet_name: str, item_id: str, status: str):
+        """Função genérica para mudar o status de um item (empresa ou funcionário)."""
+        success = self.sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
+        if success:
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            self.load_data()
+        return success
+
+    def archive_company(self, company_id: str):
+        from gdrive.config import EMPLOYEE_SHEET_NAME
+        return self._set_status(EMPLOYEE_SHEET_NAME, company_id, "Arquivado")
+
+    def unarchive_company(self, company_id: str):
+        from gdrive.config import EMPLOYEE_SHEET_NAME
+        return self._set_status(EMPLOYEE_SHEET_NAME, company_id, "Ativo")
+
+    def archive_employee(self, employee_id: str):
+        from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
+        return self._set_status(EMPLOYEE_DATA_SHEET_NAME, employee_id, "Arquivado")
+
+    def unarchive_employee(self, employee_id: str):
+        from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
+        return self._set_status(EMPLOYEE_DATA_SHEET_NAME, employee_id, "Ativo")
 
     def get_latest_aso_by_employee(self, employee_id):
         """
@@ -353,45 +390,32 @@ class EmployeeManager:
             return None
 
     def add_company(self, nome, cnpj):
-            """
-            Adiciona uma nova empresa à planilha, validando o CNPJ.
-            Limpa o cache de recursos para garantir que todos os selectboxes de empresa
-            no aplicativo sejam atualizados.
-            """
-            from gdrive.config import EMPLOYEE_SHEET_NAME
-            # Validação para evitar CNPJ duplicado
-            if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
-                return None, "CNPJ já cadastrado."
-            
-            new_data = [nome, cnpj]
-            try:
-                company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
-                if company_id:
-                   
-                    st.cache_resource.clear() 
-                    self.load_data() # Garante que o estado interno do objeto também seja atualizado
-                    return company_id, "Empresa cadastrada com sucesso"
-                
-                return None, "Falha ao obter ID da empresa após o cadastro."
-            except Exception as e:
-                return None, f"Erro ao cadastrar empresa: {str(e)}"
+        from gdrive.config import EMPLOYEE_SHEET_NAME
+        if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
+            return None, "CNPJ já cadastrado."
+        # Adiciona o status 'Ativo' no momento do cadastro
+        new_data = [nome, cnpj, "Ativo"]
+        try:
+            company_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_SHEET_NAME, new_data)
+            if company_id:
+                st.cache_resource.clear()
+                self.load_data()
+                return company_id, "Empresa cadastrada com sucesso"
+            return None, "Falha ao obter ID da empresa."
+        except Exception as e:
+            return None, f"Erro ao cadastrar empresa: {str(e)}"
          
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
-        """
-        Adiciona um novo funcionário a uma empresa específica.
-        Limpa o cache de dados para recarregar a lista de funcionários.
-        """
         from gdrive.config import EMPLOYEE_DATA_SHEET_NAME
-        new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y")]
+        # Adiciona o status 'Ativo' no momento do cadastro
+        new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y"), "Ativo"]
         try:
             employee_id = self.sheet_ops.adc_dados_aba(EMPLOYEE_DATA_SHEET_NAME, new_data)
             if employee_id:
-               
                 st.cache_data.clear()
-                self.load_data() # Atualiza o DataFrame interno de funcionários
+                self.load_data()
                 return employee_id, "Funcionário adicionado com sucesso"
-                
-            return None, "Erro ao adicionar funcionário na planilha."
+            return None, "Erro ao adicionar funcionário na planilha"
         except Exception as e:
             return None, f"Erro ao adicionar funcionário: {str(e)}"
 
@@ -546,10 +570,20 @@ class EmployeeManager:
         employee = self.employees_df[self.employees_df['id'] == str(employee_id)]
         return employee.iloc[0]['nome'] if not employee.empty else None
 
-    def get_employees_by_company(self, company_id):
-        if self.employees_df.empty or 'empresa_id' not in self.employees_df.columns:
+    def get_employees_by_company(self, company_id: str, include_archived: bool = False):
+        """
+        Retorna os funcionários de uma empresa.
+        Por padrão, retorna apenas os ativos.
+        """
+        if self.employees_df.empty:
             return pd.DataFrame()
-        return self.employees_df[self.employees_df['empresa_id'] == str(company_id)]
+        
+        company_employees = self.employees_df[self.employees_df['empresa_id'] == str(company_id)]
+        
+        if include_archived:
+            return company_employees
+        else:
+            return company_employees[company_employees['status'].str.lower() == 'ativo']
 
     def get_employee_docs(self, employee_id):
         latest_aso = self.get_latest_aso_by_employee(employee_id)
@@ -744,4 +778,5 @@ class EmployeeManager:
         
         # Se nenhuma das condições de falha for atendida, o treinamento é considerado conforme.
         return True, "Carga horária conforme."
+
 
