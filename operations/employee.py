@@ -80,27 +80,24 @@ class EmployeeManager:
         """Carrega todos os DataFrames e garante a existência da coluna 'status'."""
         try:
             from gdrive.config import (
-                ASO_SHEET_NAME, EMPLOYEE_SHEET_NAME, 
+                ASO_SHE-ET_NAME, EMPLOYEE_SHEET_NAME, 
                 EMPLOYEE_DATA_SHEET_NAME, TRAINING_SHEET_NAME
             )
             
-            # Carrega empresas e garante a coluna 'status'
             companies_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_SHEET_NAME)
             self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 1 else pd.DataFrame()
             if not self.companies_df.empty:
                 if 'status' not in self.companies_df.columns:
                     self.companies_df['status'] = 'Ativo'
-                self.companies_df['status'].fillna('Ativo', inplace=True)
+                self.companies_df['status'] = self.companies_df['status'].fillna('Ativo')
 
-            # Carrega funcionários e garante a coluna 'status'
             employees_data = self.sheet_ops.carregar_dados_aba(EMPLOYEE_DATA_SHEET_NAME)
             self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 1 else pd.DataFrame()
             if not self.employees_df.empty:
                 if 'status' not in self.employees_df.columns:
                     self.employees_df['status'] = 'Ativo'
-                self.employees_df['status'].fillna('Ativo', inplace=True)
+                self.employees_df['status'] = self.employees_df['status'].fillna('Ativo')
 
-            # Carrega ASOs e Treinamentos (não precisam de status)
             aso_data = self.sheet_ops.carregar_dados_aba(ASO_SHEET_NAME)
             self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 1 else pd.DataFrame()
             
@@ -778,5 +775,6 @@ class EmployeeManager:
         
         # Se nenhuma das condições de falha for atendida, o treinamento é considerado conforme.
         return True, "Carga horária conforme."
+
 
 
