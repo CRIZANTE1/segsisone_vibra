@@ -5,7 +5,7 @@ from datetime import datetime
 from operations.action_plan import ActionPlanManager
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager 
-from auth.auth_utils import check_admin_permission, is_user_logged_in
+from auth.auth_utils import check_permission, is_user_logged_in
 
 
 st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
@@ -15,7 +15,7 @@ st.title("📋 Gestão de Não Conformidades e Auditorias")
 if not is_user_logged_in():
     st.warning("Por favor, faça login para acessar esta página.")
     st.stop()
-if not check_admin_permission():
+if not check_permission(level='editor'):
     st.stop()
 
         
