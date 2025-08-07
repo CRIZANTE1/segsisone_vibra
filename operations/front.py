@@ -10,7 +10,7 @@ from operations.epi import EPIManager
 from analysis.nr_analyzer import NRAnalyzer 
 
 from gdrive.gdrive_upload import GoogleDriveUploader
-from auth.auth_utils import check_admin_permission
+from auth.auth_utils import check_permission, is_user_logged_in 
 from operations.matrix_manager import MatrixManager
 from ui.ui_helpers import (
     mostrar_info_normas,
@@ -117,6 +117,7 @@ def front_page():
 
     with tab_situacao:
         if selected_company:
+            if check_permission(level='editor'):
             st.subheader("Documentos da Empresa")
             company_docs = docs_manager.get_docs_by_company(selected_company).copy()
             if not company_docs.empty:
@@ -296,7 +297,7 @@ def front_page():
      #-------------------------------------------------------------------------------------------------------------------------------------------        
     with tab_add_epi:
         if selected_company:
-            if check_admin_permission():
+            if check_permission(level='editor'):
                 st.subheader("Adicionar Nova Ficha de EPI")
                 current_employees = employee_manager.get_employees_by_company(selected_company)
                 if not current_employees.empty:
@@ -357,7 +358,7 @@ def front_page():
             
     with tab_add_doc_empresa:
         if selected_company:
-            if check_admin_permission():
+            if check_permission(level='editor'):
                 st.subheader("Adicionar Documento (PGR, PCMSO, etc.)")
                 company_name = employee_manager.get_company_name(selected_company)
                 st.info(f"Adicionando documento para a empresa: **{company_name}**")
@@ -395,7 +396,7 @@ def front_page():
 
     with tab_add_aso:
         if selected_company:
-            if check_admin_permission():
+            if check_permission(level='editor'):
                 st.subheader("Adicionar Novo ASO")
                 current_employees = employee_manager.get_employees_by_company(selected_company)
                 if not current_employees.empty:
@@ -459,7 +460,7 @@ def front_page():
 
     with tab_add_treinamento:
         if selected_company:
-            if check_admin_permission():
+            if check_permission(level='editor'):
                 st.subheader("Adicionar Novo Treinamento")
                 mostrar_info_normas()
                 current_employees = employee_manager.get_employees_by_company(selected_company)
