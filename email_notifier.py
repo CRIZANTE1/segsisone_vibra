@@ -7,8 +7,6 @@ from email.mime.multipart import MIMEMultipart
 from datetime import date, timedelta
 import pandas as pd
 
-# Garante que os módulos da aplicação sejam encontrados
-# Ajuste o caminho se a estrutura de pastas for diferente
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
@@ -55,7 +53,7 @@ def categorize_expirations(employee_manager: EmployeeManager, docs_manager: Comp
         trainings_df['modulo'] = trainings_df['modulo'].fillna('N/A')
         trainings_df['data_dt'] = pd.to_datetime(trainings_df['data'], format='%d/%m/%Y', errors='coerce')
         trainings_df.dropna(subset=['data_dt'], inplace=True)
-        latest_trainings = trainings_df.sort_values('data_dt', ascending=False).groupby(['funcionario_id', 'norma', 'modulo']).head(1)
+        latest_trainings = trainings_df.sort_values('data_dt', ascending=False).groupby(['funcionario_id', 'norma']).head(1).copy()
         latest_trainings['vencimento_dt'] = pd.to_datetime(latest_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
         latest_trainings.dropna(subset=['vencimento_dt'], inplace=True)
         
