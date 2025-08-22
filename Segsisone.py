@@ -2,6 +2,7 @@ import streamlit as st
 import sys
 import os
 from streamlit_option_menu import option_menu
+from gdrive.google_api_manager import GoogleApiManager 
 
 # --- Configuração do Caminho (Path) ---
 root_dir = os.path.dirname(os.path.abspath(__file__))
