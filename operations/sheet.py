@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import logging
 import random
-from gdrive.google_api_manager import GoogleApiManager # Import the new manager
+from gdrive.google_api_manager import GoogleApiManager
 from gspread.exceptions import WorksheetNotFound
 import gspread
 
@@ -15,28 +15,31 @@ class SheetOperations:
         """
         if not spreadsheet_id:
             st.error("ID da Planilha não fornecido. A aplicação não pode funcionar.")
+            logging.error("SheetOperations foi inicializado sem um spreadsheet_id.")
             self.spreadsheet = None
             return
 
         api_manager = GoogleApiManager()
         self.spreadsheet = api_manager.open_spreadsheet(spreadsheet_id)
         if not self.spreadsheet:
-            st.error(f"Erro: Não foi possível abrir ou encontrar a planilha com o ID '{spreadsheet_id}'. Verifique o ID e as permissões de acesso.")
+            # Mensagem de erro clara para o usuário final
+            st.error(f"Erro: Não foi possível abrir ou encontrar a planilha com o ID fornecido. Verifique o ID na Planilha Matriz e as permissões de acesso da conta de serviço.")
+            logging.error(f"Falha ao abrir a planilha com ID: {spreadsheet_id}")
 
     def _get_worksheet(self, aba_name: str) -> gspread.Worksheet | None:
         """Helper interno para obter um objeto de worksheet de forma segura."""
         if not self.spreadsheet:
-            st.error("Conexão com a planilha não estabelecida.")
+            # A mensagem de erro principal já foi mostrada no __init__
             return None
         try:
             return self.spreadsheet.worksheet(aba_name)
         except WorksheetNotFound:
-            logging.warning(f"A aba '{aba_name}' não foi encontrada na planilha.")
-            st.error(f"Erro: A aba '{aba_name}' não foi encontrada na planilha. Verifique o nome da aba.")
+            st.error(f"Erro Crítico: A aba '{aba_name}' não foi encontrada na planilha '{self.spreadsheet.title}'. Verifique se o template da planilha da unidade está correto e completo.")
+            logging.warning(f"A aba '{aba_name}' não foi encontrada na planilha ID {self.spreadsheet.id}.")
             return None
         except Exception as e:
+            st.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}")
             logging.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}")
-            st.error(f"Erro ao acessar a aba '{aba_name}'.")
             return None
 
     @st.cache_data(ttl=60)
@@ -46,15 +49,17 @@ class SheetOperations:
         """
         worksheet = _self._get_worksheet(aba_name)
         if not worksheet:
-            return None
+            return None # O erro já foi mostrado em _get_worksheet
         try:
             logging.info(f"CACHE MISS: Lendo dados da API para a aba '{aba_name}'...")
             return worksheet.get_all_values()
         except Exception as e:
+            st.error(f"Erro ao ler dados da aba '{aba_name}': {e}")
             logging.error(f"Erro ao ler dados da aba '{aba_name}' com gspread: {e}")
-            st.error(f"Erro: Não foi possível ler os dados da aba '{aba_name}'. Detalhes: {e}")
             return None
-
+            
+    # O resto do arquivo (adc_dados_aba, update_row_by_id, etc.) pode permanecer o mesmo.
+    # ... cole o resto do seu código de sheet.py aqui ...
     def adc_dados_aba(self, aba_name: str, new_data: list) -> int | None:
         worksheet = self._get_worksheet(aba_name)
         if not worksheet: return None
