@@ -21,7 +21,7 @@ class SheetOperations:
         api_manager = GoogleApiManager()
         self.spreadsheet = api_manager.open_spreadsheet(spreadsheet_id)
         if not self.spreadsheet:
-            st.error(f"Não foi possível abrir ou encontrar a planilha com o ID fornecido.")
+            st.error(f"Erro: Não foi possível abrir ou encontrar a planilha com o ID '{spreadsheet_id}'. Verifique o ID e as permissões de acesso.")
 
     def _get_worksheet(self, aba_name: str) -> gspread.Worksheet | None:
         """Helper interno para obter um objeto de worksheet de forma segura."""
@@ -32,6 +32,7 @@ class SheetOperations:
             return self.spreadsheet.worksheet(aba_name)
         except WorksheetNotFound:
             logging.warning(f"A aba '{aba_name}' não foi encontrada na planilha.")
+            st.error(f"Erro: A aba '{aba_name}' não foi encontrada na planilha. Verifique o nome da aba.")
             return None
         except Exception as e:
             logging.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}")
@@ -51,7 +52,7 @@ class SheetOperations:
             return worksheet.get_all_values()
         except Exception as e:
             logging.error(f"Erro ao ler dados da aba '{aba_name}' com gspread: {e}")
-            st.error(f"Erro ao ler dados da aba '{aba_name}': {e}")
+            st.error(f"Erro: Não foi possível ler os dados da aba '{aba_name}'. Detalhes: {e}")
             return None
 
     def adc_dados_aba(self, aba_name: str, new_data: list) -> int | None:

@@ -11,9 +11,13 @@ class MatrixManager:
     def _load_data(self):
         users_data = self.sheet_ops.carregar_dados_aba("usuarios")
         self.users_df = pd.DataFrame(users_data[1:], columns=users_data[0]) if users_data and len(users_data) > 1 else pd.DataFrame()
+        if self.users_df.empty:
+            st.error("Erro: Não foi possível carregar os dados da aba 'usuarios' da Planilha Matriz. Verifique a planilha e as permissões.")
         
         units_data = self.sheet_ops.carregar_dados_aba("unidades")
         self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0]) if units_data and len(units_data) > 1 else pd.DataFrame()
+        if self.units_df.empty:
+            st.error("Erro: Não foi possível carregar os dados da aba 'unidades' da Planilha Matriz. Verifique a planilha e as permissões.")
 
     def get_user_info(self, email: str):
         if self.users_df.empty: return None
