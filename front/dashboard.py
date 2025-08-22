@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime, date
+from datetime import date
 import pandas as pd
 from fuzzywuzzy import fuzz
 import re
@@ -10,9 +10,9 @@ from operations.epi import EPIManager
 from analysis.nr_analyzer import NRAnalyzer 
 
 from gdrive.gdrive_upload import GoogleDriveUploader
-from auth.auth_utils import check_permission, is_user_logged_in 
-from gdrive.matrix_manager import MatrixManager # Updated import path
-from ui.ui_helpers (
+from auth.auth_utils import check_permission
+from gdrive.matrix_manager import MatrixManager
+from ui.ui_helpers import (
     mostrar_info_normas,
     highlight_expired,
     process_aso_pdf,
@@ -41,10 +41,6 @@ def initialize_managers():
 
 
 def format_company_display(company_id, companies_df):
-    """
-    Formata o nome da empresa para exibição no selectbox, incluindo
-    o status se a empresa estiver arquivada.
-    """
     try:
         # Encontra a linha da empresa pelo ID
         company_row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
@@ -94,7 +90,7 @@ def show_dashboard_page():
     if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
         st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
-        return # Use return instead of st.stop() to allow other parts of the app to run
+        return
         
     # --- ALTERAÇÃO PRINCIPAL ---
     # 1. Chame a função de inicialização
@@ -120,11 +116,10 @@ def show_dashboard_page():
         selected_company = st.selectbox(
             "Selecione uma empresa para ver os detalhes:",
             options=companies_to_display['id'].tolist(),
-            # A format_func agora chama nossa nova função helper
             format_func=lambda company_id: format_company_display(company_id, companies_to_display),
             index=None,
             placeholder="Selecione uma empresa...",
-            key="company_select" # Mantém a chave, se você a usa em outro lugar
+            key="company_select"
         )
     
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
@@ -143,7 +138,19 @@ def show_dashboard_page():
                     for col in company_doc_cols:
                         if col not in company_docs.columns: company_docs[col] = "N/A"
                     company_docs_reordered = company_docs[company_doc_cols]
-                    st.dataframe(company_docs_reordered.style.apply(highlight_expired, axis=1), column_config={"tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),}, hide_index=True, use_container_width=True)
+                    
+                    # --- CORREÇÃO DE SINTAXE APLICADA AQUI ---
+                    st.dataframe(
+                        company_docs_reordered.style.apply(highlight_expired, axis=1), 
+                        column_config={
+                            "tipo_documento": "Documento", 
+                            "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
+                            "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
+                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
+                        }, 
+                        hide_index=True, 
+                        use_container_width=True
+                    )
                 else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
                 
                 st.markdown("---")
@@ -165,9 +172,7 @@ def show_dashboard_page():
                                 ~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])
                             ].copy()
                             
-                            # 3. Desses, pega o mais recente de todos para determinar o status
                             if not aptitude_asos.empty:
-                                # Ordena pela data do ASO e pega a primeira linha (a mais recente)
                                 current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                                 
                                 vencimento_obj = current_aptitude_aso.get('vencimento')
@@ -186,9 +191,11 @@ def show_dashboard_page():
                         
                         if not all_trainings.empty:
                             trainings_total = len(all_trainings)
-                            expired_mask = all_trainings['vencimento'] < today
+                            # Certifique-se de que a coluna 'vencimento' é do tipo data antes de comparar
+                            all_trainings['vencimento'] = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date
+                            expired_mask = all_trainings.dropna(subset=['vencimento'])['vencimento'] < today
                             trainings_expired_count = expired_mask.sum()
-                    
+
                         if aso_status == 'Vencido' or trainings_expired_count > 0:
                             overall_status = 'Pendente'
                             status_icon = "⚠️"
@@ -200,7 +207,8 @@ def show_dashboard_page():
     
                         with st.expander(expander_title):
                             st.markdown("##### Resumo de Status")
-                            col1, col2, col3 = st.columns(3); num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
+                            num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
+                            col1, col2, col3 = st.columns(3)
                             col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
                             col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
                             col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
@@ -225,7 +233,25 @@ def show_dashboard_page():
                                 for col in training_display_cols:
                                     if col not in all_trainings.columns: all_trainings[col] = "N/A"
                                 training_reordered_df = all_trainings[training_display_cols]
-                                st.dataframe(training_reordered_df.style.apply(highlight_expired, axis=1), column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "tipo_treinamento": "Tipo", "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"), "id": None, "funcionario_id": None, "status": None, "modulo": None,}, hide_index=True, use_container_width=True)
+                                
+                                # --- CORREÇÃO DE SINTAXE APLICADA AQUI ---
+                                st.dataframe(
+                                    training_reordered_df.style.apply(highlight_expired, axis=1),
+                                    column_config={
+                                        "norma": "Norma", 
+                                        "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
+                                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
+                                        "tipo_treinamento": "Tipo", 
+                                        "carga_horaria": st.column_config.NumberColumn("C.H.", help="Carga Horária (horas)"), 
+                                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
+                                        "id": None, 
+                                        "funcionario_id": None, 
+                                        "status": None, 
+                                        "modulo": None
+                                    }, 
+                                    hide_index=True, 
+                                    use_container_width=True
+                                )
                             else: st.info("Nenhum treinamento encontrado.")
     
                             st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
@@ -244,7 +270,7 @@ def show_dashboard_page():
                                 )
                             else:
                                 st.info("Nenhuma Ficha de EPI encontrada para este funcionário.")
-                    #---------------------------------------------------------------------------------------------------------------------------------------
+
                             st.markdown("---")
                             st.markdown("##### Matriz de Conformidade de Treinamentos")
                             
@@ -252,7 +278,6 @@ def show_dashboard_page():
                             if not employee_cargo:
                                 st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
                             else:
-                                # 1. Encontra a função correspondente na matriz
                                 matched_function_name = matrix_manager.find_closest_function(employee_cargo)
                                 
                                 if not matched_function_name:
@@ -261,7 +286,6 @@ def show_dashboard_page():
                                     if employee_cargo.lower() != matched_function_name.lower():
                                         st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
                             
-                                    # 2. Busca os treinamentos requeridos para a função encontrada
                                     required_trainings = matrix_manager.get_required_trainings_for_function(matched_function_name)
                                     
                                     if not required_trainings:
@@ -273,36 +297,29 @@ def show_dashboard_page():
                                         
                                         missing_trainings = []
                                         status_list = []
-                                        SIMILARITY_THRESHOLD = 90 # Limiar alto para evitar falsos positivos
+                                        SIMILARITY_THRESHOLD = 90
                             
-                                        # --- LÓGICA DE COMPARAÇÃO HÍBRIDA ---
                                         for required in required_trainings:
                                             found_match = False
-                                            # Remove espaços e converte para minúsculas para comparação
                                             required_clean = re.sub(r'\s+', ' ', required).lower()
                             
                                             for current in current_trainings_norms:
                                                 current_clean = re.sub(r'\s+', ' ', str(current)).lower()
                                                 
-                                                # Regra 1: Uma string contém a outra (lida com "NR-10" vs "NR-10 Básico")
                                                 if required_clean in current_clean or current_clean in required_clean:
                                                     found_match = True
                                                     break
                                                 
-                                                # Regra 2 (Fallback): Usa fuzzy matching para casos com pequenas variações
-                                                # Ex: "NR20 Inflamáveis" vs "NR-20 Inflamáveis e Combustíveis"
                                                 if fuzz.token_sort_ratio(required_clean, current_clean) >= SIMILARITY_THRESHOLD:
                                                     found_match = True
                                                     break
                                             
-                                            # Monta a lista de status
                                             if found_match:
                                                 status_list.append({"Treinamento Obrigatório": required, "Status": "✅ Realizado"})
                                             else:
                                                 status_list.append({"Treinamento Obrigatório": required, "Status": "🔴 Faltante"})
                                                 missing_trainings.append(required)
                                         
-                                        # Exibe os resultados
                                         if not missing_trainings:
                                             st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
                                         else:
@@ -310,7 +327,7 @@ def show_dashboard_page():
                                             
                                         if status_list:
                                             st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
-    #-------------------------------------------------------------------------------------------------------------------------------------------
+    
     with tab_add_epi:
         if selected_company:
             if check_permission(level='editor'):
@@ -326,7 +343,6 @@ def show_dashboard_page():
                             with st.container(border=True):
                                 st.markdown("### Confirme as Informações Extraídas")
                                 
-                                # Validação do nome do funcionário
                                 nome_extraido = epi_info.get('nome_funcionario', 'N/A')
                                 funcionario_selecionado_id = st.session_state.epi_funcionario_para_salvar
                                 nome_selecionado = employee_manager.get_employee_name(funcionario_selecionado_id)
@@ -345,16 +361,13 @@ def show_dashboard_page():
                                     with st.spinner("Salvando Ficha de EPI..."):
                                         anexo_epi = st.session_state.epi_anexo_para_salvar
                                         
-                                        # Upload do arquivo PDF
                                         arquivo_id = gdrive_uploader.upload_file(anexo_epi, f"EPI_{nome_selecionado}_{date.today().strftime('%Y-%m-%d')}")
                                         
                                         if arquivo_id:
-                                            # Adiciona os registros na planilha
                                             saved_ids = epi_manager.add_epi_records(funcionario_selecionado_id, arquivo_id, epi_info['itens_epi'])
                                             
                                             if saved_ids:
                                                 st.success(f"{len(saved_ids)} item(ns) de EPI salvos com sucesso!")
-                                                # Limpa o estado da sessão para resetar a interface
                                                 for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
@@ -453,12 +466,11 @@ def show_dashboard_page():
     
                                             if aso_id:
                                                 if audit_result and "não conforme" in audit_result.get("summary", "").lower():
-                                                    created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, aso_id)
+                                                    created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, aso_id, employee_id=selected_employee_aso)
                                                     st.success(f"ASO salvo! {created_count} item(ns) de ação foram criados.")
                                                 else:
                                                     st.success(f"ASO adicionado com sucesso! ID: {aso_id}")
                                                 
-                                                # Limpa o estado da sessão para resetar a UI
                                                 for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
@@ -504,25 +516,22 @@ def show_dashboard_page():
                                 
                                 data = training_info.get('data')
                                 norma_bruta = training_info.get('norma')
-                                modulo = training_info.get('modulo') # Este é o módulo original OU o inferido
+                                modulo = training_info.get('modulo')
                                 tipo_treinamento = training_info.get('tipo_treinamento')
                                 carga_horaria = training_info.get('carga_horaria', 0)
                                 
-                                # 2. Padroniza a norma
                                 norma_padronizada = employee_manager._padronizar_norma(norma_bruta)
                                 
-                                # 3. AGORA, com o módulo correto em mãos, calcula o vencimento
                                 vencimento = employee_manager.calcular_vencimento_treinamento(
                                     data=data, 
                                     norma=norma_padronizada, 
-                                    modulo=modulo, # Passa o módulo (original ou inferido)
+                                    modulo=modulo,
                                     tipo_treinamento=tipo_treinamento
                                 )
                                 
-                                # 4. Exibe as informações para o usuário
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma Extraída:** {norma_bruta} (Padronizada para: {norma_padronizada})")
-                                st.write(f"**Módulo:** {modulo or 'N/A'}") # Mostra o módulo final
+                                st.write(f"**Módulo:** {modulo or 'N/A'}")
                                 st.write(f"**Tipo:** {tipo_treinamento}")
                                 st.write(f"**Carga Horária:** {carga_horaria} horas")
                                 
