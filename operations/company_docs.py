@@ -3,20 +3,13 @@ import streamlit as st
 from datetime import datetime, timedelta, date
 import re
 from operations.sheet import SheetOperations
-from gdrive.config import COMPANY_DOCS_SHEET_NAME, AUDIT_RESULTS_SHEET_NAME
 from AI.api_Operation import PDFQA
 import tempfile
 import os
 
-@st.cache_resource
-def get_sheet_ops_docs():
-    return SheetOperations()
-
 class CompanyDocsManager:
-    def __init__(self):
-        self.sheet_ops = get_sheet_ops_docs()
-        if not self.initialize_sheets():
-            st.error("Erro ao inicializar as abas da empresa.")
+    def __init__(self, spreadsheet_id: str):
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self.load_company_data()
         self._pdf_analyzer = None
 
@@ -26,55 +19,22 @@ class CompanyDocsManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    def initialize_sheets(self):
-        try:
-            docs_columns = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            
-            # Usa os nomes exatos que você especificou
-            audit_columns = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
-                             "id_funcionario", "tipo_documento", "norma_auditada", 
-                             "item_de_verificacao", "Status", "observacao"]
-            
-            if not self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME):
-                self.sheet_ops.criar_aba(COMPANY_DOCS_SHEET_NAME, docs_columns)
-            
-            data_audit = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
-            if not data_audit:
-                self.sheet_ops.criar_aba(AUDIT_RESULTS_SHEET_NAME, audit_columns)
-            elif data_audit and 'id_auditoria' not in data_audit[0]:
-                st.warning(f"A coluna 'id_auditoria' não foi encontrada na aba {AUDIT_RESULTS_SHEET_NAME}. A funcionalidade pode ser limitada.")
-            
-            return True
-        except Exception as e:
-            st.error(f"Erro ao inicializar abas: {e}"); return False
-
     def load_company_data(self):
         try:
-            docs_data = self.sheet_ops.carregar_dados_aba(COMPANY_DOCS_SHEET_NAME)
+            docs_data = self.sheet_ops.carregar_dados_aba("documentos_empresa")
             docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
             self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0]) if docs_data and len(docs_data) > 0 else pd.DataFrame(columns=docs_cols)
 
-            # --- CORREÇÃO APLICADA AQUI ---
-            audit_data = self.sheet_ops.carregar_dados_aba(AUDIT_RESULTS_SHEET_NAME)
-            
-            # Usa os nomes de coluna exatos da sua planilha
+            audit_data = self.sheet_ops.carregar_dados_aba("auditorias")
             audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
                           "id_funcionario", "tipo_documento", "norma_auditada", 
                           "item_de_verificacao", "Status", "observacao"]
             
             if audit_data and len(audit_data) > 1:
-                # Usa o cabeçalho real da planilha para o DataFrame inicial
                 header = audit_data[0]
-                # Pega apenas o número de colunas que temos no cabeçalho lido, ignorando as extras
                 num_valid_cols = len(header)
-                
-                # Limpa os dados, garantindo que cada linha tenha o mesmo número de colunas que o cabeçalho
                 cleaned_data = [row[:num_valid_cols] for row in audit_data[1:]]
-                
-                # Cria o DataFrame com os dados e cabeçalhos limpos
                 temp_df = pd.DataFrame(cleaned_data, columns=header)
-                
-                # Isso descarta colunas com nomes vazios ('')
                 final_cols = [col for col in audit_cols if col in temp_df.columns]
                 self.audit_df = temp_df[final_cols]
             else:
@@ -169,7 +129,7 @@ class CompanyDocsManager:
             str(arquivo_id)
         ]
         try:
-            doc_id = self.sheet_ops.adc_dados_aba(COMPANY_DOCS_SHEET_NAME, new_data)
+            doc_id = self.sheet_ops.adc_dados_aba("documentos_empresa", new_data)
             if doc_id:
                 st.cache_data.clear()
                 self.load_company_data()
