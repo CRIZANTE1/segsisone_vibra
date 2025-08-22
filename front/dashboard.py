@@ -14,6 +14,11 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
+# --- Função de Callback para garantir a atualização do estado ---
+def handle_company_selection():
+    """Atualiza o estado da empresa selecionada quando o selectbox muda."""
+    st.session_state.selected_company_id = st.session_state.company_selector
+
 def format_company_display(company_id, companies_df):
     try:
         company_row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
@@ -31,18 +36,15 @@ def display_audit_results(audit_result):
     if not audit_result: return
     summary = audit_result.get("summary", "Indefinido")
     details = audit_result.get("details", [])
-    st.markdown("---")
-    st.markdown("##### 🔍 Resultado da Auditoria Rápida")
-    if summary.lower() == 'conforme':
-        st.success(f"**Parecer da IA:** {summary}")
+    st.markdown("---"); st.markdown("##### 🔍 Resultado da Auditoria Rápida")
+    if summary.lower() == 'conforme': st.success(f"**Parecer da IA:** {summary}")
     elif 'não conforme' in summary.lower():
         st.error(f"**Parecer da IA:** {summary}")
         with st.expander("Ver detalhes da não conformidade", expanded=True):
             for item in details:
                 if item.get("status", "").lower() == "não conforme":
                     st.markdown(f"- **Item:** {item.get('item_verificacao')}\n- **Observação:** {item.get('observacao')}")
-    else:
-        st.info(f"**Parecer da IA:** {summary}")
+    else: st.info(f"**Parecer da IA:** {summary}")
 
 def show_dashboard_page():
     if not st.session_state.get('managers_initialized'):
@@ -65,11 +67,10 @@ def show_dashboard_page():
         
         st.selectbox(
             "Selecione uma empresa para ver os detalhes:",
-            options=companies_to_display['id'].tolist(),
-            format_func=lambda company_id: format_company_display(company_id, companies_to_display),
-            index=None,
-            placeholder="Selecione uma empresa...",
-            key="selected_company_id"
+            options=[None] + companies_to_display['id'].tolist(), # Adiciona None para a opção placeholder
+            format_func=lambda company_id: "Selecione uma empresa..." if company_id is None else format_company_display(company_id, companies_to_display),
+            key="company_selector",
+            on_change=handle_company_selection
         )
 
     selected_company = st.session_state.selected_company_id
@@ -209,6 +210,7 @@ def show_dashboard_page():
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
+    # As abas de upload permanecem as mesmas
     with tab_add_epi:
         if selected_company:
             if check_permission(level='editor'):
@@ -342,22 +344,4 @@ def show_dashboard_page():
                                 else: st.error("Vencimento não calculado.")
                                 display_audit_results(training_info.get('audit_result'))
                                 if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
-                                    with st.spinner("Salvando..."):
-                                        emp_id = st.session_state.Treinamento_funcionario_para_salvar
-                                        emp_name = employee_manager.get_employee_name(emp_id)
-                                        arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state.Treinamento_anexo_para_salvar, f"TRAINING_{emp_name}_{norma}_{data.strftime('%Y%m%d')}")
-                                        if arquivo_id:
-                                            training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
-                                            training_id = employee_manager.add_training(training_data)
-                                            if training_id:
-                                                st.success("Treinamento salvo!")
-                                                audit_result = training_info.get('audit_result')
-                                                if audit_result and 'não conforme' in audit_result.get("summary", "").lower():
-                                                    created = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, training_id, emp_id)
-                                                    st.info(f"{created} item(ns) de ação foram criados.")
-                                                st.session_state.force_reload = True
-                                                for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
-                                                    if key in st.session_state: del st.session_state[key]
-                                                st.rerun()
-                else: st.warning("Cadastre funcionários nesta empresa primeiro.")
-        else: st.info("Selecione uma empresa para adicionar um treinamento.")
+                                    with st.spinner("Salv
