@@ -1,11 +1,11 @@
 import streamlit as st
+import pandas as pd
 from auth.auth_utils import check_permission, get_user_role
 from gdrive.matrix_manager import MatrixManager
 from gdrive.google_api_manager import GoogleApiManager
 from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
 
 def show_admin_page():
-    st.set_page_config(page_title="Super Admin", layout="wide")
 
     if not check_permission(level='admin'): st.stop()
 

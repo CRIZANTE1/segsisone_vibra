@@ -8,7 +8,6 @@ from operations.company_docs import CompanyDocsManager
 from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
 
 def show_plano_acao_page():
-    st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
 
     st.title("📋 Gestão de Não Conformidades e Auditorias")
 

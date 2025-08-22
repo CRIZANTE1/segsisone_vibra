@@ -43,6 +43,8 @@ def main():
 
         # Obtém o papel do usuário para construir o menu dinamicamente
         user_role = get_user_role()
+        st.sidebar.write(f"DEBUG: User Role: {user_role}")
+        st.sidebar.write(f"DEBUG: Authenticated Tenant: {st.session_state.get('authenticated_tenant')}")
 
         # Se o usuário for admin, permite selecionar a unidade operacional
         if user_role == 'admin':

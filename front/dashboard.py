@@ -12,7 +12,7 @@ from analysis.nr_analyzer import NRAnalyzer
 from gdrive.gdrive_upload import GoogleDriveUploader
 from auth.auth_utils import check_permission, is_user_logged_in 
 from gdrive.matrix_manager import MatrixManager # Updated import path
-from ui.ui_helpers import (
+from ui.ui_helpers (
     mostrar_info_normas,
     highlight_expired,
     process_aso_pdf,
@@ -20,6 +20,24 @@ from ui.ui_helpers import (
     process_company_doc_pdf,
     process_epi_pdf
 )
+
+# NOVO: Função para inicializar os gerenciadores
+def initialize_managers():
+    """Cria instâncias dos gerenciadores e as armazena no session_state."""
+    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
+        return
+
+    # Usamos uma chave para verificar se já foram inicializados para esta unidade
+    current_unit_id = st.session_state.spreadsheet_id
+    if st.session_state.get('managers_initialized_for') != current_unit_id:
+        with st.spinner("Inicializando gerenciadores para a unidade..."):
+            st.session_state.employee_manager = EmployeeManager(current_unit_id, st.session_state.folder_id)
+            st.session_state.docs_manager = CompanyDocsManager(current_unit_id)
+            st.session_state.epi_manager = EPIManager(current_unit_id)
+            st.session_state.nr_analyzer = NRAnalyzer(current_unit_id)
+            st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id)
+            st.session_state.matrix_manager = MatrixManager()
+            st.session_state.managers_initialized_for = current_unit_id
 
 
 def format_company_display(company_id, companies_df):
@@ -78,13 +96,18 @@ def show_dashboard_page():
         st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
         return # Use return instead of st.stop() to allow other parts of the app to run
         
-    # Instancia os gerenciadores com o contexto do tenant
-    employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
-    docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
-    epi_manager = EPIManager(st.session_state.spreadsheet_id) # Pass spreadsheet_id
-    nr_analyzer = NRAnalyzer(st.session_state.spreadsheet_id)
-    gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id) # Pass folder_id
-    matrix_manager = MatrixManager()    
+    # --- ALTERAÇÃO PRINCIPAL ---
+    # 1. Chame a função de inicialização
+    initialize_managers()
+    
+    # 2. Use os gerenciadores a partir do st.session_state
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
+    gdrive_uploader = st.session_state.gdrive_uploader
+    matrix_manager = st.session_state.matrix_manager
+    nr_analyzer = st.session_state.nr_analyzer # Importante para os callbacks
+    # ---------------------------    
 
     
     st.title("Dashboard de Conformidade")
