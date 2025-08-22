@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, date
 from gdrive.gdrive_upload import GoogleDriveUploader
 from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
+from operations.matrix_manager import MatrixManager
 import tempfile
 import os
 import re
@@ -25,6 +26,7 @@ class EmployeeManager:
             spreadsheet_id (str): O ID da Planilha Google do tenant.
         """
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.matrix_manager = MatrixManager()
         self.load_data()
         self._pdf_analyzer = None
         self.nr20_config = {
@@ -50,18 +52,26 @@ class EmployeeManager:
 
     def log_action(self, action: str, details: dict):
         """
-        Registra uma ação do usuário na aba 'logs'.
+        Registra uma ação do usuário na aba de log centralizada.
         """
         try:
             user_email = get_user_email()
+            user_role = st.session_state.get('role', 'N/A')
+            target_uo = st.session_state.get('unit_name', 'N/A')
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_data = [timestamp, user_email, action, json.dumps(details)]
-            worksheet = self.sheet_ops._get_worksheet("logs")
-            if worksheet:
-                worksheet.append_row(log_data, value_input_option='USER_ENTERED')
+            
+            log_data = [
+                timestamp,
+                user_email,
+                user_role,
+                action,
+                json.dumps(details),
+                target_uo
+            ]
+            
+            self.matrix_manager.log_action_central(log_data)
         except Exception as e:
-            print(f"Error logging action: {e}")
-
+            print(f"Error logging action centrally: {e}")
 
     @property
     def pdf_analyzer(self):
@@ -308,7 +318,7 @@ class EmployeeManager:
             cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
             data = json.loads(cleaned_answer)
 
-            # ... (parsing logic)
+            # ... (parsing logic) 
             
             return {
                 'data': data_realizacao, 
@@ -347,7 +357,7 @@ class EmployeeManager:
             cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
             data = json.loads(cleaned_answer)
 
-            # ... (parsing logic)
+            # ... (parsing logic) 
             
             return {
                 'data_aso': data_aso, 

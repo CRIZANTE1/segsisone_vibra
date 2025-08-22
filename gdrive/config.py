@@ -12,6 +12,9 @@ MATRIX_SPREADSHEET_ID = "YOUR_MATRIX_SPREADSHEET_ID"
 # Substitua pelo ID da sua pasta central.
 CENTRAL_DRIVE_FOLDER_ID = "YOUR_CENTRAL_DRIVE_FOLDER_ID"
 
+# Nome da aba na planilha matriz para registrar os logs centralizados.
+CENTRAL_LOG_SHEET_NAME = "log_auditoria"
+
 
 def get_credentials_dict():
     """

@@ -48,3 +48,14 @@ class MatrixManager:
         Adiciona uma nova unidade na aba 'unidades'.
         """
         return self.sheet_ops.adc_dados_aba("unidades", unit_data)
+
+    def log_action_central(self, log_data: list):
+        """
+        Registra uma ação na aba de log centralizada.
+        """
+        try:
+            worksheet = self.sheet_ops._get_worksheet(CENTRAL_LOG_SHEET_NAME)
+            if worksheet:
+                worksheet.append_row(log_data, value_input_option='USER_ENTERED')
+        except Exception as e:
+            print(f"Error logging action centrally: {e}")

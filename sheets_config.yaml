@@ -66,12 +66,7 @@ sheets:
       - Ação Corretiva
       - Data de Conclusão
 
-  - name: logs
-    columns:
-      - Timestamp
-      - User Email
-      - Action
-      - Details
+  
 
   - name: documentos_empresa
     columns:
