@@ -8,12 +8,17 @@ class GoogleApiManager:
     """
     Centraliza a comunicação com as APIs do Google (Sheets e Drive).
     """
+    SCOPES = [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive'
+    ]
+
     def __init__(self):
         """
         Inicializa os serviços gspread e drive usando as credenciais.
         """
         creds_dict = get_credentials_dict()
-        self.creds = Credentials.from_service_account_info(creds_dict)
+        self.creds = Credentials.from_service_account_info(creds_dict, scopes=self.SCOPES)
         self.gspread_client = gspread.authorize(self.creds)
         self.drive_service = build('drive', 'v3', credentials=self.creds)
 
