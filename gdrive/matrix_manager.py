@@ -30,3 +30,6 @@ class MatrixManager:
 
     def get_all_units(self):
         return self.units_df.to_dict(orient='records') if not self.units_df.empty else []
+
+    def add_user(self, user_data: list):
+        return self.sheet_ops.adc_dados_aba("usuarios", user_data)

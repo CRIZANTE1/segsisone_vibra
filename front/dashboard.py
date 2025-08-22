@@ -64,9 +64,8 @@ def display_audit_results(audit_result):
             for item in details:
                 if item.get("status", "").lower() == "não conforme":
                     st.markdown(
-                        f"- **Item:** {item.get('item_verificacao')}
-"
-                        f"- **Observação:** {item.get('observacao')}"
+                        f"""- **Item:** {item.get('item_verificacao')}
+- **Observação:** {item.get('observacao')}"""
                     )
     else:
         st.info(f"**Parecer da IA:** {summary}")
