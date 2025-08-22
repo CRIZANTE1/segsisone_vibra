@@ -22,14 +22,15 @@ def show_plano_acao_page():
         st.stop()
 
     # --- Instanciação dos Gerenciadores ---
-    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
+    if not st.session_state.get('managers_initialized'):
         st.warning("Selecione uma unidade operacional para visualizar o Plano de Ação.")
         st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
-        return # Use return instead of st.stop() to allow other parts of the app to run
+        return
 
-    action_plan_manager = ActionPlanManager(st.session_state.spreadsheet_id)
-    employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
-    docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
+    # Apenas consuma os gerenciadores do st.session_state
+    action_plan_manager = st.session_state.action_plan_manager
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
 
 
     @st.dialog("Tratar Não Conformidade")
