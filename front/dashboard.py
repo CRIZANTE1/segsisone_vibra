@@ -53,23 +53,27 @@ def show_dashboard_page():
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
-    matrix_manager = st.session_state.matrix_manager
     nr_analyzer = st.session_state.nr_analyzer
     
     st.title("Dashboard de Conformidade")
     
-    selected_company = None
+    if 'selected_company_id' not in st.session_state:
+        st.session_state.selected_company_id = None
+
     if not employee_manager.companies_df.empty:
         companies_to_display = employee_manager.companies_df.sort_values(by=['status', 'nome'], ascending=[True, True])
-        selected_company = st.selectbox(
+        
+        st.selectbox(
             "Selecione uma empresa para ver os detalhes:",
             options=companies_to_display['id'].tolist(),
             format_func=lambda company_id: format_company_display(company_id, companies_to_display),
             index=None,
             placeholder="Selecione uma empresa...",
-            key="company_select"
+            key="selected_company_id"
         )
-    
+
+    selected_company = st.session_state.selected_company_id
+
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
         "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento", "Adicionar Ficha de EPI"        
     ])
@@ -83,16 +87,12 @@ def show_dashboard_page():
                     company_docs['data_emissao'] = pd.to_datetime(company_docs['data_emissao'], format='%d/%m/%Y', errors='coerce').dt.date
                     company_docs['vencimento'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
                     company_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
-                    for col in company_doc_cols:
-                        if col not in company_docs.columns: company_docs[col] = "N/A"
-                    company_docs_reordered = company_docs[company_doc_cols]
                     st.dataframe(
-                        company_docs_reordered.style.apply(highlight_expired, axis=1), 
+                        company_docs[company_doc_cols].style.apply(highlight_expired, axis=1),
                         column_config={
-                            "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
-                            "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
+                            "tipo_documento": "Documento", "data_emissao": "Emissão", "vencimento": "Vencimento",
                             "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
-                        }, 
+                        },
                         hide_index=True, use_container_width=True
                     )
                 else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
@@ -128,8 +128,7 @@ def show_dashboard_page():
                             valid_trainings['vencimento_dt'] = pd.to_datetime(valid_trainings['vencimento'], errors='coerce').dt.date
                             valid_trainings.dropna(subset=['vencimento_dt'], inplace=True)
                             if not valid_trainings.empty:
-                                expired_mask = valid_trainings['vencimento_dt'] < today
-                                trainings_expired_count = expired_mask.sum()
+                                trainings_expired_count = (valid_trainings['vencimento_dt'] < today).sum()
 
                         overall_status = 'Em Dia' if aso_status not in ['Vencido'] and trainings_expired_count == 0 else 'Pendente'
                         status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
@@ -145,9 +144,8 @@ def show_dashboard_page():
                             st.markdown("---")
                             st.markdown("##### ASO Mais Recente por Tipo")
                             if not latest_asos_by_type.empty:
-                                aso_display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
                                 st.dataframe(
-                                    latest_asos_by_type[aso_display_cols].style.apply(highlight_expired, axis=1),
+                                    latest_asos_by_type[["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]].style.apply(highlight_expired, axis=1),
                                     column_config={"tipo_aso": "Tipo", "data_aso": "Data", "vencimento": "Vencimento", "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
                                     hide_index=True, use_container_width=True
                                 )
@@ -155,9 +153,8 @@ def show_dashboard_page():
                             
                             st.markdown("##### Treinamentos Válidos (Mais Recente por Norma)")
                             if not all_trainings.empty:
-                                training_display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
                                 st.dataframe(
-                                    all_trainings[training_display_cols].style.apply(highlight_expired, axis=1),
+                                    all_trainings[["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]].style.apply(highlight_expired, axis=1),
                                     column_config={"norma": "Norma", "data": "Realização", "vencimento": "Vencimento", "tipo_treinamento": "Tipo", "carga_horaria": "C.H.", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
                                     hide_index=True, use_container_width=True
                                 )
@@ -166,8 +163,7 @@ def show_dashboard_page():
                             st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
                             all_epis = epi_manager.get_epi_by_employee(employee_id)
                             if not all_epis.empty:
-                                epi_display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
-                                st.dataframe(all_epis[epi_display_cols],
+                                st.dataframe(all_epis[["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]],
                                     column_config={"descricao_epi": "Equipamento", "ca_epi": "C.A.", "data_entrega": "Data de Entrega", "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")},
                                     hide_index=True, use_container_width=True
                                 )
@@ -204,6 +200,8 @@ def show_dashboard_page():
                                         st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
                 else:
                     st.info("Nenhum funcionário cadastrado para esta empresa.")
+        else:
+            st.info("Selecione uma empresa para visualizar os detalhes.")
 
     with tab_add_epi:
         if selected_company:
@@ -222,40 +220,31 @@ def show_dashboard_page():
                                 nome_extraido = epi_info.get('nome_funcionario', 'N/A')
                                 funcionario_selecionado_id = st.session_state.epi_funcionario_para_salvar
                                 nome_selecionado = employee_manager.get_employee_name(funcionario_selecionado_id)
-                                
                                 st.write(f"**Funcionário no PDF:** {nome_extraido}")
                                 st.write(f"**Funcionário Selecionado:** {nome_selecionado}")
-                                if nome_extraido.lower() not in nome_selecionado.lower():
-                                    st.warning("Atenção: O nome do funcionário no PDF não corresponde ao funcionário selecionado.")
-                                
-                                st.markdown("**Itens de EPI encontrados na ficha:**")
+                                if nome_extraido.lower() not in nome_selecionado.lower(): st.warning("Atenção: O nome do funcionário no PDF não corresponde ao funcionário selecionado.")
+                                st.markdown("**Itens de EPI encontrados:**")
                                 st.dataframe(pd.DataFrame(epi_info['itens_epi']), hide_index=True, use_container_width=True)
-
                                 if st.button("Confirmar e Salvar Itens da Ficha de EPI", type="primary"):
-                                    with st.spinner("Salvando Ficha de EPI..."):
-                                        anexo_epi = st.session_state.epi_anexo_para_salvar
-                                        arquivo_id = employee_manager.upload_documento_e_obter_link(anexo_epi, f"EPI_{nome_selecionado}_{date.today().strftime('%Y-%m-%d')}")
+                                    with st.spinner("Salvando..."):
+                                        arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state.epi_anexo_para_salvar, f"EPI_{nome_selecionado}_{date.today().strftime('%Y-%m-%d')}")
                                         if arquivo_id:
                                             saved_ids = epi_manager.add_epi_records(funcionario_selecionado_id, arquivo_id, epi_info['itens_epi'])
                                             if saved_ids:
-                                                st.success(f"{len(saved_ids)} item(ns) de EPI salvos com sucesso!")
+                                                st.success(f"{len(saved_ids)} item(ns) de EPI salvos!")
+                                                st.session_state.force_reload = True
                                                 for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
-                                            else: st.error("Falha ao salvar os dados na planilha.")
-                                        else: st.error("Falha no upload do anexo para o Google Drive.")
-                        else:
-                            st.error("Não foi possível extrair itens de EPI válidos do PDF.")
-                            if 'epi_info_para_salvar' in st.session_state: del st.session_state['epi_info_para_salvar']
                 else: st.warning("Cadastre funcionários nesta empresa primeiro.")
         else: st.info("Selecione uma empresa na primeira aba para adicionar Fichas de EPI.")
             
     with tab_add_doc_empresa:
         if selected_company:
             if check_permission(level='editor'):
-                st.subheader("Adicionar Documento (PGR, PCMSO, etc.)")
+                st.subheader("Adicionar Documento da Empresa")
                 company_name = employee_manager.get_company_name(selected_company)
-                st.info(f"Adicionando documento para a empresa: **{company_name}**")
+                st.info(f"Adicionando documento para: **{company_name}**")
                 st.file_uploader("Anexar Documento (PDF)", type=['pdf'], key="doc_uploader_tab", on_change=process_company_doc_pdf)
                 
                 if st.session_state.get('Doc. Empresa_info_para_salvar'):
@@ -263,23 +252,22 @@ def show_dashboard_page():
                     if doc_info and doc_info.get('data_emissao'):
                         with st.container(border=True):
                             st.markdown("### Confirme as Informações Extraídas")
-                            st.write(f"**Tipo Identificado:** {doc_info['tipo_documento']}")
+                            st.write(f"**Tipo:** {doc_info['tipo_documento']}")
                             st.write(f"**Data de Emissão:** {doc_info['data_emissao'].strftime('%d/%m/%Y')}")
-                            st.success(f"**Vencimento Calculado:** {doc_info['vencimento'].strftime('%d/%m/%Y')}")
+                            st.success(f"**Vencimento:** {doc_info['vencimento'].strftime('%d/%m/%Y')}")
                             display_audit_results(doc_info.get('audit_result'))
                             if st.button("Confirmar e Salvar Documento", type="primary"):
-                                with st.spinner("Salvando documento..."):
-                                    anexo_doc = st.session_state['Doc. Empresa_anexo_para_salvar']
-                                    arquivo_id = employee_manager.upload_documento_e_obter_link(anexo_doc, f"{doc_info['tipo_documento']}_{company_name}_{doc_info['data_emissao'].strftime('%Y%m%d')}")
+                                with st.spinner("Salvando..."):
+                                    arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state['Doc. Empresa_anexo_para_salvar'], f"{doc_info['tipo_documento']}_{company_name}_{doc_info['data_emissao'].strftime('%Y%m%d')}")
                                     if arquivo_id:
                                         doc_id = docs_manager.add_company_document(selected_company, doc_info['tipo_documento'], doc_info['data_emissao'], doc_info['vencimento'], arquivo_id)
                                         if doc_id:
+                                            st.success("Documento salvo!")
                                             audit_result = doc_info.get('audit_result')
                                             if audit_result and 'não conforme' in audit_result.get("summary", "").lower():
-                                                created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, doc_id)
-                                                st.success(f"Documento salvo! {created_count} item(ns) de ação foram criados.")
-                                            else:
-                                                st.success("Documento salvo com sucesso!")
+                                                created = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, doc_id)
+                                                st.info(f"{created} item(ns) de ação foram criados.")
+                                            st.session_state.force_reload = True
                                             for key in ['Doc. Empresa_info_para_salvar', 'Doc. Empresa_anexo_para_salvar']:
                                                 if key in st.session_state: del st.session_state[key]
                                             st.rerun()
@@ -300,26 +288,25 @@ def show_dashboard_page():
                             with st.container(border=True):
                                 st.markdown("### Confirme as Informações Extraídas")
                                 st.write(f"**Data:** {aso_info['data_aso'].strftime('%d/%m/%Y')}")
-                                st.write(f"**Tipo de ASO:** {aso_info.get('tipo_aso', 'N/A')}")
+                                st.write(f"**Tipo:** {aso_info.get('tipo_aso', 'N/A')}")
                                 if aso_info.get('vencimento'): st.success(f"**Vencimento:** {aso_info['vencimento'].strftime('%d/%m/%Y')}")
-                                else: st.info("**Vencimento:** N/A (Ex: Demissional)")
+                                else: st.info("**Vencimento:** N/A")
                                 display_audit_results(aso_info.get('audit_result'))
                                 if st.button("Confirmar e Salvar ASO", type="primary"):
-                                    with st.spinner("Salvando ASO..."):
-                                        anexo = st.session_state.ASO_anexo_para_salvar
+                                    with st.spinner("Salvando..."):
                                         emp_id = st.session_state.ASO_funcionario_para_salvar
                                         emp_name = employee_manager.get_employee_name(emp_id)
-                                        arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, f"ASO_{emp_name}_{aso_info['data_aso'].strftime('%Y%m%d')}")
+                                        arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state.ASO_anexo_para_salvar, f"ASO_{emp_name}_{aso_info['data_aso'].strftime('%Y%m%d')}")
                                         if arquivo_id:
                                             aso_data = {**aso_info, 'funcionario_id': emp_id, 'arquivo_id': arquivo_id}
                                             aso_id = employee_manager.add_aso(aso_data)
                                             if aso_id:
+                                                st.success("ASO salvo!")
                                                 audit_result = aso_info.get('audit_result')
                                                 if audit_result and 'não conforme' in audit_result.get("summary", "").lower():
-                                                    created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, aso_id, employee_id=emp_id)
-                                                    st.success(f"ASO salvo! {created_count} item(ns) de ação foram criados.")
-                                                else:
-                                                    st.success("ASO adicionado com sucesso!")
+                                                    created = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, aso_id, emp_id)
+                                                    st.info(f"{created} item(ns) de ação foram criados.")
+                                                st.session_state.force_reload = True
                                                 for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
@@ -345,28 +332,24 @@ def show_dashboard_page():
                                 vencimento = employee_manager.calcular_vencimento_treinamento(data, norma, modulo, tipo)
                                 st.write(f"**Data:** {data.strftime('%d/%m/%Y')}")
                                 st.write(f"**Norma:** {norma}")
-                                st.write(f"**Módulo:** {modulo or 'N/A'}")
-                                st.write(f"**Tipo:** {tipo}")
-                                st.write(f"**Carga Horária:** {ch} horas")
-                                if vencimento: st.success(f"**Vencimento Calculado:** {vencimento.strftime('%d/%m/%Y')}")
-                                else: st.error("Não foi possível calcular o vencimento.")
+                                if vencimento: st.success(f"**Vencimento:** {vencimento.strftime('%d/%m/%Y')}")
+                                else: st.error("Vencimento não calculado.")
                                 display_audit_results(training_info.get('audit_result'))
                                 if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
-                                    with st.spinner("Salvando Treinamento..."):
-                                        anexo = st.session_state.Treinamento_anexo_para_salvar
+                                    with st.spinner("Salvando..."):
                                         emp_id = st.session_state.Treinamento_funcionario_para_salvar
                                         emp_name = employee_manager.get_employee_name(emp_id)
-                                        arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, f"TRAINING_{emp_name}_{norma}_{data.strftime('%Y%m%d')}")
+                                        arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state.Treinamento_anexo_para_salvar, f"TRAINING_{emp_name}_{norma}_{data.strftime('%Y%m%d')}")
                                         if arquivo_id:
                                             training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
                                             training_id = employee_manager.add_training(training_data)
                                             if training_id:
+                                                st.success("Treinamento salvo!")
                                                 audit_result = training_info.get('audit_result')
                                                 if audit_result and 'não conforme' in audit_result.get("summary", "").lower():
-                                                    created_count = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, training_id, employee_id=emp_id)
-                                                    st.success(f"Treinamento salvo! {created_count} item(ns) de ação foram criados.")
-                                                else:
-                                                    st.success("Treinamento adicionado com sucesso!")
+                                                    created = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, training_id, emp_id)
+                                                    st.info(f"{created} item(ns) de ação foram criados.")
+                                                st.session_state.force_reload = True
                                                 for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
                                                     if key in st.session_state: del st.session_state[key]
                                                 st.rerun()
