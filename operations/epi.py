@@ -6,18 +6,11 @@ import os
 import re
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
-from gdrive.config import EPI_SHEET_NAME
-
-@st.cache_resource
-def get_sheet_ops_epi():
-    return SheetOperations()
 
 class EPIManager:
-    def __init__(self):
-        self.sheet_ops = get_sheet_ops_epi()
+    def __init__(self, spreadsheet_id: str):
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self._pdf_analyzer = None
-        if not self.initialize_sheets():
-            st.error("Erro ao inicializar a aba de EPIs.")
         self.load_epi_data()
 
     @property
@@ -26,27 +19,15 @@ class EPIManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    def initialize_sheets(self):
-        """Cria a aba 'fichas_epi' se ela não existir."""
-        try:
-            epi_columns = ['id', 'funcionario_id', 'item_id', 'descricao_epi', 'ca_epi', 'data_entrega', 'arquivo_id']
-            if not self.sheet_ops.carregar_dados_aba(EPI_SHEET_NAME):
-                self.sheet_ops.criar_aba(EPI_SHEET_NAME, epi_columns)
-            return True
-        except Exception as e:
-            st.error(f"Erro ao inicializar aba de EPIs: {e}")
-            return False
-
     def load_epi_data(self):
         """Carrega os dados da aba de EPIs para um DataFrame."""
         try:
-            epi_data = self.sheet_ops.carregar_dados_aba(EPI_SHEET_NAME)
+            epi_data = self.sheet_ops.carregar_dados_aba("fichas_epi")
             epi_cols = ['id', 'funcionario_id', 'item_id', 'descricao_epi', 'ca_epi', 'data_entrega', 'arquivo_id']
             self.epi_df = pd.DataFrame(epi_data[1:], columns=epi_data[0]) if epi_data and len(epi_data) > 0 else pd.DataFrame(columns=epi_cols)
         except Exception as e:
             st.error(f"Erro ao carregar dados de EPI: {str(e)}")
             self.epi_df = pd.DataFrame()
-
 
     def get_epi_by_employee(self, employee_id):
         """
@@ -157,7 +138,7 @@ class EPIManager:
             ]
             try:
                 # Note que a função adc_dados_aba adiciona o ID principal automaticamente
-                new_id = self.sheet_ops.adc_dados_aba(EPI_SHEET_NAME, new_data)
+                new_id = self.sheet_ops.adc_dados_aba("fichas_epi", new_data)
                 if new_id:
                     saved_ids.append(new_id)
             except Exception as e:

@@ -74,16 +74,16 @@ def display_audit_results(audit_result):
 def front_page():
     
     if 'employee_manager' not in st.session_state:
-        st.session_state.employee_manager = EmployeeManager()
+        st.session_state.employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
     if 'docs_manager' not in st.session_state:
-        st.session_state.docs_manager = CompanyDocsManager()
+        st.session_state.docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
     if 'epi_manager' not in st.session_state:
-        st.session_state.epi_manager = EPIManager()
+        st.session_state.epi_manager = EPIManager(st.session_state.spreadsheet_id) # Pass spreadsheet_id
     if 'nr_analyzer' not in st.session_state:
         st.session_state.nr_analyzer = NRAnalyzer()
     if 'gdrive_uploader' not in st.session_state:
-        st.session_state.gdrive_uploader = GoogleDriveUploader()
-    if 'matrix_manager' not in st.session_state: 
+        st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id) # Pass folder_id
+    if 'matrix_manager' not in st.session_state:
         st.session_state.matrix_manager = MatrixManager()    
 
     employee_manager = st.session_state.employee_manager
