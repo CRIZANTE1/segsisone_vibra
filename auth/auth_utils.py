@@ -42,9 +42,10 @@ def authenticate_user() -> bool:
 
     if unit_name == '*':
         st.session_state.unit_name = 'Global'
-        st.session_state.spreadsheet_id = MATRIX_SPREADSHEET_ID
-        st.session_state.folder_id = CENTRAL_DRIVE_FOLDER_ID
+        st.session_state.spreadsheet_id = None # O spreadsheet_id começa como Nulo
+        st.session_state.folder_id = None      # O folder_id começa como Nulo
     else:
+        # Para usuários normais, carrega diretamente o contexto da sua unidade.
         unit_info = matrix_manager.get_unit_info(unit_name)
         if not unit_info:
             st.error(f"A unidade '{unit_name}' associada ao seu usuário não foi encontrada.")
