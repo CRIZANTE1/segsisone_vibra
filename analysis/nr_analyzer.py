@@ -60,11 +60,11 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
         return pd.DataFrame(), None
 
 class NRAnalyzer:
-    def __init__(self):
+    def __init__(self, spreadsheet_id: str):
         self.pdf_analyzer = PDFQA()
         from operations.sheet import SheetOperations
-        self.sheet_ops = SheetOperations()
-        self.action_plan_manager = ActionPlanManager()
+        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.action_plan_manager = ActionPlanManager(spreadsheet_id)
 
         self.rag_sheet_id = None
         self.rag_df = pd.DataFrame()

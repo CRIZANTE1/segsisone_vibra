@@ -13,6 +13,7 @@ if root_dir not in sys.path:
 # --- Importação das Funções de Página ---
 from auth.login_page import show_login_page, show_user_header, show_logout_button
 from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
+from gdrive.matrix_manager import MatrixManager # Import MatrixManager
 from front.dashboard import show_dashboard_page
 from front.administracao import show_admin_page
 from front.plano_de_acao import show_plano_acao_page
@@ -42,7 +43,48 @@ def main():
 
         # Obtém o papel do usuário para construir o menu dinamicamente
         user_role = get_user_role()
-        
+
+        # Se o usuário for admin, permite selecionar a unidade operacional
+        if user_role == 'admin':
+            matrix_manager = MatrixManager()
+            all_units = matrix_manager.get_all_units()
+            unit_options = [unit['nome_unidade'] for unit in all_units] # Get names for selectbox
+            unit_options.insert(0, 'Global') # Add Global option at the beginning
+
+            # Find the index of the currently selected unit in the options list
+            current_unit_name = st.session_state.get('unit_name', 'Global')
+            try:
+                default_index = unit_options.index(current_unit_name)
+            except ValueError:
+                default_index = 0 # Default to Global if current unit not found
+
+            selected_admin_unit = st.selectbox(
+                "Operar como Unidade:",
+                options=unit_options,
+                index=default_index,
+                key="admin_unit_selector"
+            )
+
+            # Update session state based on admin selection
+            if selected_admin_unit != current_unit_name:
+                if selected_admin_unit == 'Global':
+                    st.session_state.unit_name = 'Global'
+                    st.session_state.spreadsheet_id = None
+                    st.session_state.folder_id = None
+                else:
+                    selected_unit_info = matrix_manager.get_unit_info(selected_admin_unit)
+                    if selected_unit_info:
+                        st.session_state.unit_name = selected_unit_info['nome_unidade']
+                        st.session_state.spreadsheet_id = selected_unit_info['spreadsheet_id']
+                        st.session_state.folder_id = selected_unit_info['folder_id']
+                    else:
+                        # Fallback if unit info not found (shouldn't happen if get_all_units is reliable)
+                        st.error(f"Informações para a unidade '{selected_admin_unit}' não encontradas.")
+                        st.session_state.unit_name = 'Global'
+                        st.session_state.spreadsheet_id = None
+                        st.session_state.folder_id = None
+                st.rerun() # Rerun to apply the new unit context
+
         # Opções de menu visíveis para todos
         menu_items = {
             "Dashboard": {"icon": "clipboard2-data-fill", "function": show_dashboard_page},

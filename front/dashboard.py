@@ -75,14 +75,14 @@ def show_dashboard_page():
     
     if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
-        st.info("Administradores globais devem usar o seletor na barra lateral.")
+        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
         return # Use return instead of st.stop() to allow other parts of the app to run
         
     # Instancia os gerenciadores com o contexto do tenant
     employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
     docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
     epi_manager = EPIManager(st.session_state.spreadsheet_id) # Pass spreadsheet_id
-    nr_analyzer = NRAnalyzer()
+    nr_analyzer = NRAnalyzer(st.session_state.spreadsheet_id)
     gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id) # Pass folder_id
     matrix_manager = MatrixManager()    
 
