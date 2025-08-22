@@ -24,7 +24,7 @@ if not check_permission(level='editor'):
 # --- Instanciação dos Gerenciadores ---
 if 'spreadsheet_id' in st.session_state and st.session_state.spreadsheet_id:
     action_plan_manager = ActionPlanManager(st.session_state.spreadsheet_id)
-    employee_manager = EmployeeManager(st.session_state.spreadsheet_id)
+    employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
     docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
 else:
     st.warning("Nenhuma unidade selecionada ou o usuário é um admin global.")

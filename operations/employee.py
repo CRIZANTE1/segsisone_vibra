@@ -19,14 +19,16 @@ except locale.Error:
     pass
 
 class EmployeeManager:
-    def __init__(self, spreadsheet_id: str):
+    def __init__(self, spreadsheet_id: str, folder_id: str):
         """
         Gerencia funcionários, ASOs e treinamentos para um tenant específico.
         Args:
             spreadsheet_id (str): O ID da Planilha Google do tenant.
+            folder_id (str): O ID da pasta do tenant no Google Drive.
         """
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.matrix_manager = MatrixManager()
+        self.uploader = GoogleDriveUploader(folder_id)
         self.load_data()
         self._pdf_analyzer = None
         self.nr20_config = {
@@ -169,9 +171,8 @@ class EmployeeManager:
             return None
 
     def delete_training(self, training_id: str, file_url: str):
-        uploader = GoogleDriveUploader()
         if file_url and pd.notna(file_url):
-            if not uploader.delete_file_by_url(file_url):
+            if not self.uploader.delete_file_by_url(file_url):
                 st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo.")
         
         deleted = self.sheet_ops.excluir_dados_aba("treinamentos", training_id)
@@ -181,9 +182,8 @@ class EmployeeManager:
         return deleted
 
     def delete_aso(self, aso_id: str, file_url: str):
-        uploader = GoogleDriveUploader()
         if file_url and pd.notna(file_url):
-            if not uploader.delete_file_by_url(file_url):
+            if not self.uploader.delete_file_by_url(file_url):
                 st.warning("Falha ao deletar o arquivo do Google Drive, mas prosseguindo.")
 
         deleted = self.sheet_ops.excluir_dados_aba("asos", aso_id)
@@ -318,7 +318,7 @@ class EmployeeManager:
             cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
             data = json.loads(cleaned_answer)
 
-            # ... (parsing logic) 
+            # ... (parsing logic)
             
             return {
                 'data': data_realizacao, 
@@ -357,7 +357,7 @@ class EmployeeManager:
             cleaned_answer = answer.strip().replace("```json", "").replace("```", "")
             data = json.loads(cleaned_answer)
 
-            # ... (parsing logic) 
+            # ... (parsing logic)
             
             return {
                 'data_aso': data_aso, 

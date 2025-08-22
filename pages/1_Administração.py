@@ -27,7 +27,7 @@ if not check_permission(level='admin'):
 
 # --- Instanciação dos Gerenciadores ---
 if 'spreadsheet_id' in st.session_state and st.session_state.spreadsheet_id:
-    employee_manager = EmployeeManager(st.session_state.spreadsheet_id)
+    employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
     matrix_manager = MatrixManager() # MatrixManager does not need spreadsheet_id
     nr_analyzer = NRAnalyzer() # NRAnalyzer does not need spreadsheet_id
 else:
