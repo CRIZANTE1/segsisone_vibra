@@ -24,20 +24,18 @@ from ui.ui_helpers import (
 # NOVO: Função para inicializar os gerenciadores
 def initialize_managers():
     """Cria instâncias dos gerenciadores e as armazena no session_state."""
-    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
+        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
         return
-
-    # Usamos uma chave para verificar se já foram inicializados para esta unidade
-    current_unit_id = st.session_state.spreadsheet_id
-    if st.session_state.get('managers_initialized_for') != current_unit_id:
-        with st.spinner("Inicializando gerenciadores para a unidade..."):
-            st.session_state.employee_manager = EmployeeManager(current_unit_id, st.session_state.folder_id)
-            st.session_state.docs_manager = CompanyDocsManager(current_unit_id)
-            st.session_state.epi_manager = EPIManager(current_unit_id)
-            st.session_state.nr_analyzer = NRAnalyzer(current_unit_id)
-            st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id)
-            st.session_state.matrix_manager = MatrixManager()
-            st.session_state.managers_initialized_for = current_unit_id
+        
+    # Agora, consumimos TODOS os gerenciadores que já existem na sessão
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
+    gdrive_uploader = st.session_state.gdrive_uploader
+    matrix_manager = st.session_state.matrix_manager # <--- Erro anterior acontecia aqui
+    nr_analyzer = st.session_state.nr_analyzer
 
 
 def format_company_display(company_id, companies_df):
