@@ -18,6 +18,32 @@ def show_super_admin_page():
     # Garante que apenas admins globais possam provisionar novas unidades
     is_global_admin = st.session_state.get('unit_name') == 'Global'
 
+    # --- Sidebar para seleção de unidade (apenas para admins globais) ---
+    if is_global_admin:
+        st.sidebar.header("Trocar Contexto de Unidade")
+        matrix_manager = MatrixManager()
+        all_units = matrix_manager.get_all_units()
+        
+        unit_options = {"Global": {"nome_unidade": "Global", "spreadsheet_id": None, "folder_id": None}}
+        for unit in all_units:
+            unit_options[unit['nome_unidade']] = unit
+
+        selected_unit_name = st.sidebar.selectbox(
+            "Selecione uma Unidade Operacional:",
+            options=list(unit_options.keys()),
+            index=list(unit_options.keys()).index(st.session_state.get('unit_name', 'Global')),
+            key="super_admin_unit_selector"
+        )
+
+        if st.sidebar.button("Aplicar Seleção"):
+            selected_unit_info = unit_options[selected_unit_name]
+            st.session_state.unit_name = selected_unit_info['nome_unidade']
+            st.session_state.spreadsheet_id = selected_unit_info['spreadsheet_id']
+            st.session_state.folder_id = selected_unit_info['folder_id']
+            st.session_state.authenticated = True # Re-autentica a sessão com o novo contexto
+            st.rerun() # Recarrega a página para aplicar o novo contexto
+        st.sidebar.markdown("---")
+
     tab1, tab2 = st.tabs(["🏢 Gestão de Unidades", "➕ Provisionar Nova Unidade"])
 
     with tab1:

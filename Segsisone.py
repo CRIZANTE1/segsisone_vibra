@@ -36,14 +36,15 @@ def main():
             show_user_header()
             show_logout_button()
 
-            # Se o usuário for um admin global, não mostramos a página principal.
-            # O Super_Admin.py será a sua "homepage".
+            # Se o usuário for um admin global E NÃO tiver selecionado uma unidade específica,
+            # mostra a mensagem de admin global.
+            # Caso contrário (usuário normal OU admin global que selecionou uma unidade),
+            # mostra a front_page.
             if is_admin() and st.session_state.get('unit_name') == 'Global':
                 st.title("Painel de Super Administração")
                 st.info("Selecione uma das páginas de administração na barra lateral.")
-                st.warning("Você está logado como Administrador Global. As páginas de operação de tenant não estão disponíveis.")
+                st.warning("Você está logado como Administrador Global. As páginas de operação de tenant não estão disponíveis diretamente. Use o seletor de unidade na barra lateral para operar em um tenant específico.")
             else:
-                # Usuários normais e admins de unidade veem a página principal.
                 front_page()
         else:
             # Se a autenticação falhar (usuário não encontrado, etc.), o auth_utils já mostrou o erro.

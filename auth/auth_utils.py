@@ -30,8 +30,9 @@ def authenticate_user() -> bool:
     if not user_email:
         return False
 
-    # Se já autenticado, não faz nada.
-    if 'authenticated' in st.session_state and st.session_state.authenticated:
+    # Se já autenticado E um contexto de unidade já foi definido (pelo Super Admin ou login normal),
+    # não faz nada. Isso permite que o Super Admin troque de contexto.
+    if st.session_state.get('authenticated') and st.session_state.get('unit_name') is not None:
         return True
 
     matrix_manager = MatrixManager()

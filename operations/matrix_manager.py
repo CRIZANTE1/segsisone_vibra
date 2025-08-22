@@ -49,6 +49,14 @@ class MatrixManager:
         """
         return self.sheet_ops.adc_dados_aba("unidades", unit_data)
 
+    def get_all_units(self) -> list[dict]:
+        """
+        Retorna uma lista de todos os tenants (unidades) cadastrados.
+        """
+        if not self.units_df.empty:
+            return self.units_df.to_dict(orient='records')
+        return []
+
     def log_action_central(self, log_data: list):
         """
         Registra uma ação na aba de log centralizada.
