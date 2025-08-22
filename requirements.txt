@@ -17,4 +17,4 @@ scikit-learn
 python-dateutil
 fuzzywuzzy
 python-Levenshtein
-
+pyyaml
