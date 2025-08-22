@@ -1,5 +1,6 @@
 import streamlit as st
 from gdrive.matrix_manager import MatrixManager # Import the new manager
+from gdrive.config import MATRIX_SPREADSHEET_ID, CENTRAL_DRIVE_FOLDER_ID
 
 def is_oidc_available():
     """Verifica se o login OIDC está configurado e disponível."""
@@ -41,8 +42,8 @@ def authenticate_user() -> bool:
 
     if unit_name == '*':
         st.session_state.unit_name = 'Global'
-        st.session_state.spreadsheet_id = None
-        st.session_state.folder_id = None
+        st.session_state.spreadsheet_id = MATRIX_SPREADSHEET_ID
+        st.session_state.folder_id = CENTRAL_DRIVE_FOLDER_ID
     else:
         unit_info = matrix_manager.get_unit_info(unit_name)
         if not unit_info:
