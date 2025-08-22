@@ -18,3 +18,4 @@ python-dateutil
 fuzzywuzzy
 python-Levenshtein
 pyyaml
+streamlit-option-menu

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, date
 from gdrive.gdrive_upload import GoogleDriveUploader
 from AI.api_Operation import PDFQA
 from operations.sheet import SheetOperations
-from operations.matrix_manager import MatrixManager
+from gdrive.matrix_manager import MatrixManager
 import tempfile
 import os
 import re
@@ -71,7 +71,7 @@ class EmployeeManager:
                 target_uo
             ]
             
-            self.matrix_manager.log_action_central(log_data)
+            # self.matrix_manager.log_action_central(log_data) # Removed as MatrixManager no longer handles central logging in this multi-tenant setup.
         except Exception as e:
             print(f"Error logging action centrally: {e}")
 

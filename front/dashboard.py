@@ -11,7 +11,7 @@ from analysis.nr_analyzer import NRAnalyzer
 
 from gdrive.gdrive_upload import GoogleDriveUploader
 from auth.auth_utils import check_permission, is_user_logged_in 
-from operations.matrix_manager import MatrixManager
+from gdrive.matrix_manager import MatrixManager # Updated import path
 from ui.ui_helpers import (
     mostrar_info_normas,
     highlight_expired,
@@ -64,37 +64,31 @@ def display_audit_results(audit_result):
             for item in details:
                 if item.get("status", "").lower() == "não conforme":
                     st.markdown(
-                        f"- **Item:** {item.get('item_verificacao')}\n"
+                        f"- **Item:** {item.get('item_verificacao')}
+"
                         f"- **Observação:** {item.get('observacao')}"
                     )
     else:
         st.info(f"**Parecer da IA:** {summary}")
 
     
-def front_page():
+def show_dashboard_page():
     
-    if 'employee_manager' not in st.session_state:
-        st.session_state.employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
-    if 'docs_manager' not in st.session_state:
-        st.session_state.docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
-    if 'epi_manager' not in st.session_state:
-        st.session_state.epi_manager = EPIManager(st.session_state.spreadsheet_id) # Pass spreadsheet_id
-    if 'nr_analyzer' not in st.session_state:
-        st.session_state.nr_analyzer = NRAnalyzer()
-    if 'gdrive_uploader' not in st.session_state:
-        st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id) # Pass folder_id
-    if 'matrix_manager' not in st.session_state:
-        st.session_state.matrix_manager = MatrixManager()    
+    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
+        st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
+        st.info("Administradores globais devem usar o seletor na barra lateral.")
+        return # Use return instead of st.stop() to allow other parts of the app to run
+        
+    # Instancia os gerenciadores com o contexto do tenant
+    employee_manager = EmployeeManager(st.session_state.spreadsheet_id, st.session_state.folder_id)
+    docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
+    epi_manager = EPIManager(st.session_state.spreadsheet_id) # Pass spreadsheet_id
+    nr_analyzer = NRAnalyzer()
+    gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id) # Pass folder_id
+    matrix_manager = MatrixManager()    
 
-    employee_manager = st.session_state.employee_manager
-    docs_manager = st.session_state.docs_manager
-    epi_manager = st.session_state.epi_manager
-    nr_analyzer = st.session_state.nr_analyzer
-    gdrive_uploader = st.session_state.gdrive_uploader
-    matrix_manager = st.session_state.matrix_manager
     
-    
-    st.title("Gestão de Documentação Inteligente")
+    st.title("Dashboard de Conformidade")
     
     selected_company = None
     if not employee_manager.companies_df.empty:
@@ -240,7 +234,7 @@ def front_page():
                                 matched_function_name = matrix_manager.find_closest_function(employee_cargo)
                                 
                                 if not matched_function_name:
-                                    st.info(f"✅ O cargo '{employee_cargo}' não corresponde a nenhuma função com treinamentos obrigatórios na matriz.")
+                                    st.success(f"✅ O cargo '{employee_cargo}' não corresponde a nenhuma função com treinamentos obrigatórios na matriz.")
                                 else:
                                     if employee_cargo.lower() != matched_function_name.lower():
                                         st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
@@ -294,7 +288,7 @@ def front_page():
                                             
                                         if status_list:
                                             st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
-     #-------------------------------------------------------------------------------------------------------------------------------------------        
+    #-------------------------------------------------------------------------------------------------------------------------------------------
     with tab_add_epi:
         if selected_company:
             if check_permission(level='editor'):
@@ -568,4 +562,5 @@ def front_page():
                 st.error("Você não tem permissão para realizar esta ação.")
         else:
             st.info("Selecione uma empresa na primeira aba para adicionar um treinamento.")
+
 
