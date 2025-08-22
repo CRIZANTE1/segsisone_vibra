@@ -1,7 +1,10 @@
+# gdrive/google_api_manager.py (VERSÃO CORRIGIDA E COMPLETA)
+
 import streamlit as st
 import os
 import tempfile
 import yaml
+import gspread  # <-- IMPORTAÇÃO NECESSÁRIA
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -10,8 +13,8 @@ from .config import get_credentials_dict
 class GoogleApiManager:
     """
     Classe centralizada para interagir com as APIs do Google Drive e Google Sheets.
-    Esta classe é "burra" e não conhece o st.session_state. Ela opera apenas
-    com os IDs que recebe como argumentos.
+    Usa tanto a biblioteca googleapiclient (para Drive e uploads) quanto gspread
+    (para operações convenientes em planilhas).
     """
     def __init__(self):
         self.SCOPES = [
@@ -24,11 +27,29 @@ class GoogleApiManager:
                 credentials_dict,
                 scopes=self.SCOPES
             )
+            # Cliente de baixo nível para Drive e Sheets API
             self.drive_service = build('drive', 'v3', credentials=self.credentials, cache_discovery=False)
             self.sheets_service = build('sheets', 'v4', credentials=self.credentials, cache_discovery=False)
+            
+            # --- CLIENTE GSPREAD ADICIONADO AQUI ---
+            # Cliente de alto nível (gspread) para operações de planilha mais fáceis
+            self.gspread_client = gspread.authorize(self.credentials)
+
         except Exception as e:
             st.error(f"Erro crítico ao inicializar os serviços do Google: {str(e)}")
             raise
+
+    # --- MÉTODO GSPREAD (ESTAVA FALTANDO) ---
+    def open_spreadsheet(self, spreadsheet_id: str):
+        """Abre uma planilha usando gspread pelo seu ID."""
+        try:
+            return self.gspread_client.open_by_key(spreadsheet_id)
+        except gspread.exceptions.SpreadsheetNotFound:
+            st.error(f"A planilha com ID '{spreadsheet_id}' não foi encontrada.")
+            return None
+        except Exception as e:
+            st.error(f"Erro ao abrir a planilha com gspread: {e}")
+            return None
 
     # --- Métodos do Google Drive ---
 
@@ -40,7 +61,6 @@ class GoogleApiManager:
         
         temp_file_path = None
         try:
-            # Cria um arquivo temporário para garantir que o buffer seja lido corretamente
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(arquivo.name)[1]) as temp_file:
                 temp_file.write(arquivo.getvalue())
                 temp_file_path = temp_file.name
@@ -52,9 +72,7 @@ class GoogleApiManager:
             media = MediaFileUpload(temp_file_path, mimetype=arquivo.type, resumable=True)
             
             file = self.drive_service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id,webViewLink'
+                body=file_metadata, media_body=media, fields='id,webViewLink'
             ).execute()
             
             return file.get('webViewLink')
@@ -72,13 +90,9 @@ class GoogleApiManager:
     def create_folder(self, name: str, parent_folder_id: str = None):
         """Cria uma nova pasta no Google Drive e retorna seu ID."""
         try:
-            file_metadata = {
-                'name': name,
-                'mimeType': 'application/vnd.google-apps.folder'
-            }
+            file_metadata = {'name': name, 'mimeType': 'application/vnd.google-apps.folder'}
             if parent_folder_id:
                 file_metadata['parents'] = [parent_folder_id]
-            
             folder = self.drive_service.files().create(body=file_metadata, fields='id').execute()
             return folder.get('id')
         except Exception as e:
@@ -91,22 +105,28 @@ class GoogleApiManager:
             file = self.drive_service.files().get(fileId=file_id, fields='parents').execute()
             previous_parents = ",".join(file.get('parents'))
             self.drive_service.files().update(
-                fileId=file_id,
-                addParents=folder_id,
-                removeParents=previous_parents,
-                fields='id, parents'
+                fileId=file_id, addParents=folder_id, removeParents=previous_parents, fields='id, parents'
             ).execute()
         except Exception as e:
             st.error(f"Erro ao mover o arquivo para a pasta designada: {e}")
 
-    # --- Métodos do Google Sheets ---
+    # --- Métodos do Google Sheets (API de baixo nível) ---
 
-    def create_spreadsheet(self, name: str):
+    def create_spreadsheet(self, name: str, folder_id: str = None):
         """Cria uma nova Planilha Google e retorna seu ID."""
         try:
-            spreadsheet_body = {'properties': {'title': name}}
-            spreadsheet = self.sheets_service.spreadsheets().create(body=spreadsheet_body, fields='spreadsheetId').execute()
-            return spreadsheet.get('spreadsheetId')
+            file_metadata = {
+                'name': name,
+                'mimeType': 'application/vnd.google-apps.spreadsheet'
+            }
+            if folder_id:
+                file_metadata['parents'] = [folder_id]
+                
+            spreadsheet_file = self.drive_service.files().create(
+                body=file_metadata, fields='id'
+            ).execute()
+            spreadsheet_id = spreadsheet_file.get('id')
+            return spreadsheet_id
         except Exception as e:
             st.error(f"Erro ao criar nova planilha: {e}")
             return None
@@ -117,26 +137,20 @@ class GoogleApiManager:
             with open(config_path, 'r', encoding='utf-8') as f:
                 sheets_config = yaml.safe_load(f)
 
-            requests = []
-            # Deleta a aba padrão "Página1" (sheetId 0)
-            requests.append({'deleteSheet': {'sheetId': 0}})
-            # Prepara a criação de todas as novas abas
-            for sheet_name in sheets_config.keys():
-                requests.append({'addSheet': {'properties': {'title': sheet_name}}})
-
-            body = {'requests': requests}
-            self.sheets_service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
-
-            # Adiciona os cabeçalhos em cada nova aba
-            data_to_write = []
-            for sheet_name, headers in sheets_config.items():
-                data_to_write.append({
-                    'range': f"{sheet_name}!A1",
-                    'values': [headers]
-                })
-
-            body = {'valueInputOption': 'USER_ENTERED', 'data': data_to_write}
-            self.sheets_service.spreadsheets().values().batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+            spreadsheet = self.open_spreadsheet(spreadsheet_id)
+            if not spreadsheet:
+                return False
+                
+            default_sheet = spreadsheet.sheet1
+            is_first = True
+            for sheet_name, columns in sheets_config.items():
+                if is_first:
+                    worksheet = default_sheet
+                    worksheet.update_title(sheet_name)
+                    is_first = False
+                else:
+                    worksheet = spreadsheet.add_worksheet(title=sheet_name, rows="1", cols=len(columns))
+                worksheet.update('A1', [columns])
             return True
 
         except Exception as e:
