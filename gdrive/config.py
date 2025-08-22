@@ -2,25 +2,16 @@ import os
 import json
 import streamlit as st
 
-# ID da pasta no Google Drive onde os arquivos serão salvos
-GDRIVE_FOLDER_ID = "1DWXCSH9G1vIfrgUIEOPWRxaHsFuhSgcs"
+# --- Configuração da Arquitetura Multi-Tenant ---
 
-# ID da planilha 
-GDRIVE_SHEETS_ID = "1Sw5EfdPIgAsPddCoHY-bO-91JyWAZpK4xW7FjZIz4Vw"
+# ID da Planilha Matriz que controla todos os tenants.
+# Substitua pelo ID da sua planilha principal.
+MATRIX_SPREADSHEET_ID = "YOUR_MATRIX_SPREADSHEET_ID"
 
+# ID da Pasta Raiz no Google Drive onde todas as pastas das unidades serão criadas.
+# Substitua pelo ID da sua pasta central.
+CENTRAL_DRIVE_FOLDER_ID = "YOUR_CENTRAL_DRIVE_FOLDER_ID"
 
-# Nome das abas na planilha
-ASO_SHEET_NAME = "asos"  # Aba para ASOs
-EMPLOYEE_SHEET_NAME = "empresas"  # Aba para empresas
-EMPLOYEE_DATA_SHEET_NAME = "funcionarios"  # Aba para funcionários
-TRAINING_SHEET_NAME = "treinamento"  # Aba para treinamentos
-ADM_SHEET_NAME = "ADM"  # Aba para administradores
-AUDIT_RESULTS_SHEET_NAME = "auditorias"
-COMPANY_DOCS_SHEET_NAME = "documentos_empresa"
-EPI_SHEET_NAME = "fichas_epi"
-ACTION_PLAN_SHEET_NAME = "planos_de_acao"
-FUNCTION_SHEET_NAME = "funcoes"
-TRAINING_MATRIX_SHEET_NAME = "matriz_treinamentos"
 
 def get_credentials_dict():
     """
@@ -64,4 +55,3 @@ def get_credentials_dict():
            
             print(f"Erro ao carregar credenciais do arquivo local: {str(e)}")
             raise
-

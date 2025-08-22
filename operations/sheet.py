@@ -2,35 +2,26 @@ import streamlit as st
 import pandas as pd
 import logging
 import random
-from gdrive.connection import connect_sheet
+from gdrive.google_api_manager import GoogleApiManager # Import the new manager
 from gspread.exceptions import WorksheetNotFound
 import gspread
 
 class SheetOperations:
-    _instance = None
-    _initialized = False
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(SheetOperations, cls).__new__(cls)
-        return cls._instance
-    
-    def __init__(self):
+    def __init__(self, spreadsheet_id: str):
         """
-        Inicializa a conexão com o Google Sheets usando a biblioteca gspread.
+        Inicializa a conexão com uma Planilha Google específica.
+        Args:
+            spreadsheet_id (str): O ID da planilha do tenant.
         """
-        if not self._initialized:
-            self.gspread_client, self.sheet_url = connect_sheet()
-            if self.gspread_client and self.sheet_url:
-                try:
-                    self.spreadsheet = self.gspread_client.open_by_url(self.sheet_url)
-                except Exception as e:
-                    self.spreadsheet = None
-                    logging.error(f"Falha ao abrir a planilha pela URL: {e}")
-            else:
-                self.spreadsheet = None
-                logging.error("Falha ao inicializar. Cliente gspread ou URL da planilha inválidos.")
-            self._initialized = True
+        if not spreadsheet_id:
+            st.error("ID da Planilha não fornecido. A aplicação não pode funcionar.")
+            self.spreadsheet = None
+            return
+
+        api_manager = GoogleApiManager()
+        self.spreadsheet = api_manager.open_spreadsheet(spreadsheet_id)
+        if not self.spreadsheet:
+            st.error(f"Não foi possível abrir ou encontrar a planilha com o ID fornecido.")
 
     def _get_worksheet(self, aba_name: str) -> gspread.Worksheet | None:
         """Helper interno para obter um objeto de worksheet de forma segura."""
@@ -47,14 +38,11 @@ class SheetOperations:
             st.error(f"Erro ao acessar a aba '{aba_name}'.")
             return None
 
-
-    @st.cache_data(ttl=60) # Cache por 60 segundos
+    @st.cache_data(ttl=60)
     def carregar_dados_aba(_self, aba_name: str) -> list | None:
         """
         Carrega todos os dados de uma aba específica usando gspread.
-        O resultado é cacheado pelo Streamlit por 60 segundos.
         """
-        
         worksheet = _self._get_worksheet(aba_name)
         if not worksheet:
             return None
@@ -65,7 +53,7 @@ class SheetOperations:
             logging.error(f"Erro ao ler dados da aba '{aba_name}' com gspread: {e}")
             st.error(f"Erro ao ler dados da aba '{aba_name}': {e}")
             return None
-            
+
     def adc_dados_aba(self, aba_name: str, new_data: list) -> int | None:
         worksheet = self._get_worksheet(aba_name)
         if not worksheet: return None
@@ -127,65 +115,8 @@ class SheetOperations:
         except Exception as e:
             logging.error(f"Erro ao excluir dados da aba '{aba_name}': {e}", exc_info=True)
             return False
-
-    def criar_aba(self, aba_name: str, columns: list) -> bool:
-        if not self.spreadsheet: return False
-        try:
-            logging.info(f"Tentando criar aba '{aba_name}' com gspread...")
-            worksheet = self.spreadsheet.add_worksheet(title=aba_name, rows="1", cols=str(len(columns)))
-            worksheet.update('A1', [columns])
-            logging.info(f"Aba '{aba_name}' criada com sucesso.")
-            return True
-        except gspread.exceptions.APIError as e:
-            if 'already exists' in str(e):
-                logging.warning(f"A aba '{aba_name}' já existe.")
-                return True
-            logging.error(f"Erro de API ao criar aba '{aba_name}': {e}", exc_info=True)
-            return False
-        except Exception as e:
-            logging.error(f"Erro inesperado ao criar aba '{aba_name}': {e}", exc_info=True)
-            return False
-
-    def add_user(self, user_data: list):
-        """Adiciona um usuário à aba 'users'."""
-        worksheet = self._get_worksheet('users')
-        if not worksheet:
-            st.error("A aba 'users' não foi encontrada para adicionar o usuário.")
-            return
-        try:
-            logging.info(f"Tentando adicionar usuário: {user_data}")
-            worksheet.append_row(user_data, value_input_option='USER_ENTERED')
-            logging.info("Usuário adicionado com sucesso.")
-            st.success("Usuário adicionado com sucesso!")
-        except Exception as e:
-            logging.error(f"Erro ao adicionar usuário: {e}", exc_info=True)
-            st.error(f"Erro ao adicionar usuário: {e}")
-
-    def remove_user(self, user_name: str):
-        """Remove um usuário da aba 'users' pelo nome."""
-        worksheet = self._get_worksheet('users')
-        if not worksheet:
-            st.error("A aba 'users' não foi encontrada para remover o usuário.")
-            return
-        try:
-            logging.info(f"Tentando remover usuário: {user_name}")
-            cell = worksheet.find(user_name)
-            if cell:
-                worksheet.delete_rows(cell.row)
-                logging.info("Usuário removido com sucesso.")
-                st.success("Usuário removido com sucesso!")
-            else:
-                st.error("Usuário não encontrado na aba 'users'.")
-        except Exception as e:
-            logging.error(f"Erro ao remover usuário: {e}", exc_info=True)
-            st.error(f"Erro ao remover usuário: {e}")
-
-
+            
     def adc_dados_aba_em_lote(self, aba_name: str, new_data_list: list):
-        """
-        Adiciona múltiplas linhas de dados a uma aba de uma vez.
-        O Google Sheets adiciona os IDs automaticamente se a primeira coluna for 'id'.
-        """
         worksheet = self._get_worksheet(aba_name)
         if not worksheet: return None
         if not new_data_list: return []
@@ -199,7 +130,7 @@ class SheetOperations:
                 while True:
                     new_id = random.randint(10000, 99999)
                     if str(new_id) not in existing_ids:
-                        existing_ids.append(str(new_id)) # Adiciona à lista local para evitar colisões no mesmo lote
+                        existing_ids.append(str(new_id))
                         break
                 rows_to_append.append([new_id] + row_data)
             
@@ -212,25 +143,3 @@ class SheetOperations:
             logging.error(f"Erro ao adicionar dados em lote na aba '{aba_name}': {e}", exc_info=True)
             st.error(f"Erro ao adicionar dados em lote: {e}")
             return False
-
-    
-    def carregar_dados(self):
-        """Wrapper para carregar dados da aba 'control_stock'."""
-        return self.carregar_dados_aba('control_stock')
-
-    def adc_dados(self, new_data: list):
-        """Wrapper para adicionar dados à aba 'control_stock'."""
-        return self.adc_dados_aba('control_stock', new_data)
-        
-    def editar_dados(self, row_id: str, updated_data: dict):
-        """Wrapper para editar dados na aba 'control_stock'."""
-        return self.update_row_by_id('control_stock', row_id, updated_data)
-
-    def excluir_dados(self, row_id: str):
-        """Wrapper para excluir dados da aba 'control_stock'."""
-        return self.excluir_dados_aba('control_stock', row_id)
-            
-
-            
-
-

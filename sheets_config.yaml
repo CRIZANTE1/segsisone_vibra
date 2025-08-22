@@ -1,0 +1,97 @@
+sheets:
+  - name: empresas
+    columns:
+      - ID
+      - Nome
+      - CNPJ
+      - Status
+
+  - name: funcionarios
+    columns:
+      - ID
+      - Nome
+      - CPF
+      - RG
+      - Data de Nascimento
+      - Cargo
+      - Data de Admissão
+      - Status
+      - Empresa Contratada
+      - Matricula
+
+  - name: asos
+    columns:
+      - ID
+      - ID Funcionario
+      - Tipo de Exame
+      - Data de Emissão
+      - Data de Vencimento
+      - Status do ASO
+      - Nome do Médico
+      - CRM Médico
+      - Link para o Documento
+
+  - name: treinamentos
+    columns:
+      - ID
+      - ID Funcionario
+      - Nome do Treinamento
+      - Data de Realização
+      - Data de Vencimento
+      - Carga Horária
+      - Instrutor
+      - Link para o Certificado
+
+  - name: fichas_epi
+    columns:
+      - ID
+      - ID Funcionario
+      - Equipamento de Proteção Individual (EPI)
+      - CA
+      - Data de Entrega
+      - Data de Devolução
+      - Quantidade
+      - Assinatura
+
+  - name: plano_acao
+    columns:
+      - ID
+      - Origem da Não Conformidade
+      - ID do Item (ASO, Treinamento, etc.)
+      - Descrição da Pendência
+      - Responsável
+      - Data de Abertura
+      - Prazo para Conclusão
+      - Status
+      - Ação Corretiva
+      - Data de Conclusão
+
+  - name: logs
+    columns:
+      - Timestamp
+      - User Email
+      - Action
+      - Details
+
+  - name: documentos_empresa
+    columns:
+      - id
+      - empresa_id
+      - tipo_documento
+      - data_emissao
+      - vencimento
+      - arquivo_id
+
+  - name: auditorias
+    columns:
+      - id
+      - id_auditoria
+      - data_auditoria
+      - id_empresa
+      - id_documento_original
+      - id_funcionario
+      - tipo_documento
+      - norma_auditada
+      - item_de_verificacao
+      - Status
+      - observacao

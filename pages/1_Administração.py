@@ -1,33 +1,38 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
-import collections.abc 
+import collections.abc
 
 from operations.employee import EmployeeManager
 from operations.matrix_manager import MatrixManager
+from analysis.nr_analyzer import NRAnalyzer
+from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
 from ui.metrics import display_minimalist_metrics
-from analysis.nr_analyzer import NRAnalyzer 
-from auth.auth_utils import check_permission, is_user_logged_in
 
 st.set_page_config(page_title="Administração", page_icon="⚙️", layout="wide")
 
 st.title("⚙️ Painel de Administração")
 
-# --- Verificação de Segurança ---
+# --- Verificação de Segurança e Autenticação ---
 if not is_user_logged_in():
     st.warning("Por favor, faça login para acessar esta página.")
     st.stop()
+
+if not authenticate_user():
+    st.stop()
+
 if not check_permission(level='admin'):
     st.error("Você não tem permissão para acessar o painel de administração.")
     st.stop()
 
-# --- Instanciação Padronizada dos Gerenciadores ---
-@st.cache_resource
-def get_admin_managers():
-    """Instancia os gerenciadores necessários para a página de Administração."""
-    return EmployeeManager(), MatrixManager(), NRAnalyzer()
-
-employee_manager, matrix_manager, nr_analyzer = get_admin_managers()
+# --- Instanciação dos Gerenciadores ---
+if 'spreadsheet_id' in st.session_state and st.session_state.spreadsheet_id:
+    employee_manager = EmployeeManager(st.session_state.spreadsheet_id)
+    matrix_manager = MatrixManager() # MatrixManager does not need spreadsheet_id
+    nr_analyzer = NRAnalyzer() # NRAnalyzer does not need spreadsheet_id
+else:
+    st.warning("Nenhuma unidade selecionada ou o usuário é um admin global.")
+    st.stop()
 
 # --- Exibição das Métricas ---
 st.header("Visão Geral das Pendências")

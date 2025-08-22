@@ -4,9 +4,8 @@ from datetime import datetime
 
 from operations.action_plan import ActionPlanManager
 from operations.employee import EmployeeManager
-from operations.company_docs import CompanyDocsManager 
-from auth.auth_utils import check_permission, is_user_logged_in
-
+from operations.company_docs import CompanyDocsManager
+from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
 
 st.set_page_config(page_title="Plano de Ação e Auditorias", page_icon="📋", layout="wide")
 
@@ -15,15 +14,21 @@ st.title("📋 Gestão de Não Conformidades e Auditorias")
 if not is_user_logged_in():
     st.warning("Por favor, faça login para acessar esta página.")
     st.stop()
+
+if not authenticate_user():
+    st.stop()
+
 if not check_permission(level='editor'):
     st.stop()
 
-        
-@st.cache_resource
-def get_managers():
-    return ActionPlanManager(), EmployeeManager(), CompanyDocsManager()
-
-action_plan_manager, employee_manager, docs_manager = get_managers()
+# --- Instanciação dos Gerenciadores ---
+if 'spreadsheet_id' in st.session_state and st.session_state.spreadsheet_id:
+    action_plan_manager = ActionPlanManager(st.session_state.spreadsheet_id)
+    employee_manager = EmployeeManager(st.session_state.spreadsheet_id)
+    docs_manager = CompanyDocsManager(st.session_state.spreadsheet_id)
+else:
+    st.warning("Nenhuma unidade selecionada ou o usuário é um admin global.")
+    st.stop()
 
 
 @st.dialog("Tratar Não Conformidade")

@@ -178,4 +178,3 @@ class CompanyDocsManager:
         except Exception as e:
             st.error(f"Erro ao adicionar documento da empresa: {e}")
             return None
-
