@@ -6,11 +6,11 @@ import streamlit as st
 
 # ID da Planilha Matriz que controla todos os tenants.
 # Substitua pelo ID da sua planilha principal.
-MATRIX_SPREADSHEET_ID = "YOUR_MATRIX_SPREADSHEET_ID"
+MATRIX_SPREADSHEET_ID = "15DCVTsjERd2_LyXMVla6V2BeO1g_uZbvLHzecT-eZts"
 
 # ID da Pasta Raiz no Google Drive onde todas as pastas das unidades serão criadas.
 # Substitua pelo ID da sua pasta central.
-CENTRAL_DRIVE_FOLDER_ID = "YOUR_CENTRAL_DRIVE_FOLDER_ID"
+CENTRAL_DRIVE_FOLDER_ID = "1klJot9630Hxo2vWLSDGQH-QC3yux5KT5"
 
 # Nome da aba na planilha matriz para registrar os logs centralizados.
 CENTRAL_LOG_SHEET_NAME = "log_auditoria"
