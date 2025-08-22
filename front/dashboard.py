@@ -21,21 +21,22 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
-# NOVO: Função para inicializar os gerenciadores
 def initialize_managers():
     """Cria instâncias dos gerenciadores e as armazena no session_state."""
-    if not st.session_state.get('managers_initialized'):
-        st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
-        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
+    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
         return
-        
-    # Agora, consumimos TODOS os gerenciadores que já existem na sessão
-    employee_manager = st.session_state.employee_manager
-    docs_manager = st.session_state.docs_manager
-    epi_manager = st.session_state.epi_manager
-    gdrive_uploader = st.session_state.gdrive_uploader
-    matrix_manager = st.session_state.matrix_manager # <--- Erro anterior acontecia aqui
-    nr_analyzer = st.session_state.nr_analyzer
+
+    # Usamos uma chave para verificar se já foram inicializados para esta unidade
+    current_unit_id = st.session_state.spreadsheet_id
+    if st.session_state.get('managers_initialized_for') != current_unit_id:
+        with st.spinner("Inicializando gerenciadores para a unidade..."):
+            st.session_state.employee_manager = EmployeeManager(current_unit_id, st.session_state.folder_id)
+            st.session_state.docs_manager = CompanyDocsManager(current_unit_id)
+            st.session_state.epi_manager = EPIManager(current_unit_id)
+            st.session_state.nr_analyzer = NRAnalyzer(current_unit_id)
+            st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id)
+            st.session_state.matrix_manager = MatrixManager()
+            st.session_state.managers_initialized_for = current_unit_id
 
 
 def format_company_display(company_id, companies_df):
@@ -84,25 +85,19 @@ def display_audit_results(audit_result):
 
     
 def show_dashboard_page():
-    
-    if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
+    # Esta verificação é a primeira barreira
+    if not st.session_state.get('managers_initialized'):
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
         st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
         return
         
-    # --- ALTERAÇÃO PRINCIPAL ---
-    # 1. Chame a função de inicialização
-    initialize_managers()
-    
-    # 2. Use os gerenciadores a partir do st.session_state
+    # Agora, consumimos TODOS os gerenciadores que já existem na sessão
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
     gdrive_uploader = st.session_state.gdrive_uploader
-    matrix_manager = st.session_state.matrix_manager
-    nr_analyzer = st.session_state.nr_analyzer # Importante para os callbacks
-    # ---------------------------    
-
+    matrix_manager = st.session_state.matrix_manager # <--- Erro anterior acontecia aqui
+    nr_analyzer = st.session_state.nr_analyzer
     
     st.title("Dashboard de Conformidade")
     
