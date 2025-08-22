@@ -14,7 +14,6 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
-# --- Função de Callback para garantir a atualização do estado ---
 def handle_company_selection():
     """Atualiza o estado da empresa selecionada quando o selectbox muda."""
     st.session_state.selected_company_id = st.session_state.company_selector
@@ -67,7 +66,7 @@ def show_dashboard_page():
         
         st.selectbox(
             "Selecione uma empresa para ver os detalhes:",
-            options=[None] + companies_to_display['id'].tolist(), # Adiciona None para a opção placeholder
+            options=[None] + companies_to_display['id'].tolist(),
             format_func=lambda company_id: "Selecione uma empresa..." if company_id is None else format_company_display(company_id, companies_to_display),
             key="company_selector",
             on_change=handle_company_selection
@@ -88,13 +87,17 @@ def show_dashboard_page():
                     display_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                     for col in display_cols:
                         if col not in company_docs.columns: company_docs[col] = pd.NaT
+                    
+                    # --- SINTAXE CORRIGIDA AQUI ---
                     st.dataframe(
                         company_docs[display_cols].style.apply(highlight_expired, axis=1),
                         column_config={
                             "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
                             "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
-                        }, hide_index=True, use_container_width=True
+                        }, 
+                        hide_index=True, 
+                        use_container_width=True
                     )
                 else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
                 
@@ -210,7 +213,6 @@ def show_dashboard_page():
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
-    # As abas de upload permanecem as mesmas
     with tab_add_epi:
         if selected_company:
             if check_permission(level='editor'):
@@ -344,4 +346,22 @@ def show_dashboard_page():
                                 else: st.error("Vencimento não calculado.")
                                 display_audit_results(training_info.get('audit_result'))
                                 if st.button("Confirmar e Salvar Treinamento", type="primary", disabled=(vencimento is None)):
-                                    with st.spinner("Salv
+                                    with st.spinner("Salvando..."):
+                                        emp_id = st.session_state.Treinamento_funcionario_para_salvar
+                                        emp_name = employee_manager.get_employee_name(emp_id)
+                                        arquivo_id = employee_manager.upload_documento_e_obter_link(st.session_state.Treinamento_anexo_para_salvar, f"TRAINING_{emp_name}_{norma}_{data.strftime('%Y%m%d')}")
+                                        if arquivo_id:
+                                            training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
+                                            training_id = employee_manager.add_training(training_data)
+                                            if training_id:
+                                                st.success("Treinamento salvo!")
+                                                audit_result = training_info.get('audit_result')
+                                                if audit_result and 'não conforme' in audit_result.get("summary", "").lower():
+                                                    created = nr_analyzer.create_action_plan_from_audit(audit_result, selected_company, training_id, emp_id)
+                                                    st.info(f"{created} item(ns) de ação foram criados.")
+                                                st.session_state.force_reload = True
+                                                for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
+                                                    if key in st.session_state: del st.session_state[key]
+                                                st.rerun()
+                else: st.warning("Cadastre funcionários nesta empresa primeiro.")
+        else: st.info("Selecione uma empresa para adicionar um treinamento.")
