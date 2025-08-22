@@ -16,7 +16,7 @@ from front.dashboard import show_dashboard_page
 from front.administracao import show_admin_page
 from front.plano_de_acao import show_plano_acao_page
 
-# --- 1. ADICIONE AS IMPORTAÇÕES DOS GERENCIADORES AQUI ---
+# --- Importações dos Gerenciadores ---
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from operations.epi import EPIManager
@@ -33,20 +33,23 @@ def configurar_pagina():
         initial_sidebar_state="expanded"
     )
 
-# --- 2. CRIE A FUNÇÃO DE INICIALIZAÇÃO CENTRAL AQUI ---
+# --- 1. FUNÇÃO PARA GERENCIADORES GLOBAIS ---
+def initialize_global_managers():
+    """Cria instâncias de gerenciadores que são sempre necessários."""
+    if 'matrix_manager' not in st.session_state:
+        st.session_state.matrix_manager = MatrixManager()
+
+# --- 2. FUNÇÃO APENAS PARA GERENCIADORES DE TENANT ---
 def initialize_tenant_managers():
-    """
-    Cria instâncias dos gerenciadores para a unidade selecionada (tenant)
-    e as armazena no session_state para serem usadas por todas as páginas.
-    """
-    # Só executa se houver uma unidade selecionada (não no modo 'Global' inicial do admin)
+    """Cria instâncias dos gerenciadores para a unidade (tenant) selecionada."""
+    # Para se não houver unidade selecionada
     if 'spreadsheet_id' not in st.session_state or not st.session_state.spreadsheet_id:
         st.session_state.managers_initialized = False
         return
 
     current_unit_id = st.session_state.spreadsheet_id
     
-    # Recria os gerenciadores se a unidade mudou ou se eles nunca foram criados
+    # Recria os gerenciadores se a unidade mudou
     if st.session_state.get('managers_initialized_for') != current_unit_id:
         with st.spinner("Carregando dados da unidade..."):
             st.session_state.employee_manager = EmployeeManager(current_unit_id, st.session_state.folder_id)
@@ -56,11 +59,9 @@ def initialize_tenant_managers():
             st.session_state.nr_analyzer = NRAnalyzer(current_unit_id)
             st.session_state.gdrive_uploader = GoogleDriveUploader(st.session_state.folder_id)
             
-            # Guarda o ID da unidade para a qual os gerenciadores foram criados
             st.session_state.managers_initialized_for = current_unit_id
             st.session_state.managers_initialized = True
-        st.rerun() # Força um rerun para garantir que a UI reflita os novos dados carregados
-
+        
 def main():
     configurar_pagina()
 
@@ -71,15 +72,18 @@ def main():
     if not authenticate_user():
         st.stop()
 
-    # --- 3. CHAME A FUNÇÃO DE INICIALIZAÇÃO AQUI ---
-    initialize_tenant_managers()
+    # --- 3. CHAME AS FUNÇÕES DE INICIALIZAÇÃO NA ORDEM CORRETA ---
+    initialize_global_managers()  # Sempre executa
+    initialize_tenant_managers()  # Só executa se uma unidade estiver selecionada
 
-    # --- LÓGICA DO MENU DE NAVEGAÇÃO (sem alterações) ---
+    # --- LÓGICA DO MENU DE NAVEGAÇÃO ---
     with st.sidebar:
         show_user_header()
         user_role = get_user_role()
+
         if user_role == 'admin':
-            matrix_manager = MatrixManager()
+            # Usa o matrix_manager da sessão que acabamos de criar
+            matrix_manager = st.session_state.matrix_manager 
             all_units = matrix_manager.get_all_units()
             unit_options = [unit['nome_unidade'] for unit in all_units]
             unit_options.insert(0, 'Global')
