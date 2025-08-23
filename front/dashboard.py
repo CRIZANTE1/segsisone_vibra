@@ -14,6 +14,60 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
+def handle_company_selection():
+    """Atualiza o estado da empresa selecionada quando o selectbox muda."""
+    st.session_state.selected_company_id = st.session_state.company_selector
+
+def format_company_display(company_id, companies_df):
+    try:
+        company_row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
+        name = company_row['nome']
+        status = company_row.get('status', 'Ativo')
+        if str(status).lower() == 'arquivado':
+            return f"🗄️ {name} (Arquivada)"
+        else:
+            cnpj = company_row.get('cnpj', 'CNPJ não informado')
+            return f"{name} - {cnpj}"
+    except (IndexError, KeyError):
+        return f"Empresa ID {company_id} não encontrada"
+
+def display_audit_results(audit_result):
+    if not audit_result: return
+    summary = audit_result.get("summary", "Indefinido")
+    details = audit_result.get("details", [])
+    st.markdown("---"); st.markdown("##### 🔍 Resultado da Auditoria Rápida")
+    if summary.lower() == 'conforme': st.success(f"**Parecer da IA:** {summary}")
+    elif 'não conforme' in summary.lower():
+        st.error(f"**Parecer da IA:** {summary}")
+        with st.expander("Ver detalhes da não conformidade", expanded=True):
+            for item in details:
+                if item.get("status", "").lower() == "não conforme":
+                    st.markdown(f"- **Item:** {item.get('item_verificacao')}\n- **Observação:** {item.get('observacao')}")
+    else: st.info(f"**Parecer da IA:** {summary}")
+
+def show_dashboard_page():
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
+        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
+        return
+        
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
+    nr_analyzer = st.session_state.nr_analyzer
+    
+    st.title("Dashboard de Conformidade")
+    
+    if 'selected_company_id' not in st.session_state:
+        st.session_state.selected_company_id = None
+
+    if not employee_manager.companies_df.empty:
+        companies_to_display = employee_manager.companies_df.sort_values(by=['status', 'nome'], ascending=[True, True])
+        
+        st.selectbox(
+            "Selecione uma empresa para ver os detalhes:",
+            options=[None] + companies_to_display['id'].tolist(),
+            format_func=lambda company_id: "Selecione uma empresa..." if company_id is None else format_company_display(company_id, companies_to_display),
             key="company_selector"
         )
 
