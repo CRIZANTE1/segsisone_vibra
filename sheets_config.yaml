@@ -66,8 +66,6 @@ sheets:
       - Ação Corretiva
       - Data de Conclusão
 
-  
-
   - name: documentos_empresa
     columns:
       - id
