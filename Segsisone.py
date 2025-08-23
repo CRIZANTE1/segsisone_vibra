@@ -43,54 +43,31 @@ def configurar_pagina():
     )
 
 def initialize_managers():
-    """
-    Ponto central para inicializar as instâncias dos gerenciadores.
-    Não carrega dados, apenas cria os objetos com o contexto do tenant.
-    """
-    logger.debug("==== Entrando em initialize_managers() ====")
     unit_id = st.session_state.get('spreadsheet_id')
-    folder_id = st.session_state.get('folder_id')
-    managers_unit_id_cached = st.session_state.get('managers_unit_id')
-    force_reload_flag = st.session_state.get('force_reload', False)
+    folder_id = st.session_state.get('folder_id') # Keep folder_id for EmployeeManager
 
-    logger.debug(f"[initialize_managers] st.session_state.spreadsheet_id (unit_id): {unit_id}")
-    logger.debug(f"[initialize_managers] st.session_state.folder_id: {folder_id}")
-    logger.debug(f"[initialize_managers] st.session_state.managers_unit_id (cached): {managers_unit_id_cached}")
-    logger.debug(f"[initialize_managers] st.session_state.force_reload: {force_reload_flag}")
-    logger.debug(f"[initialize_managers] st.session_state.managers_initialized: {st.session_state.get('managers_initialized', False)}")
-
-    # Condição para (re)criar: a unidade mudou OU uma recarga foi solicitada.
-    should_initialize = unit_id and (managers_unit_id_cached != unit_id or force_reload_flag)
-    logger.debug(f"[initialize_managers] Condição 'should_initialize' avaliada como: {should_initialize}")
-
-    if should_initialize:
-        logger.info(f"[initialize_managers] Condição de inicialização ATENDIDA. Processando managers para a unidade: ...{unit_id[-6:]}")
-        try:
-            with st.spinner("Configurando ambiente da unidade..."):
-                st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
-                st.session_state.docs_manager = CompanyDocsManager(unit_id)
-                st.session_state.epi_manager = EPIManager(unit_id)
-                st.session_state.action_plan_manager = ActionPlanManager(unit_id)
-                st.session_state.nr_analyzer = NRAnalyzer(unit_id)
-                
-            st.session_state.managers_unit_id = unit_id
-            st.session_state.managers_initialized = True
-            st.session_state.force_reload = False # Reseta a flag
-            logger.info("[initialize_managers] Managers inicializados com sucesso.")
-        except Exception as e:
-            logger.error(f"[initialize_managers] ERRO CRÍTICO na inicialização dos managers: {e}", exc_info=True)
-            st.error(f"Não foi possível configurar o ambiente da unidade. Erro: {e}")
-            st.session_state.managers_initialized = False # Garante que o estado seja False em caso de erro
-    
+    # Se a unidade mudou, ou se managers não foram inicializados para a unidade atual, cria novas instâncias de gestores
+    if unit_id and st.session_state.get('managers_unit_id') != unit_id:
+        logger.info(f"Configurando managers para a nova unidade: ...{unit_id[-6:]}")
+        with st.spinner("Configurando ambiente da unidade..."):
+            st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
+            st.session_state.docs_manager = CompanyDocsManager(unit_id)
+            st.session_state.epi_manager = EPIManager(unit_id)
+            st.session_state.action_plan_manager = ActionPlanManager(unit_id)
+            st.session_state.nr_analyzer = NRAnalyzer(unit_id)
+            st.session_state.matrix_manager = MatrixManager() # Add MatrixManager initialization
+            
+        st.session_state.managers_unit_id = unit_id # Atualiza o ID da unidade atual
+        st.session_state.managers_initialized = True
+        logger.info("Managers inicializados com sucesso para a nova unidade.")
     elif not unit_id:
+        # Se nenhuma unidade está selecionada, garante que managers não estejam inicializados
         if st.session_state.get('managers_initialized', False):
-            logger.info("[initialize_managers] Nenhuma unidade selecionada. Resetando managers.")
+            logger.info("Nenhuma unidade selecionada. Resetando managers.")
         st.session_state.managers_initialized = False
-        logger.debug("[initialize_managers] unit_id é None, managers_initialized setado para False.")
+        logger.debug("unit_id é None, managers_initialized setado para False.")
     else:
-        logger.debug("[initialize_managers] Condição de inicialização de managers NÃO atendida (unit_id e managers_unit_id são os mesmos, sem force_reload).")
-    
-    logger.debug(f"==== Finalizando initialize_managers(). managers_initialized: {st.session_state.get('managers_initialized')}. ====")
+        logger.debug("Managers já inicializados para a unidade atual. Nenhuma ação necessária.")
 
 def main():
     configurar_pagina()

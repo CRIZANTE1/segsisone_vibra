@@ -7,11 +7,18 @@ import re
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 
+# Import the new cached loaders
+from operations.cached_loaders import (
+    load_epis_df
+)
+
 class EPIManager:
     def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self._pdf_analyzer = None
-        self.load_epi_data()
+        
+        # Load data using cached functions
+        self.epi_df = load_epis_df(spreadsheet_id)
 
     @property
     def pdf_analyzer(self):
@@ -19,15 +26,7 @@ class EPIManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    def load_epi_data(self):
-        """Carrega os dados da aba de EPIs para um DataFrame."""
-        try:
-            epi_data = self.sheet_ops.carregar_dados_aba("fichas_epi")
-            epi_cols = ['id', 'funcionario_id', 'item_id', 'descricao_epi', 'ca_epi', 'data_entrega', 'arquivo_id']
-            self.epi_df = pd.DataFrame(epi_data[1:], columns=epi_data[0]) if epi_data and len(epi_data) > 0 else pd.DataFrame(columns=epi_cols)
-        except Exception as e:
-            st.error(f"Erro ao carregar dados de EPI: {str(e)}")
-            self.epi_df = pd.DataFrame()
+    
 
     def get_epi_by_employee(self, employee_id):
         """
@@ -146,8 +145,7 @@ class EPIManager:
                 continue # Continua para o próximo item
         
         if len(saved_ids) == len(itens_epi):
-            st.cache_data.clear()
-            self.load_epi_data()
+            load_epis_df.clear() # Clear cache after addition
             return saved_ids
         
         return None # Indica que houve falha em salvar alguns itens

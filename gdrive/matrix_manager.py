@@ -25,14 +25,6 @@ class MatrixManager:
         Gerencia os dados da Planilha Matriz. Agora usa uma função em cache
         para minimizar as chamadas à API do Google Sheets.
         """
-        self.users_df = pd.DataFrame()
-        self.units_df = pd.DataFrame()
-        self._load_data_from_cache()
-
-    def _load_data_from_cache(self):
-        """
-        Carrega os dados da função em cache e os transforma em DataFrames.
-        """
         users_data, units_data = load_matrix_sheets_data()
 
         # Carrega dados dos usuários
@@ -48,6 +40,8 @@ class MatrixManager:
             self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0])
         else:
             self.units_df = pd.DataFrame(columns=expected_unit_cols)
+
+    
 
     def get_user_info(self, email: str) -> dict | None:
         if self.users_df.empty: return None
