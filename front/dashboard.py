@@ -14,23 +14,13 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
-# --- Funções de Callback para garantir a atualização do estado ---
-def handle_company_selection():
-    """Atualiza o estado da empresa selecionada quando o selectbox muda."""
-    st.session_state.selected_company_id = st.session_state.company_selector
-
 def format_company_display(company_id, companies_df):
     try:
-        company_row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
-        name = company_row['nome']
-        status = company_row.get('status', 'Ativo')
-        if str(status).lower() == 'arquivado':
-            return f"🗄️ {name} (Arquivada)"
-        else:
-            cnpj = company_row.get('cnpj', 'CNPJ não informado')
-            return f"{name} - {cnpj}"
-    except (IndexError, KeyError):
-        return f"Empresa ID {company_id} não encontrada"
+        row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
+        name, status = row.get('nome'), row.get('status', 'Ativo')
+        if str(status).lower() == 'arquivado': return f"🗄️ {name} (Arquivada)"
+        else: return f"{name} - {row.get('cnpj', 'N/A')}"
+    except (IndexError, KeyError): return f"Empresa ID {company_id}"
 
 def display_audit_results(audit_result):
     if not audit_result: return
@@ -40,18 +30,20 @@ def display_audit_results(audit_result):
     if summary.lower() == 'conforme': st.success(f"**Parecer da IA:** {summary}")
     elif 'não conforme' in summary.lower():
         st.error(f"**Parecer da IA:** {summary}")
-        with st.expander("Ver detalhes da não conformidade", expanded=True):
+        with st.expander("Ver detalhes", expanded=True):
             for item in details:
                 if item.get("status", "").lower() == "não conforme":
                     st.markdown(f"- **Item:** {item.get('item_verificacao')}\n- **Observação:** {item.get('observacao')}")
     else: st.info(f"**Parecer da IA:** {summary}")
 
 def show_dashboard_page():
+    # Barreira de proteção: Garante que os gerenciadores de tenant foram inicializados
     if not st.session_state.get('managers_initialized'):
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
-        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
+        st.info("Administradores globais podem usar o seletor na barra lateral.")
         return
         
+    # Consome os gerenciadores que o Segsisone.py já preparou
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
@@ -59,21 +51,12 @@ def show_dashboard_page():
     
     st.title("Dashboard de Conformidade")
     
-    if 'selected_company_id' not in st.session_state:
-        st.session_state.selected_company_id = None
-
-    if not employee_manager.companies_df.empty:
-        companies_to_display = employee_manager.companies_df.sort_values(by=['status', 'nome'], ascending=[True, True])
-        
-        st.selectbox(
-            "Selecione uma empresa para ver os detalhes:",
-            options=[None] + companies_to_display['id'].tolist(),
-            format_func=lambda cid: "Selecione..." if cid is None else format_company_display(cid, companies_to_display),
-            key="company_selector",
-            on_change=handle_company_selection
-        )
-
-    selected_company = st.session_state.selected_company_id
+    selected_company = st.selectbox(
+        "Selecione uma empresa para ver os detalhes:",
+        options=[None] + employee_manager.companies_df['id'].tolist(),
+        format_func=lambda cid: "Selecione..." if cid is None else format_company_display(cid, employee_manager.companies_df),
+        key="company_selector" # A chave é suficiente para o Streamlit manter o estado
+    )
 
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
         "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento", "Adicionar Ficha de EPI"        
@@ -116,10 +99,8 @@ def show_dashboard_page():
                                 if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
                                     aso_vencimento = vencimento_obj
                                     aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-                                else:
-                                    aso_status = 'Venc. Indefinido'
-                            else:
-                                aso_status = 'Apenas Demissional'
+                                else: aso_status = 'Venc. Indefinido'
+                            else: aso_status = 'Apenas Demissional'
                         
                         all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
                         trainings_total, trainings_expired_count = 0, 0
@@ -210,6 +191,7 @@ def show_dashboard_page():
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
+    # As abas de upload permanecem as mesmas
     with tab_add_epi:
         if selected_company:
             if check_permission(level='editor'):
