@@ -8,8 +8,8 @@ import tempfile
 import os
 
 class CompanyDocsManager:
-    def __init__(self, spreadsheet_id: str):
-        self.sheet_ops = SheetOperations(spreadsheet_id)
+    def __init__(self, sheet_ops: SheetOperations):
+        self.sheet_ops = sheet_ops
         self.data_loaded_successfully = False
         self.load_company_data()
         self._pdf_analyzer = None

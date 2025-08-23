@@ -19,8 +19,8 @@ except locale.Error:
     pass
 
 class EmployeeManager:
-    def __init__(self, spreadsheet_id: str, folder_id: str):
-        self.sheet_ops = SheetOperations(spreadsheet_id)
+    def __init__(self, sheet_ops: SheetOperations, folder_id: str):
+        self.sheet_ops = sheet_ops
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None

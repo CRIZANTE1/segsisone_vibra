@@ -20,6 +20,7 @@ from operations.company_docs import CompanyDocsManager
 from operations.epi import EPIManager
 from operations.action_plan import ActionPlanManager
 from analysis.nr_analyzer import NRAnalyzer
+from operations.sheet import SheetOperations
 
 def configurar_pagina():
     st.set_page_config(
@@ -48,11 +49,14 @@ def initialize_managers():
             # Limpa o cache de dados antes de recarregar
             st.cache_data.clear()
             
-            st.session_state.employee_manager = EmployeeManager(unit_id, st.session_state.folder_id)
-            st.session_state.docs_manager = CompanyDocsManager(unit_id)
-            st.session_state.epi_manager = EPIManager(unit_id)
-            st.session_state.action_plan_manager = ActionPlanManager(unit_id)
-            st.session_state.nr_analyzer = NRAnalyzer(unit_id)
+            # Create a single SheetOperations instance for the unit
+            sheet_ops = SheetOperations(unit_id)
+            
+            st.session_state.employee_manager = EmployeeManager(sheet_ops, st.session_state.folder_id)
+            st.session_state.docs_manager = CompanyDocsManager(sheet_ops)
+            st.session_state.epi_manager = EPIManager(sheet_ops)
+            st.session_state.action_plan_manager = ActionPlanManager(sheet_ops)
+            st.session_state.nr_analyzer = NRAnalyzer(sheet_ops)
             
             st.session_state.managers_unit_id = unit_id
             st.session_state.managers_initialized = True
