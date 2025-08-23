@@ -14,6 +14,7 @@ from ui.ui_helpers import (
     process_epi_pdf
 )
 
+# --- Funções de Callback para garantir a atualização do estado ---
 def handle_company_selection():
     """Atualiza o estado da empresa selecionada quando o selectbox muda."""
     st.session_state.selected_company_id = st.session_state.company_selector
@@ -67,11 +68,12 @@ def show_dashboard_page():
         st.selectbox(
             "Selecione uma empresa para ver os detalhes:",
             options=[None] + companies_to_display['id'].tolist(),
-            format_func=lambda company_id: "Selecione uma empresa..." if company_id is None else format_company_display(company_id, companies_to_display),
-            key="company_selector"
+            format_func=lambda cid: "Selecione..." if cid is None else format_company_display(cid, companies_to_display),
+            key="company_selector",
+            on_change=handle_company_selection
         )
 
-    selected_company = st.session_state.get("company_selector")
+    selected_company = st.session_state.selected_company_id
 
     tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi = st.tabs([
         "**Situação Geral**", "**Adicionar Documento da Empresa**", "Adicionar ASO", "Adicionar Treinamento", "Adicionar Ficha de EPI"        
@@ -86,17 +88,13 @@ def show_dashboard_page():
                     display_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                     for col in display_cols:
                         if col not in company_docs.columns: company_docs[col] = pd.NaT
-                    
-                    # --- SINTAXE CORRIGIDA AQUI ---
                     st.dataframe(
                         company_docs[display_cols].style.apply(highlight_expired, axis=1),
                         column_config={
                             "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
                             "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
                             "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
-                        }, 
-                        hide_index=True, 
-                        use_container_width=True
+                        }, hide_index=True, use_container_width=True
                     )
                 else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
                 
