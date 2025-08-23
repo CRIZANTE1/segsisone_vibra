@@ -2,7 +2,19 @@
 import streamlit as st
 import sys
 import os
+import logging # <-- Adicione esta importação
 from streamlit_option_menu import option_menu
+
+# --- 1. CONFIGURAÇÃO DO LOGGING ---
+# Coloque este bloco logo após as importações
+logging.basicConfig(
+    level=logging.INFO, # Nível mínimo para exibir. Use logging.DEBUG para mais detalhes.
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+# Cria um "logger" específico para nossa aplicação para não misturar com logs de bibliotecas
+logger = logging.getLogger('segsisone_app')
+# ------------------------------------
 
 # --- Configuração do Caminho (Path) ---
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +52,7 @@ def initialize_managers():
     
     # Condição para (re)criar: a unidade mudou OU uma recarga foi solicitada.
     if unit_id and (st.session_state.get('managers_unit_id') != unit_id or st.session_state.get('force_reload', False)):
+        logger.info(f"Inicializando managers para a unidade com ID: ...{unit_id[-6:]}")
         with st.spinner("Configurando ambiente da unidade..."):
             st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
             st.session_state.docs_manager = CompanyDocsManager(unit_id)
@@ -50,8 +63,11 @@ def initialize_managers():
             st.session_state.managers_unit_id = unit_id
             st.session_state.managers_initialized = True
             st.session_state.force_reload = False # Reseta a flag
+            logger.info("Managers inicializados com sucesso.")
     
     elif not unit_id:
+        if st.session_state.get('managers_initialized', False):
+            logger.info("Nenhuma unidade selecionada. Resetando managers.")
         st.session_state.managers_initialized = False
 
 def main():
@@ -91,6 +107,7 @@ def main():
             )
 
             if selected_admin_unit != current_unit_name:
+                logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
                 st.cache_data.clear() # Limpa o cache ao trocar de unidade
                 if selected_admin_unit == 'Global':
                     st.session_state.unit_name, st.session_state.spreadsheet_id, st.session_state.folder_id = 'Global', None, None
@@ -117,6 +134,7 @@ def main():
     
     page_to_run = menu_items.get(selected_page)
     if page_to_run:
+        logger.info(f"Navegando para a página: {selected_page}")
         page_to_run["function"]()
 
 if __name__ == "__main__":

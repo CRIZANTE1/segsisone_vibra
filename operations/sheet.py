@@ -6,6 +6,9 @@ from gdrive.google_api_manager import GoogleApiManager
 from gspread.exceptions import WorksheetNotFound
 import gspread
 
+# Configuração do logger para este módulo
+logger = logging.getLogger('segsisone_app.sheet_operations')
+
 class SheetOperations:
     def __init__(self, spreadsheet_id: str):
         """
@@ -15,56 +18,68 @@ class SheetOperations:
         """
         if not spreadsheet_id:
             st.error("ID da Planilha não fornecido. A aplicação não pode funcionar.")
-            logging.error("SheetOperations foi inicializado sem um spreadsheet_id.")
+            logger.error("SheetOperations foi inicializado sem um spreadsheet_id.")
             self.spreadsheet = None
             return
 
+        logger.info(f"Inicializando SheetOperations para spreadsheet_id: ...{spreadsheet_id[-6:]}")
         api_manager = GoogleApiManager()
         self.spreadsheet = api_manager.open_spreadsheet(spreadsheet_id)
         if not self.spreadsheet:
-            # Mensagem de erro clara para o usuário final
-            st.error(f"Erro: Não foi possível abrir ou encontrar a planilha com o ID fornecido. Verifique o ID na Planilha Matriz e as permissões de acesso da conta de serviço.")
-            logging.error(f"Falha ao abrir a planilha com ID: {spreadsheet_id}")
+            st.error(f"Erro: Não foi possível abrir ou encontrar a planilha. Verifique o ID na Planilha Matriz e as permissões.")
+            logger.error(f"Falha ao abrir a planilha com ID: {spreadsheet_id}")
 
     def _get_worksheet(self, aba_name: str) -> gspread.Worksheet | None:
         """Helper interno para obter um objeto de worksheet de forma segura."""
         if not self.spreadsheet:
-            # A mensagem de erro principal já foi mostrada no __init__
+            logger.warning(f"_get_worksheet chamado para '{aba_name}' mas a planilha não foi inicializada.")
             return None
         try:
+            logger.debug(f"Acessando aba '{aba_name}' na planilha '{self.spreadsheet.title}'.")
             return self.spreadsheet.worksheet(aba_name)
         except WorksheetNotFound:
-            st.error(f"Erro Crítico: A aba '{aba_name}' não foi encontrada na planilha '{self.spreadsheet.title}'. Verifique se o template da planilha da unidade está correto e completo.")
-            logging.warning(f"A aba '{aba_name}' não foi encontrada na planilha ID {self.spreadsheet.id}.")
+            st.error(f"Erro Crítico: A aba '{aba_name}' não foi encontrada na planilha. Verifique se o template da unidade está correto.")
+            logger.warning(f"A aba '{aba_name}' não foi encontrada na planilha ID {self.spreadsheet.id}.")
             return None
         except Exception as e:
             st.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}")
-            logging.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}")
+            logger.error(f"Erro inesperado ao acessar a aba '{aba_name}': {e}", exc_info=True)
             return None
 
     @st.cache_data(ttl=60)
     def carregar_dados_aba(_self, aba_name: str) -> list | None:
         """
         Carrega todos os dados de uma aba específica usando gspread.
+        Adiciona logging detalhado para monitorar o processo.
         """
+        logger.info(f"Iniciando carregamento de dados para a aba: '{aba_name}'.")
         worksheet = _self._get_worksheet(aba_name)
         if not worksheet:
-            return None # O erro já foi mostrado em _get_worksheet
+            logger.error(f"Não foi possível carregar dados porque a aba '{aba_name}' não foi encontrada ou acessada.")
+            return None 
         try:
-            logging.info(f"CACHE MISS: Lendo dados da API para a aba '{aba_name}'...")
-            return worksheet.get_all_values()
+            logger.info(f"CACHE MISS: Lendo dados da API para a aba '{aba_name}'...")
+            all_values = worksheet.get_all_values()
+            
+            if not all_values:
+                logger.warning(f"A aba '{aba_name}' foi lida com sucesso, mas está completamente vazia.")
+            elif len(all_values) == 1:
+                logger.info(f"A aba '{aba_name}' contém apenas um cabeçalho: {all_values[0]}")
+            else:
+                logger.info(f"Sucesso. {len(all_values)} linhas (incluindo cabeçalho) carregadas da aba '{aba_name}'.")
+            
+            return all_values
+            
         except Exception as e:
             st.error(f"Erro ao ler dados da aba '{aba_name}': {e}")
-            logging.error(f"Erro ao ler dados da aba '{aba_name}' com gspread: {e}")
+            logger.error(f"FALHA CRÍTICA ao ler dados da aba '{aba_name}' com gspread: {e}", exc_info=True)
             return None
             
-    # O resto do arquivo (adc_dados_aba, update_row_by_id, etc.) pode permanecer o mesmo.
-    # ... cole o resto do seu código de sheet.py aqui ...
     def adc_dados_aba(self, aba_name: str, new_data: list) -> int | None:
         worksheet = self._get_worksheet(aba_name)
         if not worksheet: return None
         try:
-            logging.info(f"Tentando adicionar dados na aba '{aba_name}' com gspread...")
+            logger.info(f"Tentando adicionar dados na aba '{aba_name}'...")
             existing_ids = worksheet.col_values(1)[1:]
             while True:
                 new_id = random.randint(10000, 99999)
@@ -73,10 +88,10 @@ class SheetOperations:
             full_row_to_add = [new_id] + new_data
             worksheet.append_row(full_row_to_add, value_input_option='USER_ENTERED')
             st.cache_data.clear()
-            logging.info(f"Dados adicionados com sucesso na aba '{aba_name}'. ID gerado: {new_id}")
+            logger.info(f"Dados adicionados com sucesso na aba '{aba_name}'. ID gerado: {new_id}")
             return new_id
         except Exception as e:
-            logging.error(f"Erro ao adicionar dados na aba '{aba_name}': {e}", exc_info=True)
+            logger.error(f"Erro ao adicionar dados na aba '{aba_name}': {e}", exc_info=True)
             st.error(f"Erro ao adicionar dados: {e}")
             return None
 
@@ -88,7 +103,7 @@ class SheetOperations:
             col_indices = {col_name: i + 1 for i, col_name in enumerate(header)}
             id_column_data = worksheet.col_values(1)
             if str(row_id) not in id_column_data:
-                logging.error(f"ID {row_id} não encontrado na aba '{aba_name}'.")
+                logger.error(f"ID {row_id} não encontrado na aba '{aba_name}'.")
                 return False
             row_number_to_update = id_column_data.index(str(row_id)) + 1
             cell_updates = []
@@ -99,10 +114,10 @@ class SheetOperations:
             if cell_updates:
                 worksheet.update_cells(cell_updates, value_input_option='USER_ENTERED')
                 st.cache_data.clear()
-            logging.info(f"Linha com ID {row_id} na aba '{aba_name}' atualizada com sucesso.")
+            logger.info(f"Linha com ID {row_id} na aba '{aba_name}' atualizada com sucesso.")
             return True
         except Exception as e:
-            logging.error(f"Erro ao atualizar linha na aba '{aba_name}': {e}", exc_info=True)
+            logger.error(f"Erro ao atualizar linha na aba '{aba_name}': {e}", exc_info=True)
             return False
 
     def excluir_dados_aba(self, aba_name: str, row_id: str) -> bool:
@@ -111,15 +126,15 @@ class SheetOperations:
         try:
             id_column_data = worksheet.col_values(1)
             if str(row_id) not in id_column_data:
-                logging.error(f"ID {row_id} não encontrado para exclusão na aba '{aba_name}'.")
+                logger.error(f"ID {row_id} não encontrado para exclusão na aba '{aba_name}'.")
                 return False
             row_number_to_delete = id_column_data.index(str(row_id)) + 1
             worksheet.delete_rows(row_number_to_delete)
             st.cache_data.clear()
-            logging.info(f"Linha com ID {row_id} da aba '{aba_name}' excluída com sucesso.")
+            logger.info(f"Linha com ID {row_id} da aba '{aba_name}' excluída com sucesso.")
             return True
         except Exception as e:
-            logging.error(f"Erro ao excluir dados da aba '{aba_name}': {e}", exc_info=True)
+            logger.error(f"Erro ao excluir dados da aba '{aba_name}': {e}", exc_info=True)
             return False
             
     def adc_dados_aba_em_lote(self, aba_name: str, new_data_list: list):
@@ -128,7 +143,7 @@ class SheetOperations:
         if not new_data_list: return []
     
         try:
-            logging.info(f"Tentando adicionar {len(new_data_list)} linhas em lote na aba '{aba_name}'...")
+            logger.info(f"Tentando adicionar {len(new_data_list)} linhas em lote na aba '{aba_name}'...")
             rows_to_append = []
             existing_ids = worksheet.col_values(1)[1:]
             
@@ -142,10 +157,10 @@ class SheetOperations:
             
             worksheet.append_rows(rows_to_append, value_input_option='USER_ENTERED')
             
-            logging.info(f"{len(rows_to_append)} linhas adicionadas com sucesso.")
+            logger.info(f"{len(rows_to_append)} linhas adicionadas com sucesso.")
             return True
     
         except Exception as e:
-            logging.error(f"Erro ao adicionar dados em lote na aba '{aba_name}': {e}", exc_info=True)
+            logger.error(f"Erro ao adicionar dados em lote na aba '{aba_name}': {e}", exc_info=True)
             st.error(f"Erro ao adicionar dados em lote: {e}")
             return False

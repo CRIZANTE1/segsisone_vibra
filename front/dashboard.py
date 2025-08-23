@@ -3,6 +3,7 @@ from datetime import date
 import pandas as pd
 from fuzzywuzzy import fuzz
 import re
+import logging
 
 from auth.auth_utils import check_permission
 from ui.ui_helpers import (
@@ -13,6 +14,8 @@ from ui.ui_helpers import (
     process_company_doc_pdf,
     process_epi_pdf
 )
+
+logger = logging.getLogger('segsisone_app.dashboard')
 
 def format_company_display(company_id, companies_df):
     try:
@@ -37,7 +40,9 @@ def display_audit_results(audit_result):
     else: st.info(f"**Parecer da IA:** {summary}")
 
 def show_dashboard_page():
+    logger.info("Iniciando a renderização da página do dashboard.")
     if not st.session_state.get('managers_initialized'):
+        logger.warning("Managers não inicializados, parando a renderização do dashboard.")
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
         st.info("Administradores globais podem usar o seletor na barra lateral.")
         return
@@ -62,131 +67,154 @@ def show_dashboard_page():
 
     with tab_situacao:
         if selected_company:
-            if check_permission(level='editor'):
-                st.subheader("Documentos da Empresa")
-                company_docs = docs_manager.get_docs_by_company(selected_company).copy()
-                if not company_docs.empty:
-                    display_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
-                    for col in display_cols:
-                        if col not in company_docs.columns: company_docs[col] = pd.NaT
-                    st.dataframe(
-                        company_docs[display_cols].style.apply(highlight_expired, axis=1),
-                        column_config={
-                            "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
-                            "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
-                        }, hide_index=True, use_container_width=True
-                    )
-                else: st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
-                
-                st.markdown("---")
-                st.subheader("Funcionários")
-                employees = employee_manager.get_employees_by_company(selected_company)
-                if not employees.empty:
-                    for index, employee in employees.iterrows():
-                        employee_id, employee_name, employee_role = employee.get('id'), employee.get('nome'), employee.get('cargo', 'N/A')
-                        today = date.today()
-                        aso_status, aso_vencimento = 'Não encontrado', None
-                        
-                        latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
-                        if not latest_asos_by_type.empty and 'tipo_aso' in latest_asos_by_type.columns:
-                            aptitude_asos = latest_asos_by_type[~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])].copy()
-                            if not aptitude_asos.empty:
-                                current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
-                                vencimento_obj = current_aptitude_aso.get('vencimento')
-                                if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
-                                    aso_vencimento = vencimento_obj
-                                    aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
-                                else: aso_status = 'Venc. Indefinido'
-                            else: aso_status = 'Apenas Demissional'
-                        
-                        all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
-                        trainings_total, trainings_expired_count = 0, 0
-                        if not all_trainings.empty and 'vencimento' in all_trainings.columns:
-                            trainings_total = len(all_trainings)
-                            valid_trainings = all_trainings.copy()
-                            valid_trainings['vencimento_dt'] = pd.to_datetime(valid_trainings['vencimento'], errors='coerce').dt.date
-                            valid_trainings.dropna(subset=['vencimento_dt'], inplace=True)
-                            if not valid_trainings.empty:
-                                trainings_expired_count = (valid_trainings['vencimento_dt'] < today).sum()
+            logger.info(f"Empresa selecionada: {selected_company}. Renderizando detalhes.")
+            try:
+                if check_permission(level='editor'):
+                    st.subheader("Documentos da Empresa")
+                    company_docs = docs_manager.get_docs_by_company(selected_company).copy()
+                    if not company_docs.empty:
+                        logger.info(f"Exibindo {len(company_docs)} documentos da empresa.")
+                        display_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
+                        for col in display_cols:
+                            if col not in company_docs.columns: company_docs[col] = pd.NaT
+                        st.dataframe(
+                            company_docs[display_cols].style.apply(highlight_expired, axis=1),
+                            column_config={
+                                "tipo_documento": "Documento", "data_emissao": st.column_config.DateColumn("Emissão", format="DD/MM/YYYY"), 
+                                "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
+                                "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
+                            }, hide_index=True, use_container_width=True
+                        )
+                    else: 
+                        logger.info("Nenhum documento de empresa encontrado.")
+                        st.info("Nenhum documento (ex: PGR, PCMSO) cadastrado para esta empresa.")
+                    
+                    st.markdown("---")
+                    st.subheader("Funcionários")
+                    employees = employee_manager.get_employees_by_company(selected_company)
+                    if not employees.empty:
+                        logger.info(f"Encontrados {len(employees)} funcionários. Iniciando loop de renderização.")
+                        for index, employee in employees.iterrows():
+                            employee_id = employee.get('id')
+                            employee_name = employee.get('nome', 'N/A')
+                            employee_cargo = employee.get('cargo', 'N/A')
+                            logger.debug(f"Processando funcionário ID: {employee_id} ({employee_name})")
 
-                        overall_status = 'Em Dia' if aso_status not in ['Vencido'] and trainings_expired_count == 0 else 'Pendente'
-                        status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
-                        expander_title = f"{status_icon} **{employee_name}** - *{employee_role}*"
-
-                        with st.expander(expander_title):
-                            num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
-                            col1, col2, col3 = st.columns(3)
-                            col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
-                            col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
-                            col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
+                            today = date.today()
+                            aso_status, aso_vencimento = 'Não encontrado', None
                             
-                            st.markdown("---")
-                            st.markdown("##### ASO Mais Recente por Tipo")
-                            if not latest_asos_by_type.empty:
-                                display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
-                                for col in display_cols:
-                                    if col not in latest_asos_by_type.columns: latest_asos_by_type[col] = "N/A"
-                                st.dataframe(
-                                    latest_asos_by_type[display_cols].style.apply(highlight_expired, axis=1),
-                                    column_config={"tipo_aso": "Tipo", "data_aso": "Data", "vencimento": "Vencimento", "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
-                                    hide_index=True, use_container_width=True
-                                )
-                            else: st.info("Nenhum ASO encontrado.")
-                            
-                            st.markdown("##### Treinamentos Válidos (Mais Recente por Norma)")
-                            if not all_trainings.empty:
-                                display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
-                                for col in display_cols:
-                                    if col not in all_trainings.columns: all_trainings[col] = "N/A"
-                                st.dataframe(
-                                    all_trainings[display_cols].style.apply(highlight_expired, axis=1),
-                                    column_config={"norma": "Norma", "data": "Realização", "vencimento": "Vencimento", "tipo_treinamento": "Tipo", "carga_horaria": "C.H.", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
-                                    hide_index=True, use_container_width=True
-                                )
-                            else: st.info("Nenhum treinamento encontrado.")
-    
-                            st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
-                            all_epis = epi_manager.get_epi_by_employee(employee_id)
-                            if not all_epis.empty:
-                                display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
-                                for col in display_cols:
-                                    if col not in all_epis.columns: all_epis[col] = "N/A"
-                                st.dataframe(all_epis[display_cols],
-                                    column_config={"descricao_epi": "Equipamento", "ca_epi": "C.A.", "data_entrega": "Data de Entrega", "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")},
-                                    hide_index=True, use_container_width=True
-                                )
-                            else: st.info("Nenhuma Ficha de EPI encontrada.")
+                            logger.debug(f"Calculando status do ASO para funcionário {employee_id}...")
+                            latest_asos_by_type = employee_manager.get_latest_aso_by_employee(employee_id)
+                            if not latest_asos_by_type.empty and 'tipo_aso' in latest_asos_by_type.columns:
+                                aptitude_asos = latest_asos_by_type[~latest_asos_by_type['tipo_aso'].str.lower().isin(['demissional'])].copy()
+                                if not aptitude_asos.empty:
+                                    current_aptitude_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
+                                    vencimento_obj = current_aptitude_aso.get('vencimento')
+                                    if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
+                                        aso_vencimento = vencimento_obj
+                                        aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
+                                    else: aso_status = 'Venc. Indefinido'
+                                else: aso_status = 'Apenas Demissional'
+                            logger.debug(f"Status do ASO calculado: {aso_status}")
 
-                            st.markdown("---")
-                            st.markdown("##### Matriz de Conformidade de Treinamentos")
-                            if not employee_cargo or employee_cargo == 'N/A':
-                                st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
-                            else:
-                                matched_function_name = employee_manager.find_closest_function(employee_cargo)
-                                if not matched_function_name:
-                                    st.success(f"✅ O cargo '{employee_cargo}' não possui treinamentos obrigatórios na matriz da unidade.")
+                            logger.debug(f"Calculando treinamentos vencidos para funcionário {employee_id}...")
+                            all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+                            trainings_total, trainings_expired_count = 0, 0
+                            if not all_trainings.empty and 'vencimento' in all_trainings.columns:
+                                trainings_total = len(all_trainings)
+                                valid_trainings = all_trainings.copy()
+                                valid_trainings['vencimento_dt'] = pd.to_datetime(valid_trainings['vencimento'], errors='coerce').dt.date
+                                valid_trainings.dropna(subset=['vencimento_dt'], inplace=True)
+                                if not valid_trainings.empty:
+                                    trainings_expired_count = (valid_trainings['vencimento_dt'] < today).sum()
+                            logger.debug(f"Treinamentos vencidos calculados: {trainings_expired_count}")
+
+                            overall_status = 'Em Dia' if aso_status not in ['Vencido'] and trainings_expired_count == 0 else 'Pendente'
+                            status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
+                            expander_title = f"{status_icon} **{employee_name}** - *{employee_cargo}*"
+
+                            with st.expander(expander_title):
+                                logger.debug(f"Renderizando expander para funcionário {employee_id}.")
+                                num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
+                                col1, col2, col3 = st.columns(3)
+                                col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma pendência", delta_color="inverse" if overall_status != 'Em Dia' else "off")
+                                col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
+                                col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
+                                
+                                st.markdown("---")
+                                st.markdown("##### ASO Mais Recente por Tipo")
+                                if not latest_asos_by_type.empty:
+                                    display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
+                                    for col in display_cols:
+                                        if col not in latest_asos_by_type.columns: latest_asos_by_type[col] = "N/A"
+                                    st.dataframe(
+                                        latest_asos_by_type[display_cols].style.apply(highlight_expired, axis=1),
+                                        column_config={"tipo_aso": "Tipo", "data_aso": "Data", "vencimento": "Vencimento", "cargo": "Cargo (ASO)", "riscos": "Riscos", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
+                                        hide_index=True, use_container_width=True
+                                    )
+                                else: st.info("Nenhum ASO encontrado.")
+                                
+                                st.markdown("##### Treinamentos Válidos (Mais Recente por Norma)")
+                                if not all_trainings.empty:
+                                    display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
+                                    for col in display_cols:
+                                        if col not in all_trainings.columns: all_trainings[col] = "N/A"
+                                    st.dataframe(
+                                        all_trainings[display_cols].style.apply(highlight_expired, axis=1),
+                                        column_config={"norma": "Norma", "data": "Realização", "vencimento": "Vencimento", "tipo_treinamento": "Tipo", "carga_horaria": "C.H.", "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")},
+                                        hide_index=True, use_container_width=True
+                                    )
+                                else: st.info("Nenhum treinamento encontrado.")
+        
+                                st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
+                                all_epis = epi_manager.get_epi_by_employee(employee_id)
+                                if not all_epis.empty:
+                                    display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
+                                    for col in display_cols:
+                                        if col not in all_epis.columns: all_epis[col] = "N/A"
+                                    st.dataframe(all_epis[display_cols],
+                                        column_config={"descricao_epi": "Equipamento", "ca_epi": "C.A.", "data_entrega": "Data de Entrega", "arquivo_id": st.column_config.LinkColumn("Ficha (PDF)", display_text="Abrir PDF")},
+                                        hide_index=True, use_container_width=True
+                                    )
+                                else: st.info("Nenhuma Ficha de EPI encontrada.")
+
+                                st.markdown("---")
+                                st.markdown("##### Matriz de Conformidade de Treinamentos")
+                                if not employee_cargo or employee_cargo == 'N/A':
+                                    st.info("O cargo deste funcionário não está cadastrado, impossibilitando a análise de matriz.")
                                 else:
-                                    if employee_cargo.lower() != matched_function_name.lower():
-                                        st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
-                                    required_trainings = employee_manager.get_required_trainings_for_function(matched_function_name)
-                                    if not required_trainings:
-                                        st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function_name}'.")
+                                    matched_function_name = employee_manager.find_closest_function(employee_cargo)
+                                    if not matched_function_name:
+                                        st.success(f"✅ O cargo '{employee_cargo}' não possui treinamentos obrigatórios na matriz da unidade.")
                                     else:
-                                        current_trainings_norms = all_trainings['norma'].dropna().tolist() if not all_trainings.empty else []
-                                        missing_trainings, status_list = [], []
-                                        for required in required_trainings:
-                                            found = any(required.lower() in current.lower() for current in current_trainings_norms)
-                                            status = "✅ Realizado" if found else "🔴 Faltante"
-                                            status_list.append({"Treinamento Obrigatório": required, "Status": status})
-                                            if not found: missing_trainings.append(required)
-                                        
-                                        if not missing_trainings: st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
-                                        else: st.error(f"⚠️ **Treinamentos Faltantes:** {', '.join(sorted(missing_trainings))}")
-                                        st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
-                else:
-                    st.info("Nenhum funcionário cadastrado para esta empresa.")
+                                        if employee_cargo.lower() != matched_function_name.lower():
+                                            st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function_name}'**")
+                                        required_trainings = employee_manager.get_required_trainings_for_function(matched_function_name)
+                                        if not required_trainings:
+                                            st.success(f"✅ Nenhum treinamento obrigatório mapeado para a função '{matched_function_name}'.")
+                                        else:
+                                            current_trainings_norms = all_trainings['norma'].dropna().tolist() if not all_trainings.empty else []
+                                            missing_trainings, status_list = [], []
+                                            for required in required_trainings:
+                                                found = any(required.lower() in current.lower() for current in current_trainings_norms)
+                                                status = "✅ Realizado" if found else "🔴 Faltante"
+                                                status_list.append({"Treinamento Obrigatório": required, "Status": status})
+                                                if not found: missing_trainings.append(required)
+                                            
+                                            if not missing_trainings: st.success("✅ Todos os treinamentos obrigatórios para esta função foram realizados.")
+                                            else: st.error(f"⚠️ **Treinamentos Faltantes:** {', '.join(sorted(missing_trainings))}")
+                                            st.dataframe(pd.DataFrame(status_list), use_container_width=True, hide_index=True)
+                        logger.info("Loop de renderização de funcionários concluído.")
+                    else:
+                        logger.info(f"Nenhum funcionário encontrado para a empresa {selected_company}.")
+                        st.info("Nenhum funcionário cadastrado para esta empresa.")
+            except Exception as e:
+                logger.error(f"ERRO NÃO TRATADO DURANTE A RENDERIZAÇÃO DA ABA 'Situação Geral': {e}", exc_info=True)
+                st.error("Ocorreu um erro inesperado ao tentar exibir os detalhes desta empresa.")
+                st.exception(e) # Mostra o traceback completo na tela do Streamlit
+
         else:
+            logger.info("Nenhuma empresa selecionada. Exibindo mensagem padrão.")
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
     with tab_add_epi:
