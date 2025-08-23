@@ -4,7 +4,7 @@ from datetime import date
 from operations.sheet import SheetOperations
 
 class ActionPlanManager:
-    def __init__(self, sheet_ops: SheetOperations):
+    def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.columns = [
             'id', 'audit_run_id', 'id_empresa', 'id_documento_original',
