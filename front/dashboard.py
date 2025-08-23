@@ -75,11 +75,12 @@ def show_dashboard_page():
                     company_docs = docs_manager.get_docs_by_company(selected_company).copy()
                     logger.debug(f"DataFrame 'company_docs': Shape: {company_docs.shape}")
                     logger.debug(f"DataFrame 'company_docs': Columns: {company_docs.columns.tolist()}")
-                    logger.debug(f"""DataFrame 'company_docs': dtypes:
-{company_docs.dtypes}""")
-                    logger.debug(f"""DataFrame 'company_docs': Null values:
-{company_docs.isnull().sum()}""")
-                    logger.debug(f"DataFrame 'company_docs': Head:\n{company_docs.head().to_string()}")
+                    logger.debug("DataFrame 'company_docs': dtypes:")
+                    logger.debug(company_docs.dtypes)
+                    logger.debug("DataFrame 'company_docs': Null values:")
+                    logger.debug(company_docs.isnull().sum())
+                    logger.debug("DataFrame 'company_docs': Head:")
+                    logger.debug(company_docs.head().to_string())
                     if not company_docs.empty:
                         logger.info(f"Exibindo {len(company_docs)} documentos da empresa.")
                         display_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
@@ -102,12 +103,12 @@ def show_dashboard_page():
                     employees = employee_manager.get_employees_by_company(selected_company)
                     logger.debug(f"DataFrame 'employees': Shape: {employees.shape}")
                     logger.debug(f"DataFrame 'employees': Columns: {employees.columns.tolist()}")
-                    logger.debug(f"""DataFrame 'employees': dtypes:
-{employees.dtypes}""")
-                    logger.debug(f"""DataFrame 'employees': Null values:
-{employees.isnull().sum()}""")
-                    logger.debug(f"DataFrame 'employees': Head:
-{employees.head().to_string()}")
+                    logger.debug("DataFrame 'employees': dtypes:")
+                    logger.debug(employees.dtypes)
+                    logger.debug("DataFrame 'employees': Null values:")
+                    logger.debug(employees.isnull().sum())
+                    logger.debug("DataFrame 'employees': Head:")
+                    logger.debug(employees.head().to_string())
                     if not employees.empty:
                         logger.info(f"Encontrados {len(employees)} funcionários. Iniciando loop de renderização.")
                         for index, employee in employees.iterrows():
@@ -162,11 +163,12 @@ def show_dashboard_page():
                                 if not latest_asos_by_type.empty:
                                     logger.debug(f"DataFrame 'latest_asos_by_type': Shape: {latest_asos_by_type.shape}")
                                     logger.debug(f"DataFrame 'latest_asos_by_type': Columns: {latest_asos_by_type.columns.tolist()}")
-                                    logger.debug(f"""DataFrame 'latest_asos_by_type': dtypes:
-{latest_asos_by_type.dtypes}""")
-                                    logger.debug(f"""DataFrame 'latest_asos_by_type': Null values:
-{latest_asos_by_type.isnull().sum()}""")
-                                    logger.debug(f"DataFrame 'latest_asos_by_type': Head:\n{latest_asos_by_type.head().to_string()}")
+                                    logger.debug("DataFrame 'latest_asos_by_type': dtypes:")
+                                    logger.debug(latest_asos_by_type.dtypes)
+                                    logger.debug("DataFrame 'latest_asos_by_type': Null values:")
+                                    logger.debug(latest_asos_by_type.isnull().sum())
+                                    logger.debug("DataFrame 'latest_asos_by_type': Head:")
+                                    logger.debug(latest_asos_by_type.head().to_string())
                                     display_cols = ["tipo_aso", "data_aso", "vencimento", "cargo", "riscos", "arquivo_id"]
                                     for col in display_cols:
                                         if col not in latest_asos_by_type.columns: latest_asos_by_type[col] = "N/A"
@@ -181,11 +183,12 @@ def show_dashboard_page():
                                 if not all_trainings.empty:
                                     logger.debug(f"DataFrame 'all_trainings': Shape: {all_trainings.shape}")
                                     logger.debug(f"DataFrame 'all_trainings': Columns: {all_trainings.columns.tolist()}")
-                                    logger.debug(f"""DataFrame 'all_trainings': dtypes:
-{all_trainings.dtypes}""")
-                                    logger.debug(f"""DataFrame 'all_trainings': Null values:
-{all_trainings.isnull().sum()}""")
-                                    logger.debug(f"DataFrame 'all_trainings': Head:\n{all_trainings.head().to_string()}")
+                                    logger.debug("DataFrame 'all_trainings': dtypes:")
+                                    logger.debug(all_trainings.dtypes)
+                                    logger.debug("DataFrame 'all_trainings': Null values:")
+                                    logger.debug(all_trainings.isnull().sum())
+                                    logger.debug("DataFrame 'all_trainings': Head:")
+                                    logger.debug(all_trainings.head().to_string())
                                     display_cols = ["norma", "data", "vencimento", "tipo_treinamento", "carga_horaria", "arquivo_id"]
                                     for col in display_cols:
                                         if col not in all_trainings.columns: all_trainings[col] = "N/A"
@@ -201,11 +204,12 @@ def show_dashboard_page():
                                 if not all_epis.empty:
                                     logger.debug(f"DataFrame 'all_epis': Shape: {all_epis.shape}")
                                     logger.debug(f"DataFrame 'all_epis': Columns: {all_epis.columns.tolist()}")
-                                    logger.debug(f"""DataFrame 'all_epis': dtypes:
-{all_epis.dtypes}""")
-                                    logger.debug(f"""DataFrame 'all_epis': Null values:
-{all_epis.isnull().sum()}""")
-                                    logger.debug(f"DataFrame 'all_epis': Head:\n{all_epis.head().to_string()}")
+                                    logger.debug("DataFrame 'all_epis': dtypes:")
+                                    logger.debug(all_epis.dtypes)
+                                    logger.debug("DataFrame 'all_epis': Null values:")
+                                    logger.debug(all_epis.isnull().sum())
+                                    logger.debug("DataFrame 'all_epis': Head:")
+                                    logger.debug(all_epis.head().to_string())
                                     display_cols = ["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"]
                                     for col in display_cols:
                                         if col not in all_epis.columns: all_epis[col] = "N/A"
@@ -243,11 +247,12 @@ def show_dashboard_page():
                                             status_list_df = pd.DataFrame(status_list)
                                             logger.debug(f"DataFrame 'status_list_df': Shape: {status_list_df.shape}")
                                             logger.debug(f"DataFrame 'status_list_df': Columns: {status_list_df.columns.tolist()}")
-                                            logger.debug(f"""DataFrame 'status_list_df': dtypes:
-{status_list_df.dtypes}""")
-                                            logger.debug(f"""DataFrame 'status_list_df': Null values:
-{status_list_df.isnull().sum()}""")
-                                            logger.debug(f"DataFrame 'status_list_df': Head:\n{status_list_df.head().to_string()}")
+                                            logger.debug("DataFrame 'status_list_df': dtypes:")
+                                            logger.debug(status_list_df.dtypes)
+                                            logger.debug("DataFrame 'status_list_df': Null values:")
+                                            logger.debug(status_list_df.isnull().sum())
+                                            logger.debug("DataFrame 'status_list_df': Head:")
+                                            logger.debug(status_list_df.head().to_string())
                                             st.dataframe(status_list_df, use_container_width=True, hide_index=True)
                         logger.info("Loop de renderização de funcionários concluído.")
                     else:
