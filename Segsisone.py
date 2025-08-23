@@ -124,6 +124,15 @@ def main():
             if selected_admin_unit != current_unit_name:
                 logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
                 st.cache_data.clear() # Limpa o cache ao trocar de unidade
+
+                # Explicitamente resetar o estado dos managers para forçar a re-inicialização
+                st.session_state.managers_initialized = False
+                if 'managers_unit_id' in st.session_state:
+                    del st.session_state.managers_unit_id
+                for key in ['employee_manager', 'docs_manager', 'epi_manager', 'action_plan_manager', 'nr_analyzer']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
                 if selected_admin_unit == 'Global':
                     st.session_state.unit_name, st.session_state.spreadsheet_id, st.session_state.folder_id = 'Global', None, None
                 else:
