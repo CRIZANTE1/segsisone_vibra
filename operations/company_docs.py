@@ -8,7 +8,7 @@ import tempfile
 import os
 
 class CompanyDocsManager:
-    def __init__(self, sheet_ops: SheetOperations):
+    def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.data_loaded_successfully = False
         self.load_company_data()
