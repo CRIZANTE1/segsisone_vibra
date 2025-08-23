@@ -45,32 +45,56 @@ class EmployeeManager:
         return self._pdf_analyzer
 
     def load_data(self):
-        """Carrega todos os DataFrames do tenant (unidade)."""
+        """Carrega todos os DataFrames do tenant (unidade), garantindo que as colunas essenciais sempre existam."""
         try:
+            # --- EMPRESAS ---
             companies_data = self.sheet_ops.carregar_dados_aba("empresas")
-            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 1 else pd.DataFrame()
+            # Define as colunas esperadas
+            expected_company_cols = ['id', 'nome', 'cnpj', 'status']
+            if companies_data and len(companies_data) > 1:
+                self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
+            else:
+                # Se a aba estiver vazia, cria um DataFrame com as colunas corretas
+                self.companies_df = pd.DataFrame(columns=expected_company_cols)
 
+            # --- FUNCIONÁRIOS ---
             employees_data = self.sheet_ops.carregar_dados_aba("funcionarios")
-            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 1 else pd.DataFrame()
+            expected_employee_cols = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao', 'status']
+            if employees_data and len(employees_data) > 1:
+                self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
+            else:
+                self.employees_df = pd.DataFrame(columns=expected_employee_cols)
 
+            # --- ASOS ---
             aso_data = self.sheet_ops.carregar_dados_aba("asos")
-            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 1 else pd.DataFrame()
+            expected_aso_cols = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
+            if aso_data and len(aso_data) > 1:
+                self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
+            else:
+                self.aso_df = pd.DataFrame(columns=expected_aso_cols)
 
+            # --- TREINAMENTOS ---
             training_data = self.sheet_ops.carregar_dados_aba("treinamentos")
-            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 1 else pd.DataFrame()
+            expected_training_cols = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'anexo', 'tipo_treinamento', 'carga_horaria']
+            if training_data and len(training_data) > 1:
+                self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
+            else:
+                self.training_df = pd.DataFrame(columns=expected_training_cols)
 
+            # --- MATRIZ DE TREINAMENTOS ---
             matrix_data = self.sheet_ops.carregar_dados_aba("matriz_treinamentos")
+            expected_matrix_cols = ['funcao', 'treinamentos_obrigatorios']
             if matrix_data and len(matrix_data) > 1:
                 self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0])
             else:
-                self.training_matrix_df = pd.DataFrame(columns=['funcao', 'treinamentos_obrigatorios'])
-
-            if not self.companies_df.empty and not self.employees_df.empty:
-                self.data_loaded_successfully = True
+                self.training_matrix_df = pd.DataFrame(columns=expected_matrix_cols)
 
         except Exception as e:
-            st.error(f"Erro ao carregar dados do tenant: {str(e)}")
+            st.error(f"Erro crítico ao carregar dados do tenant: {str(e)}")
+            # Em caso de erro, inicializa todos como vazios para evitar mais falhas
             self.companies_df, self.employees_df, self.aso_df, self.training_df, self.training_matrix_df = (pd.DataFrame() for _ in range(5))
+
+        
 
     def log_action(self, action: str, details: dict):
         try:
