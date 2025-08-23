@@ -11,6 +11,7 @@ class ActionPlanManager:
             'item_nao_conforme', 'referencia_normativa', 'plano_de_acao',
             'responsavel', 'prazo', 'status', 'data_criacao', 'data_conclusao'
         ]
+        self.data_loaded_successfully = False
         self.load_data()
 
     def load_data(self):
@@ -20,8 +21,10 @@ class ActionPlanManager:
                 df = pd.DataFrame(data[1:], columns=data[0])
                 df.columns = [col.strip().lower() for col in df.columns]
                 self.action_plan_df = df
+                self.data_loaded_successfully = True
             else:
                 self.action_plan_df = pd.DataFrame(columns=self.columns)
+                # Nao definimos como sucesso se a aba estiver vazia
         except Exception as e:
             st.error(f"Erro ao carregar dados de Planos de Ação: {e}")
             self.action_plan_df = pd.DataFrame(columns=self.columns)

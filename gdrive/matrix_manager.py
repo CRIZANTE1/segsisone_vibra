@@ -11,6 +11,7 @@ class MatrixManager:
         self.sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
         self.users_df = pd.DataFrame()
         self.units_df = pd.DataFrame()
+        self.data_loaded_successfully = False
         self._load_data()
 
     def _load_data(self):
@@ -30,6 +31,9 @@ class MatrixManager:
             self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0])
         else:
             self.units_df = pd.DataFrame(columns=['nome_unidade', 'spreadsheet_id', 'folder_id'])
+
+        if not self.users_df.empty and not self.units_df.empty:
+            self.data_loaded_successfully = True
 
     def get_user_info(self, email: str) -> dict | None:
         """Busca informações de um usuário pelo e-mail."""

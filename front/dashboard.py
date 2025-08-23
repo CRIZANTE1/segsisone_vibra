@@ -55,6 +55,14 @@ def show_dashboard_page():
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
     nr_analyzer = st.session_state.nr_analyzer
+
+    if not employee_manager.data_loaded_successfully:
+        st.warning(
+            "Atenção: Não foi possível carregar os dados de Empresas e Funcionários para esta unidade.",
+            icon="⚠️"
+        )
+        st.info("Verifique se as abas 'empresas' e 'funcionarios' existem e contêm dados na planilha do Google Sheets associada a esta unidade.")
+        return
     
     st.title("Dashboard de Conformidade")
     

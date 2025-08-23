@@ -36,6 +36,7 @@ class EmployeeManager:
             'NR-11': {'reciclagem_anos': 3}, 'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1},
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
+        self.data_loaded_successfully = False
         self.load_data()
 
     @property
@@ -63,6 +64,10 @@ class EmployeeManager:
                 self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0])
             else:
                 self.training_matrix_df = pd.DataFrame(columns=['funcao', 'treinamentos_obrigatorios'])
+
+            if not self.companies_df.empty and not self.employees_df.empty:
+                self.data_loaded_successfully = True
+
         except Exception as e:
             st.error(f"Erro ao carregar dados do tenant: {str(e)}")
             self.companies_df, self.employees_df, self.aso_df, self.training_df, self.training_matrix_df = (pd.DataFrame() for _ in range(5))

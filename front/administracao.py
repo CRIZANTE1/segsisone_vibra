@@ -18,6 +18,14 @@ def show_admin_page():
     matrix_manager = MatrixManager()
     google_api_manager = GoogleApiManager()
 
+    if not matrix_manager.data_loaded_successfully:
+        st.error(
+            "Erro Crítico: Não foi possível carregar os dados da Planilha Matriz.",
+            icon="🚨"
+        )
+        st.warning("A funcionalidade de administração não pode operar. Verifique se a planilha matriz está configurada corretamente e se as abas 'usuarios' e 'unidades' existem.")
+        return
+
     st.subheader("Gerenciamento de Unidades")
 
     with st.expander("Adicionar Nova Unidade", expanded=False):

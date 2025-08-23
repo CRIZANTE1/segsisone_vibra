@@ -10,6 +10,7 @@ import os
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.data_loaded_successfully = False
         self.load_company_data()
         self._pdf_analyzer = None
 
@@ -39,6 +40,9 @@ class CompanyDocsManager:
                 self.audit_df = temp_df[final_cols]
             else:
                 self.audit_df = pd.DataFrame(columns=audit_cols)
+
+            if not self.docs_df.empty:
+                self.data_loaded_successfully = True
             
         except Exception as e:
             st.error(f"Erro ao carregar dados da empresa: {str(e)}")

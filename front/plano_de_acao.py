@@ -32,6 +32,15 @@ def show_plano_acao_page():
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
 
+    # Verifica se o gerenciador principal (plano de ação) conseguiu carregar seus dados.
+    if not action_plan_manager.data_loaded_successfully:
+        st.warning(
+            "Atenção: Não foi possível carregar os dados do Plano de Ação para esta unidade.",
+            icon="⚠️"
+        )
+        st.info("Verifique se a aba 'plano_acao' existe e contém dados na planilha do Google Sheets associada a esta unidade.")
+        return
+
 
     @st.dialog("Tratar Não Conformidade")
     def treat_item_dialog(item_data): 
