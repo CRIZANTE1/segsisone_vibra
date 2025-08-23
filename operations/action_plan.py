@@ -5,7 +5,7 @@ from operations.sheet import SheetOperations
 
 class ActionPlanManager:
     def __init__(self, sheet_ops: SheetOperations):
-        self.sheet_ops = sheet_ops
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self.columns = [
             'id', 'audit_run_id', 'id_empresa', 'id_documento_original',
             'item_nao_conforme', 'referencia_normativa', 'plano_de_acao',
