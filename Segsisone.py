@@ -129,10 +129,20 @@ def main():
         }
         if user_role == 'admin':
             menu_items["Administração"] = {"icon": "gear-fill", "function": show_admin_page}
-        
+
         selected_page = option_menu(
-            menu_title="Menu Principal", options=list(menu_items.keys()),
-            icons=[item["icon"] for item in menu_items.values()], menu_icon="cast", default_index=0
+            menu_title="Menu Principal",
+            options=list(menu_items.keys()),
+            icons=[item["icon"] for item in menu_items.values()],
+            menu_icon="cast",
+            default_index=0,
+            styles={
+                "container": {"padding": "0 !important", "background-color": "transparent"},
+                "icon": {"color": "inherit", "font-size": "15px"},
+                "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "rgba(255, 255, 255, 0.1)" if st.get_option("theme.base") == "dark" else "#f0f2f6"},
+                "nav-link-selected": {"background-color": st.get_option("theme.primaryColor")},
+            }
+        
         )
         show_logout_button()
     
