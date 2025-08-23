@@ -20,7 +20,6 @@ from operations.company_docs import CompanyDocsManager
 from operations.epi import EPIManager
 from operations.action_plan import ActionPlanManager
 from analysis.nr_analyzer import NRAnalyzer
-from operations.sheet import SheetOperations
 
 def configurar_pagina():
     st.set_page_config(
@@ -32,41 +31,35 @@ def configurar_pagina():
 
 def initialize_managers():
     """
-    Ponto central para inicializar ou recarregar TODOS os gerenciadores.
-    - Gerenciadores globais são criados uma vez.
-    - Gerenciadores de tenant são (re)criados se a unidade mudar ou se uma recarga for solicitada.
+    Ponto ÚNICO de inicialização. Chamado em CADA rerun após a autenticação.
+    Ele garante que os gerenciadores estejam sempre sincronizados com o estado da sessão.
     """
-    # 1. Gerenciadores Globais
+    # Gerenciador Global (sempre existe após o login)
     if 'matrix_manager' not in st.session_state:
         st.session_state.matrix_manager = MatrixManager()
 
-    # 2. Gerenciadores de Tenant
+    # Gerenciadores de Tenant (dependentes da unidade selecionada)
     unit_id = st.session_state.get('spreadsheet_id')
     
-    # Condição para (re)criar: A unidade mudou OU uma recarga foi explicitamente solicitada.
-    if unit_id and (st.session_state.get('managers_unit_id') != unit_id or st.session_state.get('force_reload', False)):
+    # Condição para criar/recriar: se a unidade foi definida e os gerenciadores não existem ou são da unidade errada.
+    if unit_id and st.session_state.get('managers_unit_id') != unit_id:
         with st.spinner("Carregando dados da unidade..."):
-            # Limpa o cache de dados antes de recarregar
-            st.cache_data.clear()
+            st.cache_data.clear() # Limpa o cache para garantir dados frescos
             
-            # Create a single SheetOperations instance for the unit
-            sheet_ops = SheetOperations(unit_id)
-            
-            st.session_state.employee_manager = EmployeeManager(sheet_ops, st.session_state.folder_id)
-            st.session_state.docs_manager = CompanyDocsManager(sheet_ops)
-            st.session_state.epi_manager = EPIManager(sheet_ops)
-            st.session_state.action_plan_manager = ActionPlanManager(sheet_ops)
-            st.session_state.nr_analyzer = NRAnalyzer(sheet_ops)
+            st.session_state.employee_manager = EmployeeManager(unit_id, st.session_state.folder_id)
+            st.session_state.docs_manager = CompanyDocsManager(unit_id)
+            st.session_state.epi_manager = EPIManager(unit_id)
+            st.session_state.action_plan_manager = ActionPlanManager(unit_id)
+            st.session_state.nr_analyzer = NRAnalyzer(unit_id)
             
             st.session_state.managers_unit_id = unit_id
             st.session_state.managers_initialized = True
-            st.session_state.force_reload = False # Reseta a flag
-        
-        # Rerun é crucial aqui para garantir que a UI inteira seja atualizada com os novos dados
-        st.rerun()
-
+    
     elif not unit_id:
+        # Garante que, se nenhuma unidade estiver selecionada, o estado esteja limpo
         st.session_state.managers_initialized = False
+        st.session_state.managers_unit_id = None
+
 
 def main():
     configurar_pagina()
@@ -78,6 +71,7 @@ def main():
     if not authenticate_user():
         st.stop()
 
+    # É chamado em cada rerun para garantir que os gerenciadores correspondam ao estado atual
     initialize_managers()
 
     with st.sidebar:
@@ -93,14 +87,11 @@ def main():
             
             try:
                 default_index = unit_options.index(current_unit_name)
-            except ValueError:
-                default_index = 0
+            except ValueError: default_index = 0
 
             selected_admin_unit = st.selectbox(
-                "Operar como Unidade:",
-                options=unit_options,
-                index=default_index,
-                key="admin_unit_selector"
+                "Operar como Unidade:", options=unit_options,
+                index=default_index, key="admin_unit_selector"
             )
 
             if selected_admin_unit != current_unit_name:
@@ -120,28 +111,19 @@ def main():
             "Dashboard": {"icon": "clipboard2-data-fill", "function": show_dashboard_page},
             "Plano de Ação": {"icon": "clipboard2-check-fill", "function": show_plano_acao_page},
         }
-
         if user_role == 'admin':
             menu_items["Administração"] = {"icon": "gear-fill", "function": show_admin_page}
 
         selected_page = option_menu(
-            menu_title="Menu Principal",
-            options=list(menu_items.keys()),
-            icons=[item["icon"] for item in menu_items.values()],
-            menu_icon="cast",
-            default_index=0,
-            styles={
-                "container": {"padding": "0 !important", "background-color": "transparent"},
-                "icon": {"color": "inherit", "font-size": "15px"},
-                "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "rgba(255, 255, 255, 0.1)" if st.get_option("theme.base") == "dark" else "#f0f2f6"},
-                "nav-link-selected": {"background-color": st.get_option("theme.primaryColor")},
-            }
+            menu_title="Menu Principal", options=list(menu_items.keys()),
+            icons=[item["icon"] for item in menu_items.values()], menu_icon="cast", default_index=0
         )
         show_logout_button()
     
-    if selected_page in menu_items:
-        page_function = menu_items[selected_page]["function"]
-        page_function()
+    # Lógica de Roteamento
+    page_to_run = menu_items.get(selected_page)
+    if page_to_run:
+        page_to_run["function"]()
 
 if __name__ == "__main__":
     main()
