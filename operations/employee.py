@@ -19,7 +19,7 @@ except locale.Error:
     pass
 
 class EmployeeManager:
-    def __init__(self, sheet_ops: SheetOperations, folder_id: str):
+    def __init__(self, spreadsheet_id: str, folder_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
