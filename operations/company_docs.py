@@ -2,15 +2,20 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime, timedelta, date
 import re
+import logging
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 import tempfile
 import os
 
+logger = logging.getLogger('segsisone_app.company_docs_manager')
+
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.data_loaded_successfully = False
+        self.docs_df = pd.DataFrame()
+        self.audit_df = pd.DataFrame()
         self.load_company_data()
         self._pdf_analyzer = None
 
@@ -21,46 +26,55 @@ class CompanyDocsManager:
         return self._pdf_analyzer
 
     def load_company_data(self):
+        logger.info("Iniciando o carregamento dos dados de documentos da empresa e auditorias.")
+        docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
+        audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
+                      "id_funcionario", "tipo_documento", "norma_auditada", 
+                      "item_de_verificacao", "Status", "observacao"]
+        
         try:
+            # Carregar documentos da empresa
             docs_data = self.sheet_ops.carregar_dados_aba("documentos_empresa")
-            docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-            self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0]) if docs_data and len(docs_data) > 0 else pd.DataFrame(columns=docs_cols)
+            if docs_data and len(docs_data) > 1:
+                self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0])
+                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados de 'documentos_empresa'.")
+            else:
+                self.docs_df = pd.DataFrame(columns=docs_cols)
+                logger.info("A aba 'documentos_empresa' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
 
+            # Carregar auditorias
             audit_data = self.sheet_ops.carregar_dados_aba("auditorias")
-            audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
-                          "id_funcionario", "tipo_documento", "norma_auditada", 
-                          "item_de_verificacao", "Status", "observacao"]
-            
             if audit_data and len(audit_data) > 1:
                 header = audit_data[0]
-                num_valid_cols = len(header)
-                cleaned_data = [row[:num_valid_cols] for row in audit_data[1:]]
-                temp_df = pd.DataFrame(cleaned_data, columns=header)
-                final_cols = [col for col in audit_cols if col in temp_df.columns]
-                self.audit_df = temp_df[final_cols]
+                self.audit_df = pd.DataFrame(audit_data[1:], columns=header)
+                logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
             else:
                 self.audit_df = pd.DataFrame(columns=audit_cols)
+                logger.info("A aba 'auditorias' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
 
             if not self.docs_df.empty:
                 self.data_loaded_successfully = True
+                logger.info("Dados da empresa carregados com sucesso.")
             
         except Exception as e:
-            st.error(f"Erro ao carregar dados da empresa: {str(e)}")
-            self.docs_df = pd.DataFrame()
-            self.audit_df = pd.DataFrame()
+            logger.error(f"FALHA CRÍTICA ao carregar e processar dados da empresa: {str(e)}", exc_info=True)
+            st.error(f"Erro ao carregar dados essenciais da empresa: {str(e)}")
+            # Garante que os DataFrames estejam vazios em caso de erro
+            self.docs_df = pd.DataFrame(columns=docs_cols)
+            self.audit_df = pd.DataFrame(columns=audit_cols)
 
     def get_docs_by_company(self, company_id):
         if self.docs_df.empty: return pd.DataFrame()
         return self.docs_df[self.docs_df['empresa_id'] == str(company_id)]
         
     def get_audits_by_company(self, company_id):
-        if self.audit_df.empty:
-            return pd.DataFrame()
+        if self.audit_df.empty: return pd.DataFrame()
         if 'id_empresa' in self.audit_df.columns:
             return self.audit_df[self.audit_df['id_empresa'] == str(company_id)]
         return pd.DataFrame()
         
     def _parse_flexible_date(self, date_string: str) -> date | None:
+        # ... (código existente sem alteração) ...
         if not date_string or date_string.lower() == 'n/a': return None
         match = re.search(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2})', date_string, re.IGNORECASE)
         if not match: return None
@@ -72,6 +86,7 @@ class CompanyDocsManager:
         return None
 
     def analyze_company_doc_pdf(self, pdf_file):
+        # ... (código existente sem alteração) ...
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue())
@@ -126,6 +141,7 @@ class CompanyDocsManager:
             return None
 
     def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id):
+        # ... (código existente sem alteração) ...
         new_data = [
             str(empresa_id), str(tipo_documento), 
             data_emissao.strftime("%d/%m/%Y"), 
