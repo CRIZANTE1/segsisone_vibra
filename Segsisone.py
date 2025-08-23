@@ -8,7 +8,7 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# --- Importações dos Módulos ---
+# --- Importações ---
 from auth.login_page import show_login_page, show_user_header, show_logout_button
 from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
 from gdrive.matrix_manager import MatrixManager
@@ -31,20 +31,20 @@ def configurar_pagina():
 
 def initialize_managers():
     """
-    Ponto ÚNICO de inicialização. Chamado em CADA rerun após a autenticação.
-    Ele garante que os gerenciadores estejam sempre sincronizados com o estado da sessão.
+    Ponto central para inicializar os gerenciadores.
+    É chamado em cada rerun para garantir que o estado esteja sempre correto.
     """
-    # Gerenciador Global (sempre existe após o login)
-    if 'matrix_manager' not in st.session_state:
+    # 1. Gerenciadores Globais
+    if 'matrix_manager' not in st.session_state or st.session_state.get('force_reload', False):
         st.session_state.matrix_manager = MatrixManager()
 
-    # Gerenciadores de Tenant (dependentes da unidade selecionada)
+    # 2. Gerenciadores de Tenant
     unit_id = st.session_state.get('spreadsheet_id')
     
-    # Condição para criar/recriar: se a unidade foi definida e os gerenciadores não existem ou são da unidade errada.
-    if unit_id and st.session_state.get('managers_unit_id') != unit_id:
+    # Condição para (re)criar: a unidade mudou OU uma recarga foi solicitada.
+    if unit_id and (st.session_state.get('managers_unit_id') != unit_id or st.session_state.get('force_reload', False)):
         with st.spinner("Carregando dados da unidade..."):
-            st.cache_data.clear() # Limpa o cache para garantir dados frescos
+            st.cache_data.clear() # Limpa todo o cache para garantir dados frescos
             
             st.session_state.employee_manager = EmployeeManager(unit_id, st.session_state.folder_id)
             st.session_state.docs_manager = CompanyDocsManager(unit_id)
@@ -54,12 +54,10 @@ def initialize_managers():
             
             st.session_state.managers_unit_id = unit_id
             st.session_state.managers_initialized = True
+            st.session_state.force_reload = False # Reseta a flag
     
     elif not unit_id:
-        # Garante que, se nenhuma unidade estiver selecionada, o estado esteja limpo
         st.session_state.managers_initialized = False
-        st.session_state.managers_unit_id = None
-
 
 def main():
     configurar_pagina()
@@ -71,7 +69,6 @@ def main():
     if not authenticate_user():
         st.stop()
 
-    # É chamado em cada rerun para garantir que os gerenciadores correspondam ao estado atual
     initialize_managers()
 
     with st.sidebar:
@@ -85,8 +82,7 @@ def main():
             unit_options.insert(0, 'Global')
             current_unit_name = st.session_state.get('unit_name', 'Global')
             
-            try:
-                default_index = unit_options.index(current_unit_name)
+            try: default_index = unit_options.index(current_unit_name)
             except ValueError: default_index = 0
 
             selected_admin_unit = st.selectbox(
@@ -94,33 +90,35 @@ def main():
                 index=default_index, key="admin_unit_selector"
             )
 
+            # Este é o ÚNICO lugar que precisa de um st.rerun() manual
             if selected_admin_unit != current_unit_name:
                 if selected_admin_unit == 'Global':
-                    st.session_state.unit_name = 'Global'
-                    st.session_state.spreadsheet_id = None
-                    st.session_state.folder_id = None
+                    st.session_state.unit_name, st.session_state.spreadsheet_id, st.session_state.folder_id = 'Global', None, None
                 else:
-                    selected_unit_info = matrix_manager.get_unit_info(selected_admin_unit)
-                    if selected_unit_info:
-                        st.session_state.unit_name = selected_unit_info['nome_unidade']
-                        st.session_state.spreadsheet_id = selected_unit_info['spreadsheet_id']
-                        st.session_state.folder_id = selected_unit_info['folder_id']
+                    unit_info = matrix_manager.get_unit_info(selected_admin_unit)
+                    if unit_info:
+                        st.session_state.unit_name = unit_info['nome_unidade']
+                        st.session_state.spreadsheet_id = unit_info['spreadsheet_id']
+                        st.session_state.folder_id = unit_info['folder_id']
                 st.rerun()
 
         menu_items = {
             "Dashboard": {"icon": "clipboard2-data-fill", "function": show_dashboard_page},
             "Plano de Ação": {"icon": "clipboard2-check-fill", "function": show_plano_acao_page},
+            "Administração": {"icon": "gear-fill", "function": show_admin_page}
         }
-        if user_role == 'admin':
-            menu_items["Administração"] = {"icon": "gear-fill", "function": show_admin_page}
-
+        
+        # Filtra o menu com base no role
+        if user_role != 'admin':
+            menu_items.pop("Administração", None)
+        
         selected_page = option_menu(
             menu_title="Menu Principal", options=list(menu_items.keys()),
             icons=[item["icon"] for item in menu_items.values()], menu_icon="cast", default_index=0
         )
         show_logout_button()
     
-    # Lógica de Roteamento
+    # Roteamento
     page_to_run = menu_items.get(selected_page)
     if page_to_run:
         page_to_run["function"]()
