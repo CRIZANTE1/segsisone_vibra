@@ -9,7 +9,7 @@ from AI.api_Operation import PDFQA
 
 class EPIManager:
     def __init__(self, sheet_ops: SheetOperations):
-        self.sheet_ops = sheet_ops
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self._pdf_analyzer = None
         self.load_epi_data()
 
