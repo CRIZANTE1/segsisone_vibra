@@ -20,7 +20,7 @@ except locale.Error:
 
 class EmployeeManager:
     def __init__(self, sheet_ops: SheetOperations, folder_id: str):
-        self.sheet_ops = sheet_ops
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
