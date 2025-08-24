@@ -16,7 +16,7 @@ class SheetOperations:
 
         try:
             api_manager = GoogleApiManager()
-            self.spread = Spread(spreadsheet_id, client=api_manager.client)
+            self.spread = Spread(spreadsheet_id, client=api_manager.client, config_dir=None)
         except Exception as e:
             st.error(f"Falha ao abrir a planilha com ID: {spreadsheet_id}. Verifique as permissões.")
             logger.error(f"Erro ao inicializar Spread para ID {spreadsheet_id}: {e}")
