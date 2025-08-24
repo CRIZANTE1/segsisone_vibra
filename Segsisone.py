@@ -43,6 +43,7 @@ def configurar_pagina():
     )
 
 def initialize_managers():
+    logger.debug(f"initialize_managers called. unit_id: {st.session_state.get('spreadsheet_id')}, managers_unit_id: {st.session_state.get('managers_unit_id')}, managers_initialized: {st.session_state.get('managers_initialized')}")
     unit_id = st.session_state.get('spreadsheet_id')
     folder_id = st.session_state.get('folder_id') # Keep folder_id for EmployeeManager
 
