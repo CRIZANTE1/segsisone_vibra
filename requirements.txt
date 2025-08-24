@@ -11,6 +11,7 @@ google-generativeai
 pygsheets
 oauth2client
 gspread
+gspread-pandas
 scikit-learn
 python-dateutil
 fuzzywuzzy

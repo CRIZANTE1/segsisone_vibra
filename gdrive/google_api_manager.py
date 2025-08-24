@@ -33,7 +33,7 @@ class GoogleApiManager:
             
             # --- CLIENTE GSPREAD ADICIONADO AQUI ---
             # Cliente de alto nível (gspread) para operações de planilha mais fáceis
-            self.gspread_client = gspread.authorize(self.credentials)
+            self.client = gspread.authorize(self.credentials)
 
         except Exception as e:
             st.error(f"Erro crítico ao inicializar os serviços do Google: {str(e)}")
@@ -43,7 +43,7 @@ class GoogleApiManager:
     def open_spreadsheet(self, spreadsheet_id: str):
         """Abre uma planilha usando gspread pelo seu ID."""
         try:
-            return self.gspread_client.open_by_key(spreadsheet_id)
+            return self.client.open_by_key(spreadsheet_id)
         except gspread.exceptions.SpreadsheetNotFound:
             st.error(f"A planilha com ID '{spreadsheet_id}' não foi encontrada.")
             return None
