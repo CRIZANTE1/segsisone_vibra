@@ -1,5 +1,3 @@
-# operations/employee.py (VERSÃO FINAL E COMPLETA)
-
 import pandas as pd
 import streamlit as st
 from datetime import datetime, date
@@ -17,6 +15,7 @@ from fuzzywuzzy import process
 import logging
 
 try:
+    # Tenta configurar o locale para português do Brasil para lidar com nomes de meses
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
     pass
@@ -30,7 +29,7 @@ class EmployeeManager:
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
-        
+        self.training_matrix_df = pd.DataFrame() 
         self.nr20_config = {
             'Básico': {'reciclagem_anos': 3}, 'Intermediário': {'reciclagem_anos': 2},
             'Avançado I': {'reciclagem_anos': 2}, 'Avançado II': {'reciclagem_anos': 1}
@@ -42,13 +41,6 @@ class EmployeeManager:
             'NR-11': {'reciclagem_anos': 3}, 'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1},
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
-        
-        self.companies_df = pd.DataFrame()
-        self.employees_df = pd.DataFrame()
-        self.aso_df = pd.DataFrame()
-        self.training_df = pd.DataFrame()
-        self.training_matrix_df = pd.DataFrame()
-        
         self.data_loaded_successfully = False
         self.load_data()
 
@@ -57,188 +49,58 @@ class EmployeeManager:
         if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    # --- FUNÇÕES DE ANÁLISE DE PDF ADICIONADAS AQUI ---
-
-    def analyze_aso_pdf(self, pdf_file):
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue())
-                temp_path = temp_file.name
-            
-            structured_prompt = """        
-            Você é um assistente de extração de dados para documentos de SST. Sua tarefa é analisar o ASO em PDF e extrair as informações abaixo.
-            REGRAS OBRIGATÓRIAS:
-            1. Responda APENAS com um bloco de código JSON válido. Não inclua texto antes ou depois do JSON.
-            2. Para datas, use ESTRITAMENTE o formato DD/MM/AAAA.
-            3. Se uma informação não for encontrada, o valor da chave deve ser null.
-            4. Os valores das chaves NÃO DEVEM conter o nome da chave (ex: "cargo": "Operador", não "cargo": "Cargo: Operador").
-            JSON a ser preenchido:
-            {
-            "data_aso": "A data de emissão do exame. Formato: DD/MM/AAAA.",
-            "vencimento_aso": "A data de vencimento explícita no ASO, se houver. Formato: DD/MM/AAAA.",
-            "riscos": "Uma string com os riscos listados, separados por vírgula.",
-            "cargo": "O cargo do trabalhador.",
-            "tipo_aso": "O tipo de exame: 'Admissional', 'Periódico', 'Demissional', 'Mudança de Risco', 'Retorno ao Trabalho'."
-            }
-            """
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
-        
-        except Exception as e:
-            st.error(f"Erro ao processar o PDF do ASO: {str(e)}")
-            return None
-        finally:
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.unlink(temp_path)
-
-        if not answer:
-            st.error("A IA não retornou resposta para o ASO.")
-            return None
-
-        try:
-            cleaned_answer = re.search(r'\{.*\}', answer, re.DOTALL).group(0)
-            data = json.loads(cleaned_answer)
-
-            data_aso = self._parse_flexible_date(data.get('data_aso'))
-            vencimento = self._parse_flexible_date(data.get('vencimento_aso'))
-            
-            if not data_aso:
-                st.error("Não foi possível extrair a data de emissão do ASO.")
-                return None
-                
-            tipo_aso = str(data.get('tipo_aso', 'Não identificado'))
-
-            if not vencimento and tipo_aso.lower() != 'demissional':
-                vencimento = data_aso + relativedelta(years=1)
-            
-            return {
-                'data_aso': data_aso, 'vencimento': vencimento, 'riscos': data.get('riscos'), 
-                'cargo': data.get('cargo'), 'tipo_aso': tipo_aso
-            }
-        except (json.JSONDecodeError, AttributeError) as e:
-            st.error(f"Erro ao processar a resposta da IA para o ASO: {e}")
-            st.code(f"Resposta recebida:\n{answer}")
-            return None
-
-    def analyze_training_pdf(self, pdf_file):
-        try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_file.getvalue())
-                temp_path = temp_file.name
-            
-            structured_prompt = """
-            Você é um especialista em análise de documentos de SST. Sua tarefa é analisar o certificado e extrair as informações abaixo.
-            REGRAS OBRIGATÓRIAS:
-            1. Responda APENAS com um bloco de código JSON válido.
-            2. Para datas, use ESTRITAMENTE o formato DD/MM/AAAA.
-            3. Se uma informação não for encontrada, o valor da chave deve ser null.
-            4. Para "carga_horaria", retorne apenas o número inteiro.
-            JSON a ser preenchido:
-            {
-            "norma": "A norma do treinamento (ex: 'NR-20', 'NR-35').",
-            "modulo": "O módulo específico (ex: 'Básico', 'Avançado'). Se não aplicável, use 'N/A'.",
-            "data_realizacao": "A data de conclusão do certificado. Formato: DD/MM/AAAA.",
-            "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem'.",
-            "carga_horaria": "A carga horária total, apenas o número."
-            }
-            """
-            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
-        except Exception as e:
-            st.error(f"Erro ao processar o PDF de treinamento: {str(e)}")
-            return None
-        finally:
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.unlink(temp_path)
-
-        if not answer:
-            st.error("A IA não retornou resposta para o certificado.")
-            return None
-
-        try:
-            cleaned_answer = re.search(r'\{.*\}', answer, re.DOTALL).group(0)
-            data = json.loads(cleaned_answer)
-
-            data_realizacao = self._parse_flexible_date(data.get('data_realizacao'))
-            if not data_realizacao:
-                st.error("Não foi possível extrair a data de realização do certificado.")
-                return None
-                
-            return {
-                'data': data_realizacao, 
-                'norma': self._padronizar_norma(data.get('norma')), 
-                'modulo': data.get('modulo', "N/A"), 
-                'tipo_treinamento': str(data.get('tipo_treinamento', 'formação')).lower(), 
-                'carga_horaria': int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
-            }
-        except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as e:
-            st.error(f"Erro ao processar a resposta da IA para o treinamento: {e}")
-            st.code(f"Resposta recebida:\n{answer}")
-            return None
-
-    # --- RESTANTE DO CÓDIGO (load_data, add_aso, etc.) ---
-    # O restante do seu arquivo employee.py continua aqui, sem alterações.
-    # ... (cole o restante do código da versão completa que enviei anteriormente) ...
     def load_data(self):
-        """Carrega todos os DataFrames da unidade, garantindo que as colunas essenciais sempre existam."""
+        """Carrega todos os DataFrames do tenant (unidade), garantindo que as colunas essenciais sempre existam."""
         logger.info("Iniciando o carregamento de todos os DataFrames para EmployeeManager.")
         
-        # Define as colunas esperadas para cada DataFrame para garantir consistência
         expected_company_cols = ['id', 'nome', 'cnpj', 'status']
         expected_employee_cols = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao', 'status']
+        
         expected_aso_cols = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
         expected_training_cols = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'anexo', 'tipo_treinamento', 'carga_horaria']
+        
         expected_matrix_cols = ['funcao', 'treinamentos_obrigatorios']
 
         try:
-            # --- EMPRESAS ---
             companies_data = self.sheet_ops.carregar_dados_aba("empresas")
-            if companies_data and len(companies_data) > 1:
-                self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
-            else:
-                self.companies_df = pd.DataFrame(columns=expected_company_cols)
+            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 1 else pd.DataFrame(columns=expected_company_cols)
 
-            # --- FUNCIONÁRIOS ---
             employees_data = self.sheet_ops.carregar_dados_aba("funcionarios")
-            if employees_data and len(employees_data) > 1:
-                self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
-            else:
-                self.employees_df = pd.DataFrame(columns=expected_employee_cols)
+            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 1 else pd.DataFrame(columns=expected_employee_cols)
 
-            # --- ASOS ---
             aso_data = self.sheet_ops.carregar_dados_aba("asos")
-            if aso_data and len(aso_data) > 1:
-                self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
-            else:
-                self.aso_df = pd.DataFrame(columns=expected_aso_cols)
+            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 1 else pd.DataFrame(columns=expected_aso_cols)
 
-            # --- TREINAMENTOS ---
             training_data = self.sheet_ops.carregar_dados_aba("treinamentos")
-            if training_data and len(training_data) > 1:
-                self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
-            else:
-                self.training_df = pd.DataFrame(columns=expected_training_cols)
+            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 1 else pd.DataFrame(columns=expected_training_cols)
 
-            # --- MATRIZ DE TREINAMENTOS ---
             matrix_data = self.sheet_ops.carregar_dados_aba("matriz_treinamentos")
-            if matrix_data and len(matrix_data) > 1:
-                self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0])
-            else:
-                self.training_matrix_df = pd.DataFrame(columns=expected_matrix_cols)
+            self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0]) if matrix_data and len(matrix_data) > 1 else pd.DataFrame(columns=expected_matrix_cols)
             
             self.data_loaded_successfully = True
             logger.info("Todos os DataFrames para EmployeeManager carregados com sucesso.")
 
         except Exception as e:
-            logger.error(f"FALHA CRÍTICA ao carregar dados da unidade para EmployeeManager: {str(e)}", exc_info=True)
+            logger.error(f"FALHA CRÍTICA ao carregar dados do tenant para EmployeeManager: {str(e)}", exc_info=True)
             st.error(f"Erro crítico ao carregar dados essenciais da unidade: {str(e)}")
-            # Em caso de erro, garante que todos os DFs sejam inicializados como vazios
             self.companies_df = pd.DataFrame(columns=expected_company_cols)
             self.employees_df = pd.DataFrame(columns=expected_employee_cols)
             self.aso_df = pd.DataFrame(columns=expected_aso_cols)
             self.training_df = pd.DataFrame(columns=expected_training_cols)
             self.training_matrix_df = pd.DataFrame(columns=expected_matrix_cols)
 
+    def log_action(self, action: str, details: dict):
+        try:
+            user_email = get_user_email()
+            user_role = st.session_state.get('role', 'N/A')
+            target_uo = st.session_state.get('unit_name', 'N/A')
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_data = [timestamp, user_email, user_role, action, json.dumps(details), target_uo]
+            logger.info(f"Ação registrada: {action}, Detalhes: {details}")
+        except Exception as e:
+            logger.error(f"Erro ao registrar ação: {e}", exc_info=True)
+
     def upload_documento_e_obter_link(self, arquivo, novo_nome):
-        """Usa o api_manager para fazer upload de um arquivo na pasta da unidade."""
         if not self.folder_id:
             st.error("O ID da pasta desta unidade não está definido. Não é possível fazer o upload.")
             return None
@@ -250,7 +112,8 @@ class EmployeeManager:
         new_data = [nome, cnpj, "Ativo"]
         company_id = self.sheet_ops.adc_dados_aba("empresas", new_data)
         if company_id:
-            self.load_data() # Recarrega os dados após a adição
+            self.log_action("add_company", {"company_id": company_id, "nome": nome})
+            self.load_data()
             return company_id, "Empresa cadastrada com sucesso"
         return None, "Falha ao obter ID da empresa."
 
@@ -258,7 +121,8 @@ class EmployeeManager:
         new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y"), "Ativo"]
         employee_id = self.sheet_ops.adc_dados_aba("funcionarios", new_data)
         if employee_id:
-            self.load_data() # Recarrega os dados após a adição
+            self.log_action("add_employee", {"employee_id": employee_id, "nome": nome})
+            self.load_data()
             return employee_id, "Funcionário adicionado com sucesso"
         return None, "Erro ao adicionar funcionário."
 
@@ -274,6 +138,7 @@ class EmployeeManager:
         ]
         aso_id = self.sheet_ops.adc_dados_aba("asos", new_data)
         if aso_id:
+            self.log_action("add_aso", {"aso_id": aso_id, "funcionario_id": aso_data.get('funcionario_id')})
             self.load_data()
         return aso_id
 
@@ -291,6 +156,7 @@ class EmployeeManager:
         ]
         training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
         if training_id:
+            self.log_action("add_training", {"training_id": training_id, "norma": training_data.get('norma')})
             self.load_data()
         return training_id
     
@@ -305,9 +171,113 @@ class EmployeeManager:
             except ValueError: continue
         return None
 
+    # --- FUNÇÕES DE ANÁLISE DE PDF ADICIONADAS AQUI ---
+
+    def analyze_aso_pdf(self, pdf_file):
+        """Analisa um PDF de ASO para extrair informações chave."""
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            combined_question = """
+            Por favor, analise o ASO e responda as seguintes perguntas, uma por linha:
+            1. Qual a data de emissão do exame? Responda a data no formato DD/MM/AAAA.
+            2. Qual o tipo de exame realizado (Admissional, Periódico, Demissional, etc.)?
+            3. Qual o nome completo do trabalhador?
+            4. Qual o cargo ou função do trabalhador?
+            5. Quais os riscos ocupacionais listados?
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
+            os.unlink(temp_path)
+            
+            if not answer: return None
+            
+            lines = answer.strip().split('\n')
+            results = {}
+            for line in lines:
+                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
+                if match:
+                    key = int(match.group(1))
+                    value = match.group(2).strip()
+                    results[key] = value
+
+            data_aso = self._parse_flexible_date(results.get(1, ''))
+            if not data_aso:
+                st.error("Não foi possível extrair a data de emissão do ASO.")
+                return None
+
+            tipo_aso = results.get(2, "N/A")
+            vencimento = None
+            if "demissional" not in tipo_aso.lower():
+                vencimento = data_aso + relativedelta(years=1)
+            
+            return {
+                'data_aso': data_aso,
+                'tipo_aso': tipo_aso,
+                'nome_funcionario': results.get(3, "N/A"),
+                'cargo': results.get(4, "N/A"),
+                'riscos': results.get(5, "N/A"),
+                'vencimento': vencimento
+            }
+        except Exception as e:
+            st.error(f"Erro ao analisar o PDF do ASO: {e}")
+            return None
+
+    def analyze_training_pdf(self, pdf_file):
+        """Analisa um PDF de certificado de treinamento."""
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+
+            combined_question = """
+            Por favor, analise o certificado e responda as seguintes perguntas, uma por linha:
+            1. Qual a data de realização ou conclusão do treinamento? Responda a data no formato DD/MM/AAAA.
+            2. Qual a Norma Regulamentadora (NR) principal do treinamento (ex: NR-35, NR-10)?
+            3. Qual a carga horária total do treinamento em horas? Responda apenas o número.
+            4. O treinamento é de que tipo? Responda 'Formação' ou 'Reciclagem'.
+            5. Se for NR-20, qual o módulo (Básico, Intermediário, Avançado I, Avançado II)? Se não for, responda 'N/A'.
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], combined_question)
+            os.unlink(temp_path)
+
+            if not answer: return None
+
+            lines = answer.strip().split('\n')
+            results = {}
+            for line in lines:
+                match = re.match(r'\s*\*?\s*(\d+)\s*\.?\s*(.*)', line)
+                if match:
+                    key = int(match.group(1))
+                    value = match.group(2).strip()
+                    results[key] = value
+
+            data_treinamento = self._parse_flexible_date(results.get(1, ''))
+            if not data_treinamento:
+                st.error("Não foi possível extrair a data de realização do treinamento.")
+                return None
+
+            carga_horaria_str = re.search(r'\d+', str(results.get(3, '0')))
+            carga_horaria = int(carga_horaria_str.group(0)) if carga_horaria_str else 0
+
+            return {
+                'data': data_treinamento,
+                'norma': results.get(2, "N/A"),
+                'carga_horaria': carga_horaria,
+                'tipo_treinamento': results.get(4, "N/A"),
+                'modulo': results.get(5, "N/A")
+            }
+        except Exception as e:
+            st.error(f"Erro ao analisar o PDF do treinamento: {e}")
+            return None
+
+    # --- FIM DAS FUNÇÕES DE ANÁLISE ---
+
     def _set_status(self, sheet_name: str, item_id: str, status: str):
         success = self.sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
         if success:
+            self.log_action("set_status", {"item_id": item_id, "sheet": sheet_name, "status": status})
             self.load_data()
         return success
 
@@ -324,41 +294,33 @@ class EmployeeManager:
         return self._set_status("funcionarios", employee_id, "Ativo")
 
     def get_latest_aso_by_employee(self, employee_id):
-        """
-        Retorna o ASO de aptidão (não demissional) mais recente para um funcionário.
-        Retorna uma Series do Pandas se encontrado, ou None se não encontrado.
-        """
-        if self.aso_df.empty:
-            return None
-            
-        asos_funcionario = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
-        if asos_funcionario.empty:
-            return None
+        if self.aso_df.empty or 'funcionario_id' not in self.aso_df.columns:
+            return pd.DataFrame()
+        
+        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
+        if aso_docs.empty:
+            return pd.DataFrame()
+        
+        if 'tipo_aso' not in aso_docs.columns: 
+            aso_docs['tipo_aso'] = 'N/A'
+        aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('N/A').astype(str).str.strip()
+        
+        aso_docs['data_aso_dt'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
+        aso_docs.dropna(subset=['data_aso_dt'], inplace=True)
+        
+        if aso_docs.empty: return pd.DataFrame()
+        
+        latest_asos = aso_docs.sort_values('data_aso_dt', ascending=False).groupby('tipo_aso').head(1).copy()
+        latest_asos['data_aso'] = latest_asos['data_aso_dt'].dt.date
+        
+        latest_asos['vencimento'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
 
-        if 'tipo_aso' not in asos_funcionario.columns:
-            asos_funcionario['tipo_aso'] = 'N/A'
-        asos_funcionario['tipo_aso'] = asos_funcionario['tipo_aso'].fillna('N/A')
-        
-        asos_aptidao = asos_funcionario[~asos_funcionario['tipo_aso'].str.lower().isin(['demissional'])].copy()
-        if asos_aptidao.empty:
-            return None
-
-        asos_aptidao['data_aso_dt'] = pd.to_datetime(asos_aptidao['data_aso'], format='%d/%m/%Y', errors='coerce')
-        asos_aptidao.dropna(subset=['data_aso_dt'], inplace=True)
-        if asos_aptidao.empty:
-            return None
-            
-        latest_aso_row = asos_aptidao.sort_values('data_aso_dt', ascending=False).iloc[0].copy()
-        
-        vencimento_str = latest_aso_row.get('vencimento')
-        if vencimento_str and isinstance(vencimento_str, str):
-            latest_aso_row['vencimento'] = pd.to_datetime(vencimento_str, format='%d/%m/%Y', errors='coerce').date()
-        
-        return latest_aso_row
+        return latest_asos.drop(columns=['data_aso_dt']).sort_values('data_aso', ascending=False)
 
     def get_all_trainings_by_employee(self, employee_id):
-        if self.training_df.empty:
+        if self.training_df.empty or 'funcionario_id' not in self.training_df.columns:
             return pd.DataFrame()
+            
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
         if training_docs.empty:
             return pd.DataFrame()
@@ -372,6 +334,7 @@ class EmployeeManager:
         training_docs.dropna(subset=['data_dt'], inplace=True)
         
         if training_docs.empty: return pd.DataFrame()
+        
         latest_trainings = training_docs.sort_values('data_dt', ascending=False).groupby('norma').head(1).copy()
         latest_trainings['data'] = latest_trainings['data_dt'].dt.date
         
@@ -396,8 +359,9 @@ class EmployeeManager:
         return f"ID {employee_id}"
 
     def get_employees_by_company(self, company_id: str, include_archived: bool = False):
-        if self.employees_df.empty:
+        if self.employees_df.empty or 'empresa_id' not in self.employees_df.columns:
             return pd.DataFrame()
+            
         company_employees = self.employees_df[self.employees_df['empresa_id'] == str(company_id)]
         if include_archived or 'status' not in company_employees.columns:
             return company_employees
