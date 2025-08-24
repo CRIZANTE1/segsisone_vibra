@@ -7,18 +7,11 @@ import re
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 
-# Import the new cached loaders
-from operations.cached_loaders import (
-    load_epis_df
-)
-
 class EPIManager:
     def __init__(self, spreadsheet_id: str):
-        self.spreadsheet_id = spreadsheet_id
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self._pdf_analyzer = None
-        
-        # Load data using cached functions
-        self.epi_df = load_epis_df(spreadsheet_id)
+        self.load_epi_data()
 
     @property
     def pdf_analyzer(self):
@@ -26,7 +19,15 @@ class EPIManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    
+    def load_epi_data(self):
+        """Carrega os dados da aba de EPIs para um DataFrame."""
+        try:
+            epi_data = self.sheet_ops.carregar_dados_aba("fichas_epi")
+            epi_cols = ['id', 'funcionario_id', 'item_id', 'descricao_epi', 'ca_epi', 'data_entrega', 'arquivo_id']
+            self.epi_df = pd.DataFrame(epi_data[1:], columns=epi_data[0]) if epi_data and len(epi_data) > 0 else pd.DataFrame(columns=epi_cols)
+        except Exception as e:
+            st.error(f"Erro ao carregar dados de EPI: {str(e)}")
+            self.epi_df = pd.DataFrame()
 
     def get_epi_by_employee(self, employee_id):
         """
@@ -124,7 +125,7 @@ class EPIManager:
             return None
             
     def add_epi_records(self, funcionario_id, arquivo_id, itens_epi):
-        sheet_ops = SheetOperations(self.spreadsheet_id)
+        """Adiciona múltiplos registros de EPI a partir de uma única ficha."""
         saved_ids = []
         for item in itens_epi:
             new_data = [
@@ -137,17 +138,16 @@ class EPIManager:
             ]
             try:
                 # Note que a função adc_dados_aba adiciona o ID principal automaticamente
-                new_id = sheet_ops.adc_dados_aba("fichas_epi", new_data)
+                new_id = self.sheet_ops.adc_dados_aba("fichas_epi", new_data)
                 if new_id:
                     saved_ids.append(new_id)
             except Exception as e:
                 st.error(f"Erro ao adicionar o item '{item.get('descricao')}': {e}")
                 continue # Continua para o próximo item
         
-        if saved_ids:
-            load_epis_df.clear() # Clear cache after addition
-            
         if len(saved_ids) == len(itens_epi):
+            st.cache_data.clear()
+            self.load_epi_data()
             return saved_ids
         
-        return None
+        return None # Indica que houve falha em salvar alguns itens

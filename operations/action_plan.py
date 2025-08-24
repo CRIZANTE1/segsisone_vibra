@@ -3,29 +3,31 @@ import pandas as pd
 from datetime import date
 from operations.sheet import SheetOperations
 
-import streamlit as st
-import pandas as pd
-from datetime import date
-from operations.sheet import SheetOperations
-
-# Import the new cached loaders
-from operations.cached_loaders import (
-    load_action_plan_df
-)
-
 class ActionPlanManager:
     def __init__(self, spreadsheet_id: str):
-        self.spreadsheet_id = spreadsheet_id
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self.columns = [
             'id', 'audit_run_id', 'id_empresa', 'id_documento_original',
             'item_nao_conforme', 'referencia_normativa', 'plano_de_acao',
             'responsavel', 'prazo', 'status', 'data_criacao', 'data_conclusao'
         ]
-        
-        # Load data using cached functions
-        self.action_plan_df = load_action_plan_df(spreadsheet_id)
+        self.data_loaded_successfully = False
+        self.load_data()
 
-    
+    def load_data(self):
+        try:
+            data = self.sheet_ops.carregar_dados_aba("plano_acao")
+            if data and len(data) > 1:
+                df = pd.DataFrame(data[1:], columns=data[0])
+                df.columns = [col.strip().lower() for col in df.columns]
+                self.action_plan_df = df
+                self.data_loaded_successfully = True
+            else:
+                self.action_plan_df = pd.DataFrame(columns=self.columns)
+                # Nao definimos como sucesso se a aba estiver vazia
+        except Exception as e:
+            st.error(f"Erro ao carregar dados de Planos de Ação: {e}")
+            self.action_plan_df = pd.DataFrame(columns=self.columns)
 
     def add_action_item(self, audit_run_id, company_id, doc_id, item_details):
         item_title = item_details.get('item_verificacao', 'Não conformidade não especificada')
@@ -44,11 +46,7 @@ class ActionPlanManager:
             date.today().strftime("%d/%m/%Y"),
             ""
         ]
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        action_item_id = sheet_ops.adc_dados_aba("plano_acao", new_data)
-        if action_item_id:
-            load_action_plan_df.clear() # Clear cache after addition
-        return action_item_id
+        return self.sheet_ops.adc_dados_aba("plano_acao", new_data)
 
     def update_action_item(self, item_id, updates: dict):
         if 'prazo' in updates and isinstance(updates['prazo'], date):
@@ -57,9 +55,8 @@ class ActionPlanManager:
         if updates.get("status") == "Concluído" and "data_conclusao" not in updates:
              updates["data_conclusao"] = date.today().strftime("%d/%m/%Y")
 
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        if sheet_ops.update_row_by_id("plano_acao", item_id, updates):
-            load_action_plan_df.clear() # Clear cache after update
+        if self.sheet_ops.update_row_by_id("plano_acao", item_id, updates):
+            st.cache_data.clear()
             return True
         return False
         

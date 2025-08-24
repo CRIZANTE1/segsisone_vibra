@@ -40,13 +40,18 @@ def display_audit_results(audit_result):
                     st.markdown(f"- **Item:** {item.get('item_verificacao')}\n- **Observação:** {item.get('observacao')}")
     else: st.info(f"**Parecer da IA:** {summary}")
 
-def show_dashboard_page(managers: dict):
+def show_dashboard_page():
     logger.info("Iniciando a renderização da página do dashboard.")
-
-    employee_manager = managers["employee_manager"]
-    docs_manager = managers["docs_manager"]
-    epi_manager = managers["epi_manager"]
-    nr_analyzer = managers["nr_analyzer"]
+    if not st.session_state.get('managers_initialized'):
+        logger.warning("Managers não inicializados, parando a renderização do dashboard.")
+        st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
+        st.info("Administradores globais podem usar o seletor na barra lateral.")
+        return
+        
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+    epi_manager = st.session_state.epi_manager
+    nr_analyzer = st.session_state.nr_analyzer
     
     st.title("Dashboard de Conformidade")
     

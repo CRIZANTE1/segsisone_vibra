@@ -43,21 +43,54 @@ def configurar_pagina():
     )
 
 def initialize_managers():
+    """
+    Ponto central para inicializar as instâncias dos gerenciadores.
+    Não carrega dados, apenas cria os objetos com o contexto do tenant.
+    """
+    logger.debug("==== Entrando em initialize_managers() ====")
     unit_id = st.session_state.get('spreadsheet_id')
-    if not unit_id:
-        return None
-
     folder_id = st.session_state.get('folder_id')
+    managers_unit_id_cached = st.session_state.get('managers_unit_id')
+    force_reload_flag = st.session_state.get('force_reload', False)
+
+    logger.debug(f"[initialize_managers] st.session_state.spreadsheet_id (unit_id): {unit_id}")
+    logger.debug(f"[initialize_managers] st.session_state.folder_id: {folder_id}")
+    logger.debug(f"[initialize_managers] st.session_state.managers_unit_id (cached): {managers_unit_id_cached}")
+    logger.debug(f"[initialize_managers] st.session_state.force_reload: {force_reload_flag}")
+    logger.debug(f"[initialize_managers] st.session_state.managers_initialized: {st.session_state.get('managers_initialized', False)}")
+
+    # Condição para (re)criar: a unidade mudou OU uma recarga foi solicitada.
+    should_initialize = unit_id and (managers_unit_id_cached != unit_id or force_reload_flag)
+    logger.debug(f"[initialize_managers] Condição 'should_initialize' avaliada como: {should_initialize}")
+
+    if should_initialize:
+        logger.info(f"[initialize_managers] Condição de inicialização ATENDIDA. Processando managers para a unidade: ...{unit_id[-6:]}")
+        try:
+            with st.spinner("Configurando ambiente da unidade..."):
+                st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
+                st.session_state.docs_manager = CompanyDocsManager(unit_id)
+                st.session_state.epi_manager = EPIManager(unit_id)
+                st.session_state.action_plan_manager = ActionPlanManager(unit_id)
+                st.session_state.nr_analyzer = NRAnalyzer(unit_id)
+                
+            st.session_state.managers_unit_id = unit_id
+            st.session_state.managers_initialized = True
+            st.session_state.force_reload = False # Reseta a flag
+            logger.info("[initialize_managers] Managers inicializados com sucesso.")
+        except Exception as e:
+            logger.error(f"[initialize_managers] ERRO CRÍTICO na inicialização dos managers: {e}", exc_info=True)
+            st.error(f"Não foi possível configurar o ambiente da unidade. Erro: {e}")
+            st.session_state.managers_initialized = False # Garante que o estado seja False em caso de erro
     
-    # Sempre cria novas instâncias para garantir que sejam leves e descartáveis
-    managers = {
-        "employee_manager": EmployeeManager(unit_id, folder_id),
-        "docs_manager": CompanyDocsManager(unit_id),
-        "epi_manager": EPIManager(unit_id),
-        "action_plan_manager": ActionPlanManager(unit_id),
-        "nr_analyzer": NRAnalyzer(unit_id)
-    }
-    return managers
+    elif not unit_id:
+        if st.session_state.get('managers_initialized', False):
+            logger.info("[initialize_managers] Nenhuma unidade selecionada. Resetando managers.")
+        st.session_state.managers_initialized = False
+        logger.debug("[initialize_managers] unit_id é None, managers_initialized setado para False.")
+    else:
+        logger.debug("[initialize_managers] Condição de inicialização de managers NÃO atendida (unit_id e managers_unit_id são os mesmos, sem force_reload).")
+    
+    logger.debug(f"==== Finalizando initialize_managers(). managers_initialized: {st.session_state.get('managers_initialized')}. ====")
 
 def main():
     configurar_pagina()
@@ -69,25 +102,22 @@ def main():
     if not authenticate_user():
         st.stop()
 
-    # MatrixManager é especial e pode ser necessário em toda a sessão para admins
-    if get_user_role() == 'admin' and 'matrix_manager' not in st.session_state:
-        st.session_state.matrix_manager = MatrixManager()
-
     with st.sidebar:
         show_user_header()
         user_role = get_user_role()
 
         if user_role == 'admin':
+            if 'matrix_manager' not in st.session_state:
+                st.session_state.matrix_manager = MatrixManager()
             matrix_manager = st.session_state.matrix_manager
+            
             all_units = matrix_manager.get_all_units()
             unit_options = [unit['nome_unidade'] for unit in all_units]
             unit_options.insert(0, 'Global')
             current_unit_name = st.session_state.get('unit_name', 'Global')
             
-            try:
-                default_index = unit_options.index(current_unit_name)
-            except ValueError:
-                default_index = 0
+            try: default_index = unit_options.index(current_unit_name)
+            except ValueError: default_index = 0
 
             selected_admin_unit = st.selectbox(
                 "Operar como Unidade:", options=unit_options,
@@ -95,7 +125,17 @@ def main():
             )
 
             if selected_admin_unit != current_unit_name:
-                st.cache_data.clear()
+                logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
+                st.cache_data.clear() # Limpa o cache ao trocar de unidade
+
+                # Explicitamente resetar o estado dos managers para forçar a re-inicialização
+                st.session_state.managers_initialized = False
+                if 'managers_unit_id' in st.session_state:
+                    del st.session_state.managers_unit_id
+                for key in ['employee_manager', 'docs_manager', 'epi_manager', 'action_plan_manager', 'nr_analyzer']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
                 if selected_admin_unit == 'Global':
                     st.session_state.unit_name, st.session_state.spreadsheet_id, st.session_state.folder_id = 'Global', None, None
                 else:
@@ -112,33 +152,21 @@ def main():
         }
         if user_role == 'admin':
             menu_items["Administração"] = {"icon": "gear-fill", "function": show_admin_page}
-
+        
         selected_page = option_menu(
-            menu_title="Menu Principal",
-            options=list(menu_items.keys()),
-            icons=[item["icon"] for item in menu_items.values()],
-            menu_icon="cast",
-            default_index=0,
-            styles={
-                "container": {"padding": "0 !important", "background-color": "transparent"},
-                "icon": {"color": "inherit", "font-size": "15px"},
-                "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "rgba(255, 255, 255, 0.1)" if st.get_option("theme.base") == "dark" else "#f0f2f6"},
-                "nav-link-selected": {"background-color": st.get_option("theme.primaryColor")},
-            }
+            menu_title="Menu Principal", options=list(menu_items.keys()),
+            icons=[item["icon"] for item in menu_items.values()], menu_icon="cast", default_index=0
         )
         show_logout_button()
     
-    managers = initialize_managers()
+    # Inicializa as instâncias dos gerenciadores *APÓS* a barra lateral ter processado a seleção da unidade.
+    # É leve porque não carrega dados no __init__
+    initialize_managers()
 
     page_to_run = menu_items.get(selected_page)
     if page_to_run:
-        # Passa os gerenciadores para a função da página
-        if selected_page == "Administração":
-            page_to_run["function"](st.session_state.matrix_manager)
-        elif managers:
-            page_to_run["function"](managers)
-        else:
-            st.warning("Selecione uma unidade para continuar.")
+        logger.info(f"Navegando para a página: {selected_page}")
+        page_to_run["function"]()
 
 if __name__ == "__main__":
     main()

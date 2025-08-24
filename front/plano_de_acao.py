@@ -7,7 +7,7 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
 
-def show_plano_acao_page(managers: dict):
+def show_plano_acao_page():
 
     st.title("📋 Gestão de Não Conformidades e Auditorias")
 
@@ -21,11 +21,25 @@ def show_plano_acao_page(managers: dict):
     if not check_permission(level='editor'):
         st.stop()
 
-    action_plan_manager = managers["action_plan_manager"]
-    employee_manager = managers["employee_manager"]
-    docs_manager = managers["docs_manager"]
+    # --- Instanciação dos Gerenciadores ---
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Selecione uma unidade operacional para visualizar o Plano de Ação.")
+        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
+        return
 
-    
+    # Apenas consuma os gerenciadores do st.session_state
+    action_plan_manager = st.session_state.action_plan_manager
+    employee_manager = st.session_state.employee_manager
+    docs_manager = st.session_state.docs_manager
+
+    # Verifica se o gerenciador principal (plano de ação) conseguiu carregar seus dados.
+    if not action_plan_manager.data_loaded_successfully:
+        st.warning(
+            "Atenção: Não foi possível carregar os dados do Plano de Ação para esta unidade.",
+            icon="⚠️"
+        )
+        st.info("Verifique se a aba 'plano_acao' existe e contém dados na planilha do Google Sheets associada a esta unidade.")
+        return
 
 
     @st.dialog("Tratar Não Conformidade")

@@ -8,22 +8,16 @@ from AI.api_Operation import PDFQA
 import tempfile
 import os
 
-# Import the new cached loaders
-from operations.cached_loaders import (
-    load_company_docs_df,
-    load_audits_df
-)
-
 logger = logging.getLogger('segsisone_app.company_docs_manager')
 
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str):
-        self.spreadsheet_id = spreadsheet_id
+        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.data_loaded_successfully = False
+        self.docs_df = pd.DataFrame()
+        self.audit_df = pd.DataFrame()
+        self.load_company_data()
         self._pdf_analyzer = None
-
-        # Load data using cached functions
-        self.docs_df = load_company_docs_df(spreadsheet_id)
-        self.audit_df = load_audits_df(spreadsheet_id)
 
     @property
     def pdf_analyzer(self):
@@ -31,7 +25,43 @@ class CompanyDocsManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    
+    def load_company_data(self):
+        logger.info("Iniciando o carregamento dos dados de documentos da empresa e auditorias.")
+        docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
+        audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
+                      "id_funcionario", "tipo_documento", "norma_auditada", 
+                      "item_de_verificacao", "Status", "observacao"]
+        
+        try:
+            # Carregar documentos da empresa
+            docs_data = self.sheet_ops.carregar_dados_aba("documentos_empresa")
+            if docs_data and len(docs_data) > 1:
+                self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0])
+                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados de 'documentos_empresa'.")
+            else:
+                self.docs_df = pd.DataFrame(columns=docs_cols)
+                logger.info("A aba 'documentos_empresa' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # Carregar auditorias
+            audit_data = self.sheet_ops.carregar_dados_aba("auditorias")
+            if audit_data and len(audit_data) > 1:
+                header = audit_data[0]
+                self.audit_df = pd.DataFrame(audit_data[1:], columns=header)
+                logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
+            else:
+                self.audit_df = pd.DataFrame(columns=audit_cols)
+                logger.info("A aba 'auditorias' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            if not self.docs_df.empty:
+                self.data_loaded_successfully = True
+                logger.info("Dados da empresa carregados com sucesso.")
+            
+        except Exception as e:
+            logger.error(f"FALHA CRÍTICA ao carregar e processar dados da empresa: {str(e)}", exc_info=True)
+            st.error(f"Erro ao carregar dados essenciais da empresa: {str(e)}")
+            # Garante que os DataFrames estejam vazios em caso de erro
+            self.docs_df = pd.DataFrame(columns=docs_cols)
+            self.audit_df = pd.DataFrame(columns=audit_cols)
 
     def get_docs_by_company(self, company_id):
         if self.docs_df.empty: return pd.DataFrame()
@@ -111,7 +141,7 @@ class CompanyDocsManager:
             return None
 
     def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id):
-        sheet_ops = SheetOperations(self.spreadsheet_id)
+        # ... (código existente sem alteração) ...
         new_data = [
             str(empresa_id), str(tipo_documento), 
             data_emissao.strftime("%d/%m/%Y"), 
@@ -119,9 +149,10 @@ class CompanyDocsManager:
             str(arquivo_id)
         ]
         try:
-            doc_id = sheet_ops.adc_dados_aba("documentos_empresa", new_data)
+            doc_id = self.sheet_ops.adc_dados_aba("documentos_empresa", new_data)
             if doc_id:
-                load_company_docs_df.clear() # Clear cache after addition
+                st.cache_data.clear()
+                self.load_company_data()
                 return doc_id
             return None
         except Exception as e:

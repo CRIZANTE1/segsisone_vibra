@@ -5,20 +5,26 @@ from gdrive.matrix_manager import MatrixManager
 from gdrive.google_api_manager import GoogleApiManager
 from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
 
-def show_admin_page(matrix_manager: MatrixManager):
-    if not check_permission(level='admin'):
-        st.stop()
+def show_admin_page():
 
-    if not matrix_manager:
-        st.warning("Matrix manager not available.")
-        return
+    if not check_permission(level='admin'): st.stop()
 
     st.title("🚀 Painel de Super Administração")
 
     # Placeholder for the content of the Super Admin page
     st.write("Aqui você pode gerenciar usuários, unidades e provisionamento.")
 
-    google_api_manager = GoogleApiManager() # GoogleApiManager is a utility, can be instantiated directly
+    # Example of how to use the managers (to be expanded later)
+    matrix_manager = MatrixManager()
+    google_api_manager = GoogleApiManager()
+
+    if not matrix_manager.data_loaded_successfully:
+        st.error(
+            "Erro Crítico: Não foi possível carregar os dados da Planilha Matriz.",
+            icon="🚨"
+        )
+        st.warning("A funcionalidade de administração não pode operar. Verifique se a planilha matriz está configurada corretamente e se as abas 'usuarios' e 'unidades' existem.")
+        return
 
     st.subheader("Gerenciamento de Unidades")
 

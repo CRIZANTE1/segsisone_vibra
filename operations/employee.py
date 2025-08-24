@@ -14,15 +14,6 @@ from auth.auth_utils import get_user_email
 from fuzzywuzzy import process
 import logging
 
-# Import the new cached loaders
-from operations.cached_loaders import (
-    load_companies_df,
-    load_employees_df,
-    load_asos_df,
-    load_trainings_df,
-    load_training_matrix_df
-)
-
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
@@ -33,18 +24,11 @@ logger = logging.getLogger('segsisone_app.employee_manager')
 class EmployeeManager:
     def __init__(self, spreadsheet_id: str, folder_id: str):
         logger.info(f"Inicializando EmployeeManager para spreadsheet_id: ...{spreadsheet_id[-6:]}")
-        self.spreadsheet_id = spreadsheet_id
+        self.sheet_ops = SheetOperations(spreadsheet_id)
         self.folder_id = folder_id
+        self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
-        
-        # Load data using cached functions
-        self.companies_df = load_companies_df(spreadsheet_id)
-        self.employees_df = load_employees_df(spreadsheet_id)
-        self.aso_df = load_asos_df(spreadsheet_id)
-        self.training_df = load_trainings_df(spreadsheet_id)
-        self.training_matrix_df = load_training_matrix_df(spreadsheet_id)
-
-        # Static configs (can be class attributes or global constants if not tenant-specific)
+        self.training_matrix_df = pd.DataFrame() 
         self.nr20_config = {
             'Básico': {'reciclagem_anos': 3}, 'Intermediário': {'reciclagem_anos': 2},
             'Avançado I': {'reciclagem_anos': 2}, 'Avançado II': {'reciclagem_anos': 1}
@@ -56,13 +40,82 @@ class EmployeeManager:
             'NR-11': {'reciclagem_anos': 3}, 'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1},
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
+        self.data_loaded_successfully = False
+        self.load_data()
 
     @property
     def pdf_analyzer(self):
         if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    
+    def load_data(self):
+        """Carrega todos os DataFrames do tenant (unidade), garantindo que as colunas essenciais sempre existam."""
+        logger.info("Iniciando o carregamento de todos os DataFrames para EmployeeManager.")
+        # Definir todas as colunas esperadas para cada DF para garantir consistência
+        expected_company_cols = ['id', 'nome', 'cnpj', 'status']
+        expected_employee_cols = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao', 'status']
+        expected_aso_cols = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
+        expected_training_cols = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'anexo', 'tipo_treinamento', 'carga_horaria']
+        expected_matrix_cols = ['funcao', 'treinamentos_obrigatorios']
+
+        try:
+            # --- EMPRESAS ---
+            companies_data = self.sheet_ops.carregar_dados_aba("empresas")
+            if companies_data and len(companies_data) > 1:
+                self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0])
+                logger.info(f"Sucesso. {len(self.companies_df)} empresas carregadas.")
+            else:
+                self.companies_df = pd.DataFrame(columns=expected_company_cols)
+                logger.info("A aba 'empresas' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # --- FUNCIONÁRIOS ---
+            employees_data = self.sheet_ops.carregar_dados_aba("funcionarios")
+            if employees_data and len(employees_data) > 1:
+                self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0])
+                logger.info(f"Sucesso. {len(self.employees_df)} funcionários carregados.")
+            else:
+                self.employees_df = pd.DataFrame(columns=expected_employee_cols)
+                logger.info("A aba 'funcionarios' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # --- ASOS ---
+            aso_data = self.sheet_ops.carregar_dados_aba("asos")
+            if aso_data and len(aso_data) > 1:
+                self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0])
+                logger.info(f"Sucesso. {len(self.aso_df)} ASOs carregados.")
+            else:
+                self.aso_df = pd.DataFrame(columns=expected_aso_cols)
+                logger.info("A aba 'asos' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # --- TREINAMENTOS ---
+            training_data = self.sheet_ops.carregar_dados_aba("treinamentos")
+            if training_data and len(training_data) > 1:
+                self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0])
+                logger.info(f"Sucesso. {len(self.training_df)} treinamentos carregados.")
+            else:
+                self.training_df = pd.DataFrame(columns=expected_training_cols)
+                logger.info("A aba 'treinamentos' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # --- MATRIZ DE TREINAMENTOS ---
+            matrix_data = self.sheet_ops.carregar_dados_aba("matriz_treinamentos")
+            if matrix_data and len(matrix_data) > 1:
+                self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0])
+                logger.info(f"Sucesso. {len(self.training_matrix_df)} registros da matriz de treinamentos carregados.")
+            else:
+                self.training_matrix_df = pd.DataFrame(columns=expected_matrix_cols)
+                logger.info("A aba 'matriz_treinamentos' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+            
+            self.data_loaded_successfully = True
+            logger.info("Todos os DataFrames para EmployeeManager carregados com sucesso.")
+
+        except Exception as e:
+            logger.error(f"FALHA CRÍTICA ao carregar dados do tenant para EmployeeManager: {str(e)}", exc_info=True)
+            st.error(f"Erro crítico ao carregar dados essenciais da unidade: {str(e)}")
+            # Em caso de erro, inicializa todos como vazios para evitar mais falhas
+            self.companies_df = pd.DataFrame(columns=expected_company_cols)
+            self.employees_df = pd.DataFrame(columns=expected_employee_cols)
+            self.aso_df = pd.DataFrame(columns=expected_aso_cols)
+            self.training_df = pd.DataFrame(columns=expected_training_cols)
+            self.training_matrix_df = pd.DataFrame(columns=expected_matrix_cols)
 
     def log_action(self, action: str, details: dict):
         try:
@@ -77,35 +130,33 @@ class EmployeeManager:
             logger.error(f"Erro ao registrar ação: {e}", exc_info=True)
 
     def upload_documento_e_obter_link(self, arquivo, novo_nome):
-        api_manager = GoogleApiManager()
+        """Usa o api_manager para fazer upload de um arquivo na pasta do tenant."""
         if not self.folder_id:
             st.error("O ID da pasta desta unidade não está definido. Não é possível fazer o upload.")
             logger.error("Tentativa de upload sem folder_id definido para a unidade.")
             return None
         logger.info(f"Iniciando upload do documento: {novo_nome}")
-        return api_manager.upload_file(self.folder_id, arquivo, novo_nome)
+        return self.api_manager.upload_file(self.folder_id, arquivo, novo_nome)
 
     def add_company(self, nome, cnpj):
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             logger.warning(f"Tentativa de adicionar empresa com CNPJ duplicado: {cnpj}")
             return None, "CNPJ já cadastrado."
         new_data = [nome, cnpj, "Ativo"]
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        company_id = sheet_ops.adc_dados_aba("empresas", new_data)
+        company_id = self.sheet_ops.adc_dados_aba("empresas", new_data)
         if company_id:
             self.log_action("add_company", {"company_id": company_id, "nome": nome})
-            load_companies_df.clear() # Clear cache after addition
+            self.load_data() # Recarrega os dados após a adição
             return company_id, "Empresa cadastrada com sucesso"
         logger.error(f"Falha ao adicionar empresa {nome} ({cnpj}).")
         return None, "Falha ao obter ID da empresa."
 
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
         new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y"), "Ativo"]
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        employee_id = sheet_ops.adc_dados_aba("funcionarios", new_data)
+        employee_id = self.sheet_ops.adc_dados_aba("funcionarios", new_data)
         if employee_id:
             self.log_action("add_employee", {"employee_id": employee_id, "nome": nome})
-            load_employees_df.clear() # Clear cache after addition
+            self.load_data() # Recarrega os dados após a adição
             return employee_id, "Funcionário adicionado com sucesso"
         logger.error(f"Falha ao adicionar funcionário {nome} para a empresa {empresa_id}.")
         return None, "Erro ao adicionar funcionário."
@@ -120,11 +171,10 @@ class EmployeeManager:
             aso_data.get('cargo', 'N/A'),
             aso_data.get('tipo_aso', 'N/A')
         ]
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        aso_id = sheet_ops.adc_dados_aba("asos", new_data)
+        aso_id = self.sheet_ops.adc_dados_aba("asos", new_data)
         if aso_id:
             self.log_action("add_aso", {"aso_id": aso_id, "funcionario_id": aso_data.get('funcionario_id')})
-            load_asos_df.clear() # Clear cache after addition
+            self.load_data()
         else:
             logger.error(f"Falha ao adicionar ASO para o funcionário {aso_data.get('funcionario_id')}.")
         return aso_id
@@ -141,11 +191,10 @@ class EmployeeManager:
             str(training_data.get('tipo_treinamento', 'N/A')),
             str(training_data.get('carga_horaria', '0'))
         ]
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        training_id = sheet_ops.adc_dados_aba("treinamentos", new_data)
+        training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
         if training_id:
             self.log_action("add_training", {"training_id": training_id, "norma": training_data.get('norma')})
-            load_trainings_df.clear() # Clear cache after addition
+            self.load_data()
         else:
             logger.error(f"Falha ao adicionar treinamento para o funcionário {training_data.get('funcionario_id')}.")
         return training_id
@@ -162,14 +211,10 @@ class EmployeeManager:
         return None
 
     def _set_status(self, sheet_name: str, item_id: str, status: str):
-        sheet_ops = SheetOperations(self.spreadsheet_id)
-        success = sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
+        success = self.sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
         if success:
             self.log_action("set_status", {"item_id": item_id, "sheet": sheet_name, "status": status})
-            if sheet_name == "empresas":
-                load_companies_df.clear()
-            elif sheet_name == "funcionarios":
-                load_employees_df.clear()
+            self.load_data()
         else:
             logger.error(f"Falha ao definir status '{status}' para {item_id} na aba {sheet_name}.")
         return success

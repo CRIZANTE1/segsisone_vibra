@@ -42,7 +42,7 @@ sheets:
       - Instrutor
       - Link para o Certificado
 
-  - name: epis
+  - name: fichas_epi
     columns:
       - ID
       - ID Funcionario
@@ -53,7 +53,7 @@ sheets:
       - Quantidade
       - Assinatura
 
-  - name: plano_de_acao
+  - name: plano_acao
     columns:
       - ID
       - Origem da Não Conformidade

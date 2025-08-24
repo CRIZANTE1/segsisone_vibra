@@ -5,19 +5,19 @@ from gdrive.config import MATRIX_SPREADSHEET_ID
 
 # --- FUNÇÃO DE CACHE GLOBAL PARA OS DADOS DA MATRIZ ---
 @st.cache_data(ttl=600) # Cache de 10 minutos para dados da matriz
-def load_matrix_sheets_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_matrix_sheets_data():
     """
     Função em cache que se conecta à Planilha Matriz e carrega os dados brutos
     de 'usuarios' e 'unidades', evitando chamadas repetidas à API.
     """
     try:
         sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-        users_df = sheet_ops.get_df_from_worksheet("usuarios")
-        units_df = sheet_ops.get_df_from_worksheet("unidades")
-        return users_df, units_df
+        users_data = sheet_ops.carregar_dados_aba("usuarios")
+        units_data = sheet_ops.carregar_dados_aba("unidades")
+        return users_data, units_data
     except Exception as e:
         st.error(f"Falha crítica ao carregar dados da Planilha Matriz: {e}")
-        return pd.DataFrame(), pd.DataFrame()
+        return None, None
 
 class MatrixManager:
     def __init__(self):
@@ -25,7 +25,29 @@ class MatrixManager:
         Gerencia os dados da Planilha Matriz. Agora usa uma função em cache
         para minimizar as chamadas à API do Google Sheets.
         """
-        self.users_df, self.units_df = load_matrix_sheets_data()
+        self.users_df = pd.DataFrame()
+        self.units_df = pd.DataFrame()
+        self._load_data_from_cache()
+
+    def _load_data_from_cache(self):
+        """
+        Carrega os dados da função em cache e os transforma em DataFrames.
+        """
+        users_data, units_data = load_matrix_sheets_data()
+
+        # Carrega dados dos usuários
+        expected_user_cols = ['email', 'nome', 'role', 'unidade_associada']
+        if users_data and len(users_data) > 1:
+            self.users_df = pd.DataFrame(users_data[1:], columns=users_data[0])
+        else:
+            self.users_df = pd.DataFrame(columns=expected_user_cols)
+
+        # Carrega dados das unidades
+        expected_unit_cols = ['nome_unidade', 'spreadsheet_id', 'folder_id']
+        if units_data and len(units_data) > 1:
+            self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0])
+        else:
+            self.units_df = pd.DataFrame(columns=expected_unit_cols)
 
     def get_user_info(self, email: str) -> dict | None:
         if self.users_df.empty: return None
@@ -39,9 +61,7 @@ class MatrixManager:
         
     def add_unit(self, unit_data: list):
         sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-        new_unit_df = pd.DataFrame([unit_data], columns=self.units_df.columns)
-        updated_units_df = pd.concat([self.units_df, new_unit_df], ignore_index=True)
-        result = sheet_ops.update_worksheet_from_df("unidades", updated_units_df)
+        result = sheet_ops.adc_dados_aba("unidades", unit_data)
         if result: load_matrix_sheets_data.clear() # Limpa o cache após a escrita
         return result
 
@@ -53,8 +73,6 @@ class MatrixManager:
 
     def add_user(self, user_data: list):
         sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-        new_user_df = pd.DataFrame([user_data], columns=self.users_df.columns)
-        updated_users_df = pd.concat([self.users_df, new_user_df], ignore_index=True)
-        result = sheet_ops.update_worksheet_from_df("usuarios", updated_users_df)
+        result = sheet_ops.adc_dados_aba("usuarios", user_data)
         if result: load_matrix_sheets_data.clear() # Limpa o cache após a escrita
         return result
