@@ -63,7 +63,6 @@ def show_dashboard_page():
     
     st.title("Dashboard de Conformidade")
     
-    # Garante que a lista de opções tenha IDs como strings para consistência
     company_options = [None] + employee_manager.companies_df['id'].astype(str).tolist()
     
     selected_company = st.selectbox(
@@ -81,23 +80,30 @@ def show_dashboard_page():
         if selected_company:
             logger.info(f"Empresa selecionada: {selected_company}. Renderizando detalhes.")
             try:
-                # --- SEÇÃO DE DOCUMENTOS DA EMPRESA (CÓDIGO ROBUSTO) ---
                 st.subheader("Documentos da Empresa")
-                company_docs = docs_manager.get_docs_by_company(selected_company)
+                company_docs = docs_manager.get_docs_by_company(selected_company).copy()
                 
                 expected_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 if not company_docs.empty and all(col in company_docs.columns for col in expected_doc_cols):
-                    # Converte datas para datetime, tratando erros
+                    # Cria a coluna de data para o estilo
                     company_docs['vencimento_dt'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
                     
+                    # --- CORREÇÃO PRINCIPAL AQUI ---
                     st.dataframe(
-                        company_docs[expected_doc_cols].style.apply(highlight_expired, axis=1, subset=['vencimento_dt']),
+                        # Passa o DataFrame inteiro com a coluna 'vencimento_dt'
+                        company_docs.style.apply(highlight_expired, axis=1),
+                        # Esconde a coluna 'vencimento_dt' da visualização do usuário
                         column_config={
                             "tipo_documento": "Documento", 
-                            "data_emissao": st.column_config.TextColumn("Emissão"), 
-                            "vencimento": st.column_config.TextColumn("Vencimento"), 
-                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF")
-                        }, hide_index=True, use_container_width=True
+                            "data_emissao": "Emissão", 
+                            "vencimento": "Vencimento", 
+                            "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
+                            "vencimento_dt": None # Esconde a coluna
+                        }, 
+                        # Define a ordem das colunas para garantir que as colunas extras não apareçam no final
+                        column_order=expected_doc_cols,
+                        hide_index=True, 
+                        use_container_width=True
                     )
                 elif not company_docs.empty:
                     st.error("A aba 'documentos_empresa' parece estar com colunas faltando. Esperado: " + ", ".join(expected_doc_cols))
@@ -107,7 +113,6 @@ def show_dashboard_page():
                 
                 st.markdown("---")
 
-                # --- SEÇÃO DE FUNCIONÁRIOS (CÓDIGO ROBUSTO) ---
                 st.subheader("Funcionários")
                 employees = employee_manager.get_employees_by_company(selected_company)
                 
@@ -117,50 +122,44 @@ def show_dashboard_page():
                         employee_name = employee.get('nome', 'Nome não encontrado')
                         employee_cargo = employee.get('cargo', 'Cargo não encontrado')
                         
-                        status_icon = "✅"
                         expander_title = f"**{employee_name}** - *{employee_cargo}*"
 
                         with st.expander(expander_title):
-                            # --- LÓGICA DE STATUS DO ASO (MAIS SEGURA) ---
-                            aso_status, aso_vencimento_str = 'Não encontrado', 'N/A'
-                            latest_asos = employee_manager.get_latest_aso_by_employee(employee_id)
-                            if not latest_asos.empty and 'vencimento' in latest_asos.columns:
-                                # Filtra para não considerar demissionais para o status de aptidão
-                                aptitude_asos = latest_asos[~latest_asos['tipo_aso'].str.lower().isin(['demissional'])].copy()
-                                if not aptitude_asos.empty:
-                                    current_aso = aptitude_asos.iloc[0]
-                                    vencimento_obj = pd.to_datetime(current_aso.get('vencimento'), format='%d/%m/%Y', errors='coerce').date()
-                                    if pd.notna(vencimento_obj):
-                                        aso_vencimento_str = vencimento_obj.strftime('%d/%m/%Y')
-                                        aso_status = 'Válido' if vencimento_obj >= date.today() else 'Vencido'
-                                    else:
-                                        aso_status = 'Venc. Inválido'
-                            
-                            # --- LÓGICA DE STATUS DE TREINAMENTOS (MAIS SEGURA) ---
-                            trainings_expired_count = 0
-                            all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
-                            if not all_trainings.empty and 'vencimento' in all_trainings.columns:
-                                all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-                                trainings_expired_count = (all_trainings['vencimento_dt'] < date.today()).sum()
-
-                            # --- EXIBIÇÃO DOS DETALHES ---
                             st.markdown(f"##### Situação de: {employee_name}")
                             
-                            # Exibe ASOs
+                            # --- LÓGICA ROBUSTA PARA ASOS ---
                             st.markdown("**ASOs (Mais Recente por Tipo)**")
+                            latest_asos = employee_manager.get_latest_aso_by_employee(employee_id).copy()
                             expected_aso_cols = ["tipo_aso", "data_aso", "vencimento", "arquivo_id"]
                             if not latest_asos.empty and all(c in latest_asos.columns for c in expected_aso_cols):
-                                st.dataframe(latest_asos[expected_aso_cols], hide_index=True, use_container_width=True,
-                                    column_config={"arquivo_id": st.column_config.LinkColumn("Anexo")})
+                                latest_asos['vencimento_dt'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                                st.dataframe(
+                                    latest_asos.style.apply(highlight_expired, axis=1), 
+                                    column_config={
+                                        "arquivo_id": st.column_config.LinkColumn("Anexo"),
+                                        "vencimento_dt": None
+                                    },
+                                    column_order=expected_aso_cols,
+                                    hide_index=True, use_container_width=True
+                                )
                             else:
                                 st.info("Nenhum ASO encontrado ou colunas ausentes.")
 
-                            # Exibe Treinamentos
+                            # --- LÓGICA ROBUSTA PARA TREINAMENTOS ---
                             st.markdown("**Treinamentos (Mais Recente por Norma)**")
+                            all_trainings = employee_manager.get_all_trainings_by_employee(employee_id).copy()
                             expected_training_cols = ["norma", "data", "vencimento", "anexo"]
                             if not all_trainings.empty and all(c in all_trainings.columns for c in expected_training_cols):
-                                st.dataframe(all_trainings[expected_training_cols], hide_index=True, use_container_width=True,
-                                    column_config={"anexo": st.column_config.LinkColumn("Anexo")})
+                                all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                                st.dataframe(
+                                    all_trainings.style.apply(highlight_expired, axis=1), 
+                                    column_config={
+                                        "anexo": st.column_config.LinkColumn("Anexo"),
+                                        "vencimento_dt": None
+                                    },
+                                    column_order=expected_training_cols,
+                                    hide_index=True, use_container_width=True
+                                )
                             else:
                                 st.info("Nenhum treinamento encontrado ou colunas ausentes.")
 
@@ -174,7 +173,6 @@ def show_dashboard_page():
 
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
-
 
     with tab_add_epi:
         if not selected_company: st.info("Selecione uma empresa na aba 'Situação Geral' primeiro.")
