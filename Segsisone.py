@@ -28,7 +28,7 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from operations.epi import EPIManager
 from operations.action_plan import ActionPlanManager
-from operations.nr_analyzer import NRAnalyzer
+from analysis.nr_analyzer import NRAnalyzer 
 
 def configurar_pagina():
     st.set_page_config(
