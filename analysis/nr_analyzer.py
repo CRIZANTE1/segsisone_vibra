@@ -12,11 +12,9 @@ import gspread
 from AI.api_Operation import PDFQA
 from gdrive.config import get_credentials_dict
 from operations.action_plan import ActionPlanManager
+from operations.sheet import SheetOperations 
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from operations.sheet import SheetOperations
-
-
 
 @st.cache_data(ttl=3600)
 def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
@@ -50,21 +48,19 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
         return df, embeddings
 
     except Exception as e:
-        # Se a chave de API não estiver configurada, um erro será capturado aqui.
         st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
-        st.warning("Verifique se a chave GEMINI_AUDIT_KEY está configurada corretamente nos secrets.")
-        return pd.DataFrame(), None
-
-    except Exception as e:
-        st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
-        st.warning("Verifique sua chave de API e os limites de quota.")
+        st.warning("Verifique se a chave GEMINI_AUDIT_KEY está configurada corretamente nos secrets e se a planilha RAG está acessível.")
         return pd.DataFrame(), None
 
 class NRAnalyzer:
-    def __init__(self, sheet_ops: SheetOperations):
+    def __init__(self, spreadsheet_id: str):
+        """
+        Inicializa o analisador com o ID da planilha da unidade.
+        """
         self.pdf_analyzer = PDFQA()
-        self.sheet_ops = sheet_ops
-        self.action_plan_manager = ActionPlanManager(sheet_ops)
+        # Agora, ele cria suas próprias dependências, corrigindo o erro.
+        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.action_plan_manager = ActionPlanManager(spreadsheet_id)
 
         self.rag_sheet_id = None
         self.rag_df = pd.DataFrame()
