@@ -2,15 +2,13 @@ streamlit
 numpy>=1.24.0
 plotly>=5.18.0
 pandas
-openpyxl==3.1.2
 authlib
 google-auth
 google-auth-httplib2
 google-auth-oauthlib
 google-api-python-client
-python-dotenv==1.0.1
-google-generativeai>=0.3.2
-pygsheets>=2.0.6
+google-generativeai
+pygsheets
 oauth2client
 gspread
 scikit-learn
