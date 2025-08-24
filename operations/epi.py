@@ -144,8 +144,10 @@ class EPIManager:
                 st.error(f"Erro ao adicionar o item '{item.get('descricao')}': {e}")
                 continue # Continua para o próximo item
         
-        if len(saved_ids) == len(itens_epi):
+        if saved_ids:
             load_epis_df.clear() # Clear cache after addition
+            
+        if len(saved_ids) == len(itens_epi):
             return saved_ids
         
         return None # Indica que houve falha em salvar alguns itens
