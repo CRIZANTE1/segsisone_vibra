@@ -1,3 +1,5 @@
+# operations/employee.py (VERSÃO FINAL E COMPLETA)
+
 import pandas as pd
 import streamlit as st
 from datetime import datetime, date
@@ -17,7 +19,6 @@ import logging
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 except locale.Error:
-    # Fallback para o locale padrão se pt_BR não estiver disponível
     pass
 
 logger = logging.getLogger('segsisone_app.employee_manager')
@@ -30,7 +31,6 @@ class EmployeeManager:
         self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
         
-        # Dicionários de configuração movidos para o __init__ para clareza
         self.nr20_config = {
             'Básico': {'reciclagem_anos': 3}, 'Intermediário': {'reciclagem_anos': 2},
             'Avançado I': {'reciclagem_anos': 2}, 'Avançado II': {'reciclagem_anos': 1}
@@ -43,7 +43,6 @@ class EmployeeManager:
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
         
-        # Inicializa os DataFrames vazios para evitar erros se o carregamento falhar
         self.companies_df = pd.DataFrame()
         self.employees_df = pd.DataFrame()
         self.aso_df = pd.DataFrame()
@@ -58,6 +57,126 @@ class EmployeeManager:
         if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
+    # --- FUNÇÕES DE ANÁLISE DE PDF ADICIONADAS AQUI ---
+
+    def analyze_aso_pdf(self, pdf_file):
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            structured_prompt = """        
+            Você é um assistente de extração de dados para documentos de SST. Sua tarefa é analisar o ASO em PDF e extrair as informações abaixo.
+            REGRAS OBRIGATÓRIAS:
+            1. Responda APENAS com um bloco de código JSON válido. Não inclua texto antes ou depois do JSON.
+            2. Para datas, use ESTRITAMENTE o formato DD/MM/AAAA.
+            3. Se uma informação não for encontrada, o valor da chave deve ser null.
+            4. Os valores das chaves NÃO DEVEM conter o nome da chave (ex: "cargo": "Operador", não "cargo": "Cargo: Operador").
+            JSON a ser preenchido:
+            {
+            "data_aso": "A data de emissão do exame. Formato: DD/MM/AAAA.",
+            "vencimento_aso": "A data de vencimento explícita no ASO, se houver. Formato: DD/MM/AAAA.",
+            "riscos": "Uma string com os riscos listados, separados por vírgula.",
+            "cargo": "O cargo do trabalhador.",
+            "tipo_aso": "O tipo de exame: 'Admissional', 'Periódico', 'Demissional', 'Mudança de Risco', 'Retorno ao Trabalho'."
+            }
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
+        
+        except Exception as e:
+            st.error(f"Erro ao processar o PDF do ASO: {str(e)}")
+            return None
+        finally:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+        if not answer:
+            st.error("A IA não retornou resposta para o ASO.")
+            return None
+
+        try:
+            cleaned_answer = re.search(r'\{.*\}', answer, re.DOTALL).group(0)
+            data = json.loads(cleaned_answer)
+
+            data_aso = self._parse_flexible_date(data.get('data_aso'))
+            vencimento = self._parse_flexible_date(data.get('vencimento_aso'))
+            
+            if not data_aso:
+                st.error("Não foi possível extrair a data de emissão do ASO.")
+                return None
+                
+            tipo_aso = str(data.get('tipo_aso', 'Não identificado'))
+
+            if not vencimento and tipo_aso.lower() != 'demissional':
+                vencimento = data_aso + relativedelta(years=1)
+            
+            return {
+                'data_aso': data_aso, 'vencimento': vencimento, 'riscos': data.get('riscos'), 
+                'cargo': data.get('cargo'), 'tipo_aso': tipo_aso
+            }
+        except (json.JSONDecodeError, AttributeError) as e:
+            st.error(f"Erro ao processar a resposta da IA para o ASO: {e}")
+            st.code(f"Resposta recebida:\n{answer}")
+            return None
+
+    def analyze_training_pdf(self, pdf_file):
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+                temp_file.write(pdf_file.getvalue())
+                temp_path = temp_file.name
+            
+            structured_prompt = """
+            Você é um especialista em análise de documentos de SST. Sua tarefa é analisar o certificado e extrair as informações abaixo.
+            REGRAS OBRIGATÓRIAS:
+            1. Responda APENAS com um bloco de código JSON válido.
+            2. Para datas, use ESTRITAMENTE o formato DD/MM/AAAA.
+            3. Se uma informação não for encontrada, o valor da chave deve ser null.
+            4. Para "carga_horaria", retorne apenas o número inteiro.
+            JSON a ser preenchido:
+            {
+            "norma": "A norma do treinamento (ex: 'NR-20', 'NR-35').",
+            "modulo": "O módulo específico (ex: 'Básico', 'Avançado'). Se não aplicável, use 'N/A'.",
+            "data_realizacao": "A data de conclusão do certificado. Formato: DD/MM/AAAA.",
+            "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem'.",
+            "carga_horaria": "A carga horária total, apenas o número."
+            }
+            """
+            answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
+        except Exception as e:
+            st.error(f"Erro ao processar o PDF de treinamento: {str(e)}")
+            return None
+        finally:
+            if 'temp_path' in locals() and os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+        if not answer:
+            st.error("A IA não retornou resposta para o certificado.")
+            return None
+
+        try:
+            cleaned_answer = re.search(r'\{.*\}', answer, re.DOTALL).group(0)
+            data = json.loads(cleaned_answer)
+
+            data_realizacao = self._parse_flexible_date(data.get('data_realizacao'))
+            if not data_realizacao:
+                st.error("Não foi possível extrair a data de realização do certificado.")
+                return None
+                
+            return {
+                'data': data_realizacao, 
+                'norma': self._padronizar_norma(data.get('norma')), 
+                'modulo': data.get('modulo', "N/A"), 
+                'tipo_treinamento': str(data.get('tipo_treinamento', 'formação')).lower(), 
+                'carga_horaria': int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
+            }
+        except (json.JSONDecodeError, AttributeError, TypeError, ValueError) as e:
+            st.error(f"Erro ao processar a resposta da IA para o treinamento: {e}")
+            st.code(f"Resposta recebida:\n{answer}")
+            return None
+
+    # --- RESTANTE DO CÓDIGO (load_data, add_aso, etc.) ---
+    # O restante do seu arquivo employee.py continua aqui, sem alterações.
+    # ... (cole o restante do código da versão completa que enviei anteriormente) ...
     def load_data(self):
         """Carrega todos os DataFrames da unidade, garantindo que as colunas essenciais sempre existam."""
         logger.info("Iniciando o carregamento de todos os DataFrames para EmployeeManager.")
