@@ -16,11 +16,9 @@ from ui.ui_helpers import (
 logger = logging.getLogger('segsisone_app.dashboard')
 
 def format_company_display(company_id, companies_df):
-    """Formata o nome da empresa para exibição no selectbox."""
     if company_id is None:
         return "Selecione..."
     try:
-        # Garante que estamos comparando tipos de dados consistentes (string com string)
         row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
         name = row.get('nome', f"Empresa ID {company_id}")
         status = str(row.get('status', 'Ativo')).lower()
@@ -32,7 +30,6 @@ def format_company_display(company_id, companies_df):
         return f"Empresa ID {company_id} (Não encontrada)"
 
 def display_audit_results(audit_result):
-    """Exibe os resultados da auditoria de forma visual."""
     if not audit_result: return
     summary = audit_result.get("summary", "Indefinido")
     details = audit_result.get("details", [])
@@ -51,9 +48,7 @@ def display_audit_results(audit_result):
 def show_dashboard_page():
     logger.info("Iniciando a renderização da página do dashboard.")
     if not st.session_state.get('managers_initialized'):
-        logger.warning("Managers não inicializados, parando a renderização do dashboard.")
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
-        st.info("Administradores podem usar o seletor na barra lateral.")
         return
         
     employee_manager = st.session_state.employee_manager
@@ -85,25 +80,15 @@ def show_dashboard_page():
                 
                 expected_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 if not company_docs.empty and all(col in company_docs.columns for col in expected_doc_cols):
-                    # Cria a coluna de data para o estilo
                     company_docs['vencimento_dt'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-                    
-                    # --- CORREÇÃO PRINCIPAL AQUI ---
                     st.dataframe(
-                        # Passa o DataFrame inteiro com a coluna 'vencimento_dt'
                         company_docs.style.apply(highlight_expired, axis=1),
-                        # Esconde a coluna 'vencimento_dt' da visualização do usuário
                         column_config={
-                            "tipo_documento": "Documento", 
-                            "data_emissao": "Emissão", 
-                            "vencimento": "Vencimento", 
+                            "tipo_documento": "Documento", "data_emissao": "Emissão", "vencimento": "Vencimento", 
                             "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="Abrir PDF"),
-                            "vencimento_dt": None # Esconde a coluna
+                            "vencimento_dt": None 
                         }, 
-                        # Define a ordem das colunas para garantir que as colunas extras não apareçam no final
-                        column_order=expected_doc_cols,
-                        hide_index=True, 
-                        use_container_width=True
+                        column_order=expected_doc_cols, hide_index=True, use_container_width=True
                     )
                 elif not company_docs.empty:
                     st.error("A aba 'documentos_empresa' parece estar com colunas faltando. Esperado: " + ", ".join(expected_doc_cols))
@@ -122,47 +107,44 @@ def show_dashboard_page():
                         employee_name = employee.get('nome', 'Nome não encontrado')
                         employee_cargo = employee.get('cargo', 'Cargo não encontrado')
                         
-                        expander_title = f"**{employee_name}** - *{employee_cargo}*"
-
-                        with st.expander(expander_title):
+                        with st.expander(f"**{employee_name}** - *{employee_cargo}*"):
                             st.markdown(f"##### Situação de: {employee_name}")
                             
-                            # --- LÓGICA ROBUSTA PARA ASOS ---
                             st.markdown("**ASOs (Mais Recente por Tipo)**")
-                            latest_asos = employee_manager.get_latest_aso_by_employee(employee_id).copy()
-                            expected_aso_cols = ["tipo_aso", "data_aso", "vencimento", "arquivo_id"]
-                            if not latest_asos.empty and all(c in latest_asos.columns for c in expected_aso_cols):
-                                latest_asos['vencimento_dt'] = pd.to_datetime(latest_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                            latest_asos = employee_manager.get_latest_aso_by_employee(employee_id)
+                            
+                            # --- CORREÇÃO APLICADA AQUI ---
+                            # Garante que é um DataFrame e verifica as colunas de forma segura
+                            is_df_and_valid = isinstance(latest_asos, pd.DataFrame) and not latest_asos.empty and all(c in latest_asos.columns for c in ["tipo_aso", "data_aso", "vencimento", "arquivo_id"])
+
+                            if is_df_and_valid:
+                                df_asos = latest_asos.copy()
+                                df_asos['vencimento_dt'] = pd.to_datetime(df_asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
                                 st.dataframe(
-                                    latest_asos.style.apply(highlight_expired, axis=1), 
-                                    column_config={
-                                        "arquivo_id": st.column_config.LinkColumn("Anexo"),
-                                        "vencimento_dt": None
-                                    },
-                                    column_order=expected_aso_cols,
+                                    df_asos.style.apply(highlight_expired, axis=1),
+                                    column_config={"arquivo_id": st.column_config.LinkColumn("Anexo"), "vencimento_dt": None},
+                                    column_order=["tipo_aso", "data_aso", "vencimento", "arquivo_id"],
                                     hide_index=True, use_container_width=True
                                 )
                             else:
                                 st.info("Nenhum ASO encontrado ou colunas ausentes.")
 
-                            # --- LÓGICA ROBUSTA PARA TREINAMENTOS ---
                             st.markdown("**Treinamentos (Mais Recente por Norma)**")
-                            all_trainings = employee_manager.get_all_trainings_by_employee(employee_id).copy()
-                            expected_training_cols = ["norma", "data", "vencimento", "anexo"]
-                            if not all_trainings.empty and all(c in all_trainings.columns for c in expected_training_cols):
-                                all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                            all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
+
+                            is_df_and_valid_trainings = isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty and all(c in all_trainings.columns for c in ["norma", "data", "vencimento", "anexo"])
+
+                            if is_df_and_valid_trainings:
+                                df_trainings = all_trainings.copy()
+                                df_trainings['vencimento_dt'] = pd.to_datetime(df_trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
                                 st.dataframe(
-                                    all_trainings.style.apply(highlight_expired, axis=1), 
-                                    column_config={
-                                        "anexo": st.column_config.LinkColumn("Anexo"),
-                                        "vencimento_dt": None
-                                    },
-                                    column_order=expected_training_cols,
+                                    df_trainings.style.apply(highlight_expired, axis=1),
+                                    column_config={"anexo": st.column_config.LinkColumn("Anexo"), "vencimento_dt": None},
+                                    column_order=["norma", "data", "vencimento", "anexo"],
                                     hide_index=True, use_container_width=True
                                 )
                             else:
                                 st.info("Nenhum treinamento encontrado ou colunas ausentes.")
-
                 else:
                     st.info("Nenhum funcionário cadastrado para esta empresa.")
             
@@ -170,7 +152,6 @@ def show_dashboard_page():
                 logger.error(f"ERRO CRÍTICO ao renderizar dashboard para empresa {selected_company}: {e}", exc_info=True)
                 st.error("Ocorreu um erro inesperado ao tentar exibir os detalhes desta empresa.")
                 st.exception(e)
-
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
