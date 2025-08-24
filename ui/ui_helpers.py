@@ -32,12 +32,24 @@ def mostrar_info_normas():
         """)
 
 def highlight_expired(row):
-    today = datetime.now().date()
-    vencimento_val = row.get('vencimento')
+    """
+    Destaca a linha se a data de vencimento estiver no passado.
+    Agora verifica se a coluna 'vencimento_dt' existe antes de usá-la.
+    """
+    # --- CORREÇÃO AQUI ---
+    if 'vencimento_dt' not in row.index:
+        return [''] * len(row) # Se a coluna não existe, não faz nada
+
+    today = date.today()
+    vencimento_val = row.get('vencimento_dt')
+    
+    # Verifica se o valor não é nulo (NaT) e se é uma data
     if pd.notna(vencimento_val) and isinstance(vencimento_val, date):
         if vencimento_val < today:
-            return ['background-color: #FFCDD2'] * len(row)
+            return ['background-color: #FFCDD2'] * len(row) # Vermelho claro
+            
     return [''] * len(row)
+
 
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
