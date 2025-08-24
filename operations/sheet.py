@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import logging
-from gspread_pandas import Spread, Client
-from gdrive.google_api_manager import GoogleApiManager
+from gspread_pandas import Spread
+from gdrive.config import get_credentials_dict
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +15,9 @@ class SheetOperations:
             return
 
         try:
-            api_manager = GoogleApiManager()
-            self.spread = Spread(spreadsheet_id, client=api_manager.client, config_dir=None)
+            from gdrive.config import get_credentials_dict
+            credentials_dict = get_credentials_dict()
+            self.spread = Spread(spreadsheet_id, creds=credentials_dict, config_dir=None)
         except Exception as e:
             st.error(f"Falha ao abrir a planilha com ID: {spreadsheet_id}. Verifique as permissões.")
             logger.error(f"Erro ao inicializar Spread para ID {spreadsheet_id}: {e}")
