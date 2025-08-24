@@ -1,19 +1,16 @@
 import streamlit as st
 import sys
 import os
-import logging 
+import logging
 from streamlit_option_menu import option_menu
 
-# --- 1. CONFIGURAÇÃO DO LOGGING ---
-# Coloque este bloco logo após as importações
+# --- Configuração do Logging ---
 logging.basicConfig(
-    level=logging.DEBUG, # <--- Mudei para DEBUG para ver os logs mais detalhados
+    level=logging.INFO, # Mude para DEBUG se precisar de mais detalhes
     format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-# Cria um "logger" específico para nossa aplicação para não misturar com logs de bibliotecas
 logger = logging.getLogger('segsisone_app')
-# ------------------------------------
 
 # --- Configuração do Caminho (Path) ---
 root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,7 +28,7 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from operations.epi import EPIManager
 from operations.action_plan import ActionPlanManager
-from analysis.nr_analyzer import NRAnalyzer
+from operations.nr_analyzer import NRAnalyzer
 
 def configurar_pagina():
     st.set_page_config(
@@ -42,32 +39,46 @@ def configurar_pagina():
     )
 
 def initialize_managers():
-    logger.debug(f"initialize_managers called. unit_id: {st.session_state.get('spreadsheet_id')}, managers_unit_id: {st.session_state.get('managers_unit_id')}, managers_initialized: {st.session_state.get('managers_initialized')}")
+    """
+    Função central para criar, destruir e gerenciar as instâncias dos managers.
+    Esta é a solução definitiva para os problemas de cache.
+    """
     unit_id = st.session_state.get('spreadsheet_id')
-    folder_id = st.session_state.get('folder_id') # Keep folder_id for EmployeeManager
-
-    # Se a unidade mudou, ou se managers não foram inicializados para a unidade atual, cria novas instâncias de gestores
+    folder_id = st.session_state.get('folder_id')
+    
+    # Condição para (re)inicializar:
+    # 1. Se o ID da unidade mudou.
+    # 2. Ou se os managers ainda não foram inicializados para a unidade atual.
     if unit_id and st.session_state.get('managers_unit_id') != unit_id:
-        logger.info(f"Configurando managers para a nova unidade: ...{unit_id[-6:]}")
+        logger.info(f"Trocando de unidade. Inicializando managers para a unidade: ...{unit_id[-6:]}")
         with st.spinner("Configurando ambiente da unidade..."):
+            # Cria novas instâncias, forçando o recarregamento dos dados no __init__ de cada manager
             st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
             st.session_state.docs_manager = CompanyDocsManager(unit_id)
             st.session_state.epi_manager = EPIManager(unit_id)
             st.session_state.action_plan_manager = ActionPlanManager(unit_id)
             st.session_state.nr_analyzer = NRAnalyzer(unit_id)
-            st.session_state.matrix_manager = MatrixManager() # Add MatrixManager initialization
             
-        st.session_state.managers_unit_id = unit_id # Atualiza o ID da unidade atual
+        # Armazena o ID da unidade para a qual os managers foram inicializados
+        st.session_state.managers_unit_id = unit_id
         st.session_state.managers_initialized = True
         logger.info("Managers inicializados com sucesso para a nova unidade.")
+    
     elif not unit_id:
-        # Se nenhuma unidade está selecionada, garante que managers não estejam inicializados
+        # Se nenhuma unidade está selecionada (ex: admin em modo Global), garante que os managers sejam removidos
         if st.session_state.get('managers_initialized', False):
             logger.info("Nenhuma unidade selecionada. Resetando managers.")
+            keys_to_delete = [
+                'employee_manager', 'docs_manager', 'epi_manager', 
+                'action_plan_manager', 'nr_analyzer', 'managers_unit_id'
+            ]
+            for key in keys_to_delete:
+                if key in st.session_state:
+                    del st.session_state[key]
         st.session_state.managers_initialized = False
-        logger.debug("unit_id é None, managers_initialized setado para False.")
     else:
         logger.debug("Managers já inicializados para a unidade atual. Nenhuma ação necessária.")
+
 
 def main():
     configurar_pagina()
@@ -93,25 +104,24 @@ def main():
             unit_options.insert(0, 'Global')
             current_unit_name = st.session_state.get('unit_name', 'Global')
             
-            try: default_index = unit_options.index(current_unit_name)
-            except ValueError: default_index = 0
+            try:
+                default_index = unit_options.index(current_unit_name)
+            except ValueError:
+                default_index = 0
 
             selected_admin_unit = st.selectbox(
                 "Operar como Unidade:", options=unit_options,
                 index=default_index, key="admin_unit_selector"
             )
 
+            # Lógica para forçar a re-inicialização ao trocar de unidade
             if selected_admin_unit != current_unit_name:
                 logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
-                st.cache_data.clear() # Limpa o cache ao trocar de unidade
-
-                # Explicitamente resetar o estado dos managers para forçar a re-inicialização
+                
+                # Força a re-inicialização na próxima execução
                 st.session_state.managers_initialized = False
                 if 'managers_unit_id' in st.session_state:
-                    del st.session_state.managers_unit_id
-                for key in ['employee_manager', 'docs_manager', 'epi_manager', 'action_plan_manager', 'nr_analyzer']:
-                    if key in st.session_state:
-                        del st.session_state[key]
+                    del st.session_state['managers_unit_id']
 
                 if selected_admin_unit == 'Global':
                     st.session_state.unit_name, st.session_state.spreadsheet_id, st.session_state.folder_id = 'Global', None, None
@@ -142,14 +152,14 @@ def main():
                 "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "rgba(255, 255, 255, 0.1)" if st.get_option("theme.base") == "dark" else "#f0f2f6"},
                 "nav-link-selected": {"background-color": st.get_option("theme.primaryColor")},
             }
-        
         )
         show_logout_button()
     
-    # Inicializa as instâncias dos gerenciadores *APÓS* a barra lateral ter processado a seleção da unidade.
-    # É leve porque não carrega dados no __init__
+    # A inicialização dos managers acontece AQUI, depois que a sidebar foi processada
+    # e a unidade correta foi definida no session_state.
     initialize_managers()
 
+    # Agora, as páginas podem consumir os managers com segurança
     page_to_run = menu_items.get(selected_page)
     if page_to_run:
         logger.info(f"Navegando para a página: {selected_page}")
@@ -157,5 +167,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
