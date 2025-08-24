@@ -7,7 +7,7 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
 
-def show_plano_acao_page():
+def show_plano_acao_page(managers: dict):
 
     st.title("📋 Gestão de Não Conformidades e Auditorias")
 
@@ -21,16 +21,9 @@ def show_plano_acao_page():
     if not check_permission(level='editor'):
         st.stop()
 
-    # --- Instanciação dos Gerenciadores ---
-    if not st.session_state.get('managers_initialized'):
-        st.warning("Selecione uma unidade operacional para visualizar o Plano de Ação.")
-        st.info("Administradores globais podem usar o seletor 'Operar como Unidade' na barra lateral.")
-        return
-
-    # Apenas consuma os gerenciadores do st.session_state
-    action_plan_manager = st.session_state.action_plan_manager
-    employee_manager = st.session_state.employee_manager
-    docs_manager = st.session_state.docs_manager
+    action_plan_manager = managers["action_plan_manager"]
+    employee_manager = managers["employee_manager"]
+    docs_manager = managers["docs_manager"]
 
     
 

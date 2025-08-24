@@ -35,8 +35,6 @@ class EmployeeManager:
         logger.info(f"Inicializando EmployeeManager para spreadsheet_id: ...{spreadsheet_id[-6:]}")
         self.spreadsheet_id = spreadsheet_id
         self.folder_id = folder_id
-        self.sheet_ops = SheetOperations(spreadsheet_id) # Mantido para escrita
-        self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
         
         # Load data using cached functions
@@ -79,20 +77,21 @@ class EmployeeManager:
             logger.error(f"Erro ao registrar ação: {e}", exc_info=True)
 
     def upload_documento_e_obter_link(self, arquivo, novo_nome):
-        """Usa o api_manager para fazer upload de um arquivo na pasta do tenant."""
+        api_manager = GoogleApiManager()
         if not self.folder_id:
             st.error("O ID da pasta desta unidade não está definido. Não é possível fazer o upload.")
             logger.error("Tentativa de upload sem folder_id definido para a unidade.")
             return None
         logger.info(f"Iniciando upload do documento: {novo_nome}")
-        return self.api_manager.upload_file(self.folder_id, arquivo, novo_nome)
+        return api_manager.upload_file(self.folder_id, arquivo, novo_nome)
 
     def add_company(self, nome, cnpj):
         if not self.companies_df.empty and cnpj in self.companies_df['cnpj'].values:
             logger.warning(f"Tentativa de adicionar empresa com CNPJ duplicado: {cnpj}")
             return None, "CNPJ já cadastrado."
         new_data = [nome, cnpj, "Ativo"]
-        company_id = self.sheet_ops.adc_dados_aba("empresas", new_data)
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        company_id = sheet_ops.adc_dados_aba("empresas", new_data)
         if company_id:
             self.log_action("add_company", {"company_id": company_id, "nome": nome})
             load_companies_df.clear() # Clear cache after addition
@@ -102,7 +101,8 @@ class EmployeeManager:
 
     def add_employee(self, nome, cargo, data_admissao, empresa_id):
         new_data = [nome, str(empresa_id), cargo, data_admissao.strftime("%d/%m/%Y"), "Ativo"]
-        employee_id = self.sheet_ops.adc_dados_aba("funcionarios", new_data)
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        employee_id = sheet_ops.adc_dados_aba("funcionarios", new_data)
         if employee_id:
             self.log_action("add_employee", {"employee_id": employee_id, "nome": nome})
             load_employees_df.clear() # Clear cache after addition
@@ -120,7 +120,8 @@ class EmployeeManager:
             aso_data.get('cargo', 'N/A'),
             aso_data.get('tipo_aso', 'N/A')
         ]
-        aso_id = self.sheet_ops.adc_dados_aba("asos", new_data)
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        aso_id = sheet_ops.adc_dados_aba("asos", new_data)
         if aso_id:
             self.log_action("add_aso", {"aso_id": aso_id, "funcionario_id": aso_data.get('funcionario_id')})
             load_asos_df.clear() # Clear cache after addition
@@ -140,7 +141,8 @@ class EmployeeManager:
             str(training_data.get('tipo_treinamento', 'N/A')),
             str(training_data.get('carga_horaria', '0'))
         ]
-        training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        training_id = sheet_ops.adc_dados_aba("treinamentos", new_data)
         if training_id:
             self.log_action("add_training", {"training_id": training_id, "norma": training_data.get('norma')})
             load_trainings_df.clear() # Clear cache after addition
@@ -160,7 +162,8 @@ class EmployeeManager:
         return None
 
     def _set_status(self, sheet_name: str, item_id: str, status: str):
-        success = self.sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        success = sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status})
         if success:
             self.log_action("set_status", {"item_id": item_id, "sheet": sheet_name, "status": status})
             if sheet_name == "empresas":

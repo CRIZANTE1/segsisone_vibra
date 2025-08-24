@@ -18,7 +18,7 @@ logger = logging.getLogger('segsisone_app.company_docs_manager')
 
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str):
-        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id
         self._pdf_analyzer = None
 
         # Load data using cached functions
@@ -111,7 +111,7 @@ class CompanyDocsManager:
             return None
 
     def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id):
-        # ... (código existente sem alteração) ...
+        sheet_ops = SheetOperations(self.spreadsheet_id)
         new_data = [
             str(empresa_id), str(tipo_documento), 
             data_emissao.strftime("%d/%m/%Y"), 
@@ -119,7 +119,7 @@ class CompanyDocsManager:
             str(arquivo_id)
         ]
         try:
-            doc_id = self.sheet_ops.adc_dados_aba("documentos_empresa", new_data)
+            doc_id = sheet_ops.adc_dados_aba("documentos_empresa", new_data)
             if doc_id:
                 load_company_docs_df.clear() # Clear cache after addition
                 return doc_id

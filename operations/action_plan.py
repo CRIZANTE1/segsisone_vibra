@@ -15,7 +15,7 @@ from operations.cached_loaders import (
 
 class ActionPlanManager:
     def __init__(self, spreadsheet_id: str):
-        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id
         self.columns = [
             'id', 'audit_run_id', 'id_empresa', 'id_documento_original',
             'item_nao_conforme', 'referencia_normativa', 'plano_de_acao',
@@ -44,7 +44,8 @@ class ActionPlanManager:
             date.today().strftime("%d/%m/%Y"),
             ""
         ]
-        action_item_id = self.sheet_ops.adc_dados_aba("plano_acao", new_data)
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        action_item_id = sheet_ops.adc_dados_aba("plano_acao", new_data)
         if action_item_id:
             load_action_plan_df.clear() # Clear cache after addition
         return action_item_id
@@ -56,7 +57,8 @@ class ActionPlanManager:
         if updates.get("status") == "Concluído" and "data_conclusao" not in updates:
              updates["data_conclusao"] = date.today().strftime("%d/%m/%Y")
 
-        if self.sheet_ops.update_row_by_id("plano_acao", item_id, updates):
+        sheet_ops = SheetOperations(self.spreadsheet_id)
+        if sheet_ops.update_row_by_id("plano_acao", item_id, updates):
             load_action_plan_df.clear() # Clear cache after update
             return True
         return False

@@ -14,7 +14,7 @@ from operations.cached_loaders import (
 
 class EPIManager:
     def __init__(self, spreadsheet_id: str):
-        self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id
         self._pdf_analyzer = None
         
         # Load data using cached functions
@@ -124,7 +124,7 @@ class EPIManager:
             return None
             
     def add_epi_records(self, funcionario_id, arquivo_id, itens_epi):
-        """Adiciona múltiplos registros de EPI a partir de uma única ficha."""
+        sheet_ops = SheetOperations(self.spreadsheet_id)
         saved_ids = []
         for item in itens_epi:
             new_data = [
@@ -137,7 +137,7 @@ class EPIManager:
             ]
             try:
                 # Note que a função adc_dados_aba adiciona o ID principal automaticamente
-                new_id = self.sheet_ops.adc_dados_aba("fichas_epi", new_data)
+                new_id = sheet_ops.adc_dados_aba("fichas_epi", new_data)
                 if new_id:
                     saved_ids.append(new_id)
             except Exception as e:
@@ -150,4 +150,4 @@ class EPIManager:
         if len(saved_ids) == len(itens_epi):
             return saved_ids
         
-        return None # Indica que houve falha em salvar alguns itens
+        return None
