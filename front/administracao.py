@@ -6,6 +6,8 @@ from operations.company_docs import CompanyDocsManager
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_permission
 from ui.metrics import display_minimalist_metrics
+from gdrive.google_api_manager import GoogleApiManager
+from operations.audit_logger import log_action
 
 
 @st.cache_data(ttl=300)
@@ -159,8 +161,9 @@ def show_admin_page():
     
     # --- LÓGICA DAS ABAS ---
     if is_global_view:
-        tab_list = ["Dashboard Global", "Logs de Auditoria"]
-        tab_dashboard, tab_logs = st.tabs(tab_list)
+        # --- ABAS PARA O ADMIN GLOBAL ---
+        tab_list = ["Dashboard Global", "Logs de Auditoria", "Provisionar Unidade"]
+        tab_dashboard, tab_logs, tab_provision = st.tabs(tab_list)
     else:
         tab_list = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
         tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list)
@@ -187,10 +190,60 @@ def show_admin_page():
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-        # O st.stop() é útil aqui para garantir que o código da visão de unidade não seja executado
+         with tab_provision:
+            st.header("Provisionar Nova Unidade Operacional")
+            st.info("Esta ferramenta criará automaticamente uma nova pasta no Google Drive, uma nova Planilha Google com todas as abas necessárias, e registrará a nova unidade na Planilha Matriz.")
+            
+            with st.form("provision_form"):
+                new_unit_name = st.text_input("Nome da Nova Unidade (ex: Santos)", help="Use um nome curto e único.")
+                submitted = st.form_submit_button("🚀 Iniciar Provisionamento")
+
+                if submitted:
+                    if not new_unit_name:
+                        st.error("O nome da unidade não pode ser vazio.")
+                    else:
+                        # Verifica se a unidade já existe
+                        matrix_manager_global = GlobalMatrixManager()
+                        if matrix_manager_global.get_unit_info(new_unit_name):
+                            st.error(f"Erro: Uma unidade com o nome '{new_unit_name}' já existe.")
+                        else:
+                            with st.spinner(f"Criando infraestrutura para '{new_unit_name}'..."):
+                                try:
+                                    from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
+                                    api_manager = GoogleApiManager()
+
+                                    # 1. Criar pasta no Google Drive
+                                    st.write("1/4 - Criando pasta no Google Drive...")
+                                    new_folder_id = api_manager.create_folder(f"SEGMA-SIS - {new_unit_name}", CENTRAL_DRIVE_FOLDER_ID)
+                                    if not new_folder_id: raise Exception("Falha ao criar pasta no Drive.")
+                                    
+                                    # 2. Criar planilha Google Sheets
+                                    st.write("2/4 - Criando Planilha Google...")
+                                    new_sheet_id = api_manager.create_spreadsheet(f"SEGMA-SIS - Dados - {new_unit_name}", new_folder_id)
+                                    if not new_sheet_id: raise Exception("Falha ao criar Planilha Google.")
+
+                                    # 3. Configurar abas da planilha a partir do YAML
+                                    st.write("3/4 - Configurando abas da nova planilha...")
+                                    if not api_manager.setup_sheets_from_config(new_sheet_id, "sheets_config.yaml"):
+                                        raise Exception("Falha ao configurar as abas da planilha a partir do arquivo YAML.")
+
+                                    # 4. Adicionar unidade à Planilha Matriz
+                                    st.write("4/4 - Registrando nova unidade na Planilha Matriz...")
+                                    if not matrix_manager_global.add_unit([new_unit_name, new_sheet_id, new_folder_id]):
+                                        raise Exception("Falha ao registrar a nova unidade na Planilha Matriz.")
+
+                                    log_action("PROVISION_UNIT", {"unit_name": new_unit_name, "sheet_id": new_sheet_id})
+                                    st.success(f"Unidade '{new_unit_name}' provisionada com sucesso!")
+                                    st.balloons()
+                                    st.info("A página será recarregada para refletir a nova unidade na lista.")
+                                    st.rerun()
+
+                                except Exception as e:
+                                    st.error(f"Ocorreu um erro durante o provisionamento: {e}")
+                                    st.exception(e)
         st.stop()
-        
-    # --- MODO DE VISÃO DE UNIDADE ESPECÍFICA ---
+
+
     else:
         unit_name = st.session_state.get('unit_name', 'Nenhuma')
         st.header(f"Gerenciamento da Unidade: '{unit_name}'")
