@@ -17,18 +17,12 @@ from ui.ui_helpers import (
 logger = logging.getLogger('segsisone_app.dashboard')
 
 def format_company_display(company_id, companies_df):
-    if company_id is None:
-        return "Selecione..."
+    if company_id is None: return "Selecione..."
     try:
         row = companies_df[companies_df['id'] == str(company_id)].iloc[0]
-        name = row.get('nome', f"Empresa ID {company_id}")
-        status = str(row.get('status', 'Ativo')).lower()
-        if status == 'arquivado':
-            return f"🗄️ {name} (Arquivada)"
-        else:
-            return f"{name} - {row.get('cnpj', 'N/A')}"
-    except (IndexError, KeyError):
-        return f"Empresa ID {company_id} (Não encontrada)"
+        name, status = row.get('nome', f"ID {company_id}"), str(row.get('status', 'Ativo')).lower()
+        return f"🗄️ {name} (Arquivada)" if status == 'arquivado' else f"{name} - {row.get('cnpj', 'N/A')}"
+    except (IndexError, KeyError): return f"Empresa ID {company_id} (Não encontrada)"
 
 def display_audit_results(audit_result):
     if not audit_result: return
@@ -52,7 +46,6 @@ def show_dashboard_page():
         st.warning("Selecione uma unidade operacional para visualizar o dashboard.")
         return
         
-    # Carrega os managers da sessão
     employee_manager = st.session_state.employee_manager
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
@@ -61,7 +54,6 @@ def show_dashboard_page():
     st.title("Dashboard de Conformidade")
     
     company_options = [None] + employee_manager.companies_df['id'].astype(str).tolist()
-    
     selected_company = st.selectbox(
         "Selecione uma empresa para ver os detalhes:",
         options=company_options,
@@ -184,7 +176,6 @@ def show_dashboard_page():
                             if not employee_cargo or employee_cargo == 'N/A':
                                 st.info("Cargo não definido, impossibilitando análise de matriz.")
                             else:
-
                                 matched_function = matrix_manager_unidade.find_closest_function(employee_cargo)
                                 if not matched_function:
                                     st.success(f"O cargo '{employee_cargo}' não possui treinamentos obrigatórios na matriz da unidade.")
