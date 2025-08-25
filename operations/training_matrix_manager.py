@@ -7,6 +7,8 @@ from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 from fuzzywuzzy import process 
 
+logger = logging.getLogger('segsisone_app.training_matrix_manager')
+
 class MatrixManager:
     def __init__(self, spreadsheet_id: str):
         """
