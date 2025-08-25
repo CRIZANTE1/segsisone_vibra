@@ -313,10 +313,7 @@ class EmployeeManager:
             if col not in training_docs.columns: training_docs[col] = 'N/A'
             training_docs[col] = training_docs[col].fillna('N/A')
         
-        latest_trainings = training_docs.sort_values('data', ascending=False).groupby('norma').head(1).copy()
-        
-        latest_trainings['data'] = latest_trainings['data'].dt.date
-        latest_trainings['vencimento'] = latest_trainings['vencimento'].dt.date
+        return training_docs.sort_values('data', ascending=False).groupby('norma').head(1)
         
         return latest_trainings
 
