@@ -1,10 +1,8 @@
-# gdrive/google_api_manager.py (VERSÃO CORRIGIDA E COMPLETA)
-
 import streamlit as st
 import os
 import tempfile
 import yaml
-import gspread  # <-- IMPORTAÇÃO NECESSÁRIA
+import gspread  
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -156,3 +154,28 @@ class GoogleApiManager:
         except Exception as e:
             st.error(f"Erro ao configurar as abas da nova planilha: {e}")
             return False
+            
+    def delete_file_by_url(self, file_url: str) -> bool:
+            """
+            Deleta um arquivo do Google Drive usando sua URL de visualização.
+            """
+            if not file_url or not isinstance(file_url, str):
+                logger.warning("URL de arquivo inválida ou vazia fornecida para exclusão.")
+                return False
+                
+            try:
+                # Extrai o ID do arquivo da URL
+                file_id = file_url.split('/d/')[1].split('/')[0]
+            except IndexError:
+                logger.error(f"URL do Google Drive em formato inválido, não foi possível extrair o ID: {file_url}")
+                return False
+                
+            try:
+                logger.info(f"Tentando deletar o arquivo com ID: {file_id}")
+                self.drive_service.files().delete(fileId=file_id).execute()
+                logger.info(f"Arquivo com ID {file_id} deletado com sucesso.")
+                return True
+            except Exception as e:
+                logger.error(f"Erro ao deletar arquivo do Google Drive (ID: {file_id}): {e}")
+                st.error(f"Erro ao deletar arquivo do Google Drive: {e}")
+                return False
