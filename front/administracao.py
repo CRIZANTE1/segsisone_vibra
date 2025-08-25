@@ -56,8 +56,8 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         return
 
     # --- Filtra para entidades ATIVAS ---
-    active_companies = companies_df[companies_df['status'].str.lower() == 'Ativo']
-    active_employees = employees_df[employees_df['status'].str.lower() == 'Ativo']
+    active_companies = companies_df[companies_df['status'].str.lower() == 'ativo']
+    active_employees = employees_df[employees_df['status'].str.lower() == 'ativo']
     
     if active_companies.empty:
         st.info("Nenhuma empresa ativa encontrada.")
