@@ -8,15 +8,17 @@ from auth.auth_utils import check_permission
 @st.cache_data(ttl=300)
 def load_aggregated_data():
     """
-    Carrega e agrega dados de TODAS as unidades.
+    Carrega e agrega dados de TODAS as unidades, retornando uma tupla de DataFrames.
     """
     progress_bar = st.progress(0, text="Carregando dados consolidados de todas as unidades...")
     
     matrix_manager_global = GlobalMatrixManager()
     all_units = matrix_manager_global.get_all_units()
 
-    aggregated_companies = []
-    aggregated_employees = []
+    # Dicionário para coletar listas de DataFrames
+    aggregated_data = {
+        "companies": [], "employees": [], "asos": [], "trainings": []
+    }
     
     total_units = len(all_units)
     for i, unit in enumerate(all_units):
@@ -32,24 +34,27 @@ def load_aggregated_data():
         try:
             temp_manager = EmployeeManager(spreadsheet_id, folder_id)
             
-            companies_df = temp_manager.companies_df
-            if not companies_df.empty:
-                companies_df['unidade'] = unit_name
-                aggregated_companies.append(companies_df)
-
-            employees_df = temp_manager.employees_df
-            if not employees_df.empty:
-                employees_df['unidade'] = unit_name
-                aggregated_employees.append(employees_df)
+            # Itera sobre os dataframes do manager e os adiciona ao dicionário
+            for key, df in {
+                "companies": temp_manager.companies_df,
+                "employees": temp_manager.employees_df,
+                "asos": temp_manager.aso_df,
+                "trainings": temp_manager.training_df
+            }.items():
+                if not df.empty:
+                    df['unidade'] = unit_name
+                    aggregated_data[key].append(df)
         except Exception as e:
             st.warning(f"Não foi possível carregar dados da unidade '{unit_name}': {e}")
 
     progress_bar.empty()
-    final_companies = pd.concat(aggregated_companies, ignore_index=True) if aggregated_companies else pd.DataFrame()
-    final_employees = pd.concat(aggregated_employees, ignore_index=True) if aggregated_employees else pd.DataFrame()
+    
+    # Concatena as listas de DataFrames em DataFrames finais
+    final_companies = pd.concat(aggregated_data["companies"], ignore_index=True) if aggregated_data["companies"] else pd.DataFrame()
+    final_employees = pd.concat(aggregated_data["employees"], ignore_index=True) if aggregated_data["employees"] else pd.DataFrame()
     final_asos = pd.concat(aggregated_data["asos"], ignore_index=True) if aggregated_data["asos"] else pd.DataFrame()
     final_trainings = pd.concat(aggregated_data["trainings"], ignore_index=True) if aggregated_data["trainings"] else pd.DataFrame()
-
+    
     return final_companies, final_employees, final_asos, final_trainings
 
 
