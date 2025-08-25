@@ -21,7 +21,6 @@ if root_dir not in sys.path:
 from auth.login_page import show_login_page, show_user_header, show_logout_button
 from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
 from gdrive.matrix_manager import MatrixManager
-from operations.training_matrix_manager import MatrixManager as TrainingMatrixManager
 from front.dashboard import show_dashboard_page
 from front.administracao import show_admin_page
 from front.plano_de_acao import show_plano_acao_page
@@ -73,6 +72,11 @@ def initialize_managers():
         st.session_state.managers_initialized = False
     else:
         logger.debug("Managers já inicializados para a unidade atual. Nenhuma ação necessária.")
+
+    if 'matrix_manager' not in st.session_state:
+        logger.info("Inicializando MatrixManager global...")
+        st.session_state.matrix_manager = MatrixManager()
+        logger.info("MatrixManager global inicializado.")
 
 def main():
     configurar_pagina()
