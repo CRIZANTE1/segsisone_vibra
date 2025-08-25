@@ -24,7 +24,7 @@ def get_user_display_name() -> str:
 def authenticate_user() -> bool:
     """
     Verifica o usuário na Planilha Matriz, carrega o contexto do tenant,
-    e armazena as informações essenciais (role, unit_name, etc.) na sessão.
+    armazena as informações na sessão e registra o evento de login.
     Esta função é a única fonte da verdade para as permissões.
     """
     user_email = get_user_email()
@@ -64,6 +64,19 @@ def authenticate_user() -> bool:
 
     # Marca o usuário como autenticado para esta sessão.
     st.session_state.authenticated_user_email = user_email
+    
+    # --- FUNCIONALIDADE RESTAURADA AQUI ---
+    # Importa a função de log e registra o evento de login bem-sucedido.
+    from operations.audit_logger import log_action
+    log_action(
+        action="USER_LOGIN",
+        details={
+            "message": f"Usuário '{user_email}' logado com sucesso.",
+            "assigned_role": st.session_state.role,
+            "initial_unit": st.session_state.unit_name
+        }
+    )
+    
     return True
 
 def get_user_role() -> str:
