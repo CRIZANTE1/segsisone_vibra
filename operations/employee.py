@@ -306,16 +306,17 @@ class EmployeeManager:
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
         if training_docs.empty: return pd.DataFrame()
         
-        for col in ['norma', 'modulo', 'tipo_treinamento']:
-            if col not in training_docs.columns: training_docs[col] = 'N/A'
-            training_docs[col] = training_docs[col].fillna('N/A').astype(str).str.strip()
-    
-        training_docs['data'] = pd.to_datetime(training_docs['data'], format='%d/%m/%Y', errors='coerce')
         training_docs.dropna(subset=['data'], inplace=True)
         if training_docs.empty: return pd.DataFrame()
-    
+
+        for col in ['norma', 'modulo', 'tipo_treinamento']:
+            if col not in training_docs.columns: training_docs[col] = 'N/A'
+            training_docs[col] = training_docs[col].fillna('N/A')
+        
         latest_trainings = training_docs.sort_values('data', ascending=False).groupby('norma').head(1).copy()
-        latest_trainings['vencimento'] = pd.to_datetime(latest_trainings['vencimento'], format='%d/%m/%Y', errors='coerce')
+        
+        latest_trainings['data'] = latest_trainings['data'].dt.date
+        latest_trainings['vencimento'] = latest_trainings['vencimento'].dt.date
         
         return latest_trainings
 
