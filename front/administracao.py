@@ -20,9 +20,10 @@ def load_aggregated_data():
     all_units = matrix_manager_global.get_all_units()
     aggregated_data = {"companies": [], "employees": [], "asos": [], "trainings": [], "company_docs": []}
     
+    total_units = len(all_units)
     for i, unit in enumerate(all_units):
         unit_name, spreadsheet_id, folder_id = unit.get('nome_unidade'), unit.get('spreadsheet_id'), unit.get('folder_id')
-        progress_bar.progress((i + 1) / len(all_units), text=f"Lendo unidade: {unit_name}...")
+        progress_bar.progress((i + 1) / total_units, text=f"Lendo unidade: {unit_name}...")
         if not spreadsheet_id or not unit_name: continue
         try:
             temp_employee_manager = EmployeeManager(spreadsheet_id, folder_id)
@@ -45,58 +46,60 @@ def load_aggregated_data():
 
 def display_global_summary_dashboard(companies_df, employees_df, asos_df, trainings_df, company_docs_df):
     """
-    Calcula e exibe o dashboard de resumo executivo para a visão global.
+    Calcula e exibe um dashboard de resumo executivo visual e detalhado para a visão global.
     """
     st.header("Dashboard de Resumo Executivo Global")
+
     if companies_df.empty:
         st.info("Nenhuma empresa encontrada em todas as unidades.")
         return
 
+    # --- Métricas Gerais ---
     total_units = companies_df['unidade'].nunique()
-    total_companies = len(companies_df)
-    total_employees = len(employees_df)
+    total_companies = len(companies_df[companies_df['status'].str.lower() == 'ativo'])
+    total_employees = len(employees_df[employees_df['status'].str.lower() == 'ativo'])
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Unidades Operacionais", f"{total_units}")
-    col2.metric("Total de Empresas", f"{total_companies}")
-    col3.metric("Total de Funcionários", f"{total_employees}")
+    col2.metric("Total de Empresas Ativas", f"{total_companies}")
+    col3.metric("Total de Funcionários Ativos", f"{total_employees}")
     st.divider()
 
+    # --- Cálculo de Pendências (Apenas de entidades Ativas) ---
     today = date.today()
-    pendencies_by_unit = {}
     
+    active_companies_ids = companies_df[companies_df['status'].str.lower() == 'ativo']['id']
+    active_employees_ids = employees_df[employees_df['status'].str.lower() == 'ativo']['id']
+
     expired_asos = pd.DataFrame()
     if not asos_df.empty and 'vencimento' in asos_df.columns:
-        expired_asos = asos_df[asos_df['vencimento'].dt.date < today]
-        if not expired_asos.empty:
-            counts = expired_asos.groupby('unidade').size().to_dict()
-            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+        asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees_ids)]
+        expired_asos = asos_actives[asos_actives['vencimento'].dt.date < today]
 
     expired_trainings = pd.DataFrame()
     if not trainings_df.empty and 'vencimento' in trainings_df.columns:
-        expired_trainings = trainings_df[trainings_df['vencimento'].dt.date < today]
-        if not expired_trainings.empty:
-            counts = expired_trainings.groupby('unidade').size().to_dict()
-            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+        trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees_ids)]
+        expired_trainings = trainings_actives[trainings_actives['vencimento'].dt.date < today]
 
     expired_company_docs = pd.DataFrame()
     if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
-        expired_company_docs = company_docs_df[company_docs_df['vencimento'].dt.date < today]
-        if not expired_company_docs.empty:
-            counts = expired_company_docs.groupby('unidade').size().to_dict()
-            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+        docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies_ids)]
+        expired_company_docs = docs_actives[docs_actives['vencimento'].dt.date < today]
 
-    if not pendencies_by_unit:
-        st.success("🎉 Nenhuma pendência de vencimento encontrada em todas as unidades.")
+    total_pendencies = len(expired_asos) + len(expired_trainings) + len(expired_company_docs)
+    if total_pendencies == 0:
+        st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades ativas.")
         return
 
-    st.subheader("Total de Pendências por Categoria")
+    # --- Métricas por Categoria de Pendência ---
+    st.subheader("Total de Pendências (Entidades Ativas)")
     col1, col2, col3 = st.columns(3)
     col1.metric("🩺 ASOs Vencidos", len(expired_asos))
     col2.metric("🎓 Treinamentos Vencidos", len(expired_trainings))
-    col3.metric("📄 Documentos da Empresa Vencidos", len(expired_company_docs))
+    col3.metric("📄 Docs. Empresa Vencidos", len(expired_company_docs))
     st.divider()
 
+    # --- Consolidação e Gráfico de Barras ---
     st.subheader("Gráfico de Pendências por Unidade Operacional")
     df_asos = expired_asos.groupby('unidade').size().rename("ASOs Vencidos") if not expired_asos.empty else pd.Series(name="ASOs Vencidos")
     df_trainings = expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos") if not expired_trainings.empty else pd.Series(name="Treinamentos Vencidos")
@@ -108,6 +111,52 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         with st.expander("Ver tabela de dados de pendências consolidada"):
             df_consolidated['Total'] = df_consolidated.sum(axis=1)
             st.dataframe(df_consolidated.sort_values(by='Total', ascending=False), use_container_width=True)
+
+    # --- Detalhamento da Unidade Mais Crítica ---
+    most_critical_unit = df_consolidated.sum(axis=1).idxmax()
+    st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
+
+    # --- CORREÇÃO DA LÓGICA DE MAPEAMENTO ---
+    # Criamos mapeamentos globais para encontrar o nome da empresa de qualquer funcionário
+    employee_to_company_id = employees_df.set_index('id')['empresa_id']
+    company_id_to_name = companies_df.set_index('id')['nome']
+
+    pendencies_by_company = {}
+
+    # Detalhamento de ASOs
+    if not expired_asos.empty:
+        expired_asos_unit = expired_asos[expired_asos['unidade'] == most_critical_unit].copy()
+        if not expired_asos_unit.empty:
+            expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(employee_to_company_id)
+            expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(company_id_to_name)
+            aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in aso_counts.items():
+                if pd.notna(comp): pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    # Detalhamento de Treinamentos
+    if not expired_trainings.empty:
+        expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
+        if not expired_trainings_unit.empty:
+            expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(employee_to_company_id)
+            expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(company_id_to_name)
+            training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in training_counts.items():
+                if pd.notna(comp): pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    # Detalhamento de Documentos da Empresa
+    if not expired_company_docs.empty:
+        expired_docs_unit = expired_company_docs[expired_company_docs['unidade'] == most_critical_unit].copy()
+        if not expired_docs_unit.empty:
+            expired_docs_unit['nome_empresa'] = expired_docs_unit['empresa_id'].map(company_id_to_name)
+            doc_counts = expired_docs_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in doc_counts.items():
+                if pd.notna(comp): pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    if pendencies_by_company:
+        company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
+        st.dataframe(company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), use_container_width=True, hide_index=True)
+    else:
+        st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
 
 def show_admin_page():
     if not check_permission(level='admin'):
