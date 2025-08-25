@@ -17,11 +17,10 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# --- Importações Corrigidas ---
+# --- Importações ---
 from auth.login_page import show_login_page, show_user_header, show_logout_button
 from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
 from gdrive.matrix_manager import MatrixManager
-# --- CORREÇÃO: Importação adicionada ---
 from operations.training_matrix_manager import MatrixManager as TrainingMatrixManager
 from front.dashboard import show_dashboard_page
 from front.administracao import show_admin_page
@@ -42,12 +41,11 @@ def configurar_pagina():
 
 def initialize_managers():
     """
-    Função central para criar e gerenciar as instâncias dos managers.
+    Função central para criar, destruir e gerenciar as instâncias dos managers.
     """
     unit_id = st.session_state.get('spreadsheet_id')
     folder_id = st.session_state.get('folder_id')
     
-    # Inicializa os managers da unidade se a unidade mudou
     if unit_id and st.session_state.get('managers_unit_id') != unit_id:
         logger.info(f"Trocando de unidade. Inicializando managers para a unidade: ...{unit_id[-6:]}")
         with st.spinner("Configurando ambiente da unidade..."):
@@ -62,7 +60,6 @@ def initialize_managers():
         st.session_state.managers_initialized = True
         logger.info("Managers da unidade inicializados com sucesso.")
     
-    # Limpa os managers da unidade se estiver no modo Global
     elif not unit_id:
         if st.session_state.get('managers_initialized', False):
             logger.info("Nenhuma unidade selecionada. Resetando managers da unidade.")
@@ -76,7 +73,6 @@ def initialize_managers():
                     del st.session_state[key]
         st.session_state.managers_initialized = False
     
-    # Garante que o manager global da matriz sempre exista na sessão
     if 'matrix_manager' not in st.session_state:
         logger.info("Inicializando MatrixManager global...")
         st.session_state.matrix_manager = MatrixManager()
@@ -92,6 +88,7 @@ def main():
     if not authenticate_user():
         st.stop()
 
+    # A inicialização dos managers acontece aqui, após a autenticação.
     initialize_managers()
 
     with st.sidebar:
@@ -99,7 +96,6 @@ def main():
         user_role = get_user_role()
 
         if user_role == 'admin':
-            # O manager global já está garantido na sessão pela função initialize_managers
             matrix_manager = st.session_state.matrix_manager
             
             all_units = matrix_manager.get_all_units()
@@ -120,7 +116,6 @@ def main():
             if selected_admin_unit != current_unit_name:
                 logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
                 
-        
                 if selected_admin_unit == 'Global':
                     st.session_state.unit_name = 'Global'
                     st.session_state.spreadsheet_id = None
@@ -132,7 +127,7 @@ def main():
                         st.session_state.spreadsheet_id = unit_info['spreadsheet_id']
                         st.session_state.folder_id = unit_info['folder_id']
                 
-                # Marca os managers como "não inicializados" para a nova unidade, forçando a recriação
+                # Força a re-inicialização dos managers no próximo ciclo
                 st.session_state.managers_unit_id = None 
                 st.rerun()
 
