@@ -11,12 +11,33 @@ def show_admin_page():
     if not check_permission(level='admin'):
         st.stop()
 
-    st.title("🚀 Painel de Administração")
-    st.write("Gerencie usuários, unidades, provisionamento e a Matriz de Treinamentos da unidade selecionada.")
+    # --- INÍCIO DO BLOCO DE DEPURAÇÃO ---
+    st.subheader("Status de Inicialização (Depuração)")
+    
+    required_managers = [
+        'employee_manager',
+        'matrix_manager_unidade', # O manager da matriz de treinamentos
+        'nr_analyzer'
+    ]
+    
+    all_managers_ok = True
+    for manager_name in required_managers:
+        if manager_name in st.session_state:
+            st.success(f"✅ Manager '{manager_name}' encontrado na sessão.")
+        else:
+            st.error(f"❌ ERRO: Manager '{manager_name}' NÃO foi encontrado na sessão. A página não pode ser renderizada.")
+            all_managers_ok = False
+            
+    if not all_managers_ok:
+        st.warning("A falha na inicialização de um manager geralmente ocorre por problemas de permissão ou abas faltando na planilha da unidade. Verifique as permissões da conta de serviço e a existência das abas 'funcoes' e 'matriz_treinamentos'.")
+        st.stop() # Interrompe a execução se um manager estiver faltando
+        
+    st.markdown("---")
+    # --- FIM DO BLOCO DE DEPURAÇÃO ---
 
-    # --- INICIALIZAÇÃO DOS MANAGERS ---
-    # Os managers da unidade selecionada já devem estar no st.session_state
-    # O MatrixManager (global) é instanciado separadamente
+
+    st.title("🚀 Painel de Administração")
+
     matrix_manager_global = MatrixManager()
     google_api_manager = GoogleApiManager()
 
