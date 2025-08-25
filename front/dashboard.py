@@ -124,7 +124,8 @@ def show_dashboard_page():
                 expected_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 
                 if isinstance(company_docs, pd.DataFrame) and not company_docs.empty:
-                    company_docs['vencimento_dt'] = pd.to_datetime(company_docs['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
+                    # A coluna de data já vem tratada, mas criamos a 'vencimento_dt' para o highlight
+                    company_docs['vencimento_dt'] = company_docs['vencimento'].dt.date
                     st.dataframe(
                         company_docs.style.apply(highlight_expired, axis=1),
                         column_config={
@@ -156,9 +157,9 @@ def show_dashboard_page():
                             if not aptitude_asos.empty:
                                 current_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                                 vencimento_obj = current_aso.get('vencimento')
-                                
                                 if pd.notna(vencimento_obj):
                                     aso_vencimento = vencimento_obj
+                                    # A comparação agora é segura, pois 'vencimento' é datetime
                                     aso_status = 'Válido' if aso_vencimento.date() >= today else 'Vencido'
                                 else:
                                     aso_status = 'Venc. Inválido'
@@ -169,9 +170,8 @@ def show_dashboard_page():
                         trainings_total, trainings_expired_count = 0, 0
                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                             trainings_total = len(all_trainings)
-                            valid_trainings = all_trainings.copy()
-                            expired_mask = valid_trainings['vencimento'].dt.date < today
-                            trainings_expired_count = expired_mask.sum()
+                            # A comparação agora é segura, pois 'vencimento' é datetime
+                            trainings_expired_count = (all_trainings['vencimento'].dt.date < today).sum()
 
                         overall_status = 'Em Dia' if aso_status != 'Vencido' and trainings_expired_count == 0 else 'Pendente'
                         status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
