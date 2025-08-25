@@ -7,6 +7,8 @@ from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 import tempfile
 import os
+from operations.audit_logger import log_action
+
 
 logger = logging.getLogger('segsisone_app.company_docs_manager')
 
@@ -160,17 +162,28 @@ class CompanyDocsManager:
 
     def delete_company_document(self, doc_id: str, file_url: str):
         """
-        Deleta permanentemente um documento da empresa e seu arquivo no Google Drive.
+        Deleta um documento da empresa e seu arquivo, e registra a ação.
         """
-        logger.info(f"Iniciando exclusão do Documento da Empresa ID: {doc_id}")
+        # Coleta informações para o log ANTES de deletar
+        doc_info = self.docs_df[self.docs_df['id'] == doc_id]
+        if not doc_info.empty:
+            details = {
+                "deleted_item_id": doc_id,
+                "item_type": "Documento da Empresa",
+                "company_id": doc_info.iloc[0].get('empresa_id'),
+                "doc_type": doc_info.iloc[0].get('tipo_documento'),
+                "issue_date": str(doc_info.iloc[0].get('data_emissao')),
+                "file_url": file_url
+            }
+            log_action("DELETE_COMPANY_DOC", details)
+
+        # Continua com a lógica de exclusão
         if file_url and pd.notna(file_url):
-            # Reutiliza a instância do api_manager do EmployeeManager para consistência
             from gdrive.google_api_manager import GoogleApiManager
             api_manager = GoogleApiManager()
-            if not api_manager.delete_file_by_url(file_url):
-                st.warning(f"Aviso: Falha ao deletar o arquivo do documento no Google Drive (URL: {file_url}), mas o registro na planilha será removido.")
+            api_manager.delete_file_by_url(file_url)
         
         if self.sheet_ops.excluir_dados_aba("documentos_empresa", doc_id):
-            self.load_company_data() # Recarrega os dados
+            self.load_company_data()
             return True
         return False
