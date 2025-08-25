@@ -173,9 +173,9 @@ def show_admin_page():
         with tab_dashboard:
             # --- CORREÇÃO APLICADA AQUI ---
             # 1. Desempacota a tupla em quatro variáveis
-            companies, employees, asos, trainings = load_aggregated_data()
-            # 2. Passa as quatro variáveis como argumentos para a função de exibição
-            display_global_summary_dashboard(companies, employees, asos, trainings)
+            companies, employees, asos, trainings, company_docs = load_aggregated_data()
+            # Passa as 5 variáveis como argumentos
+            display_global_summary_dashboard(companies, employees, asos, trainings, company_docs)
 
         with tab_logs:
             st.header("📜 Logs de Auditoria do Sistema")
