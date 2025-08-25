@@ -25,7 +25,7 @@ def mostrar_info_normas():
         | NR-18 | 8 horas                   | 8 horas               | 1 ano                    |
         | NR-34 | 8 horas                   | 8 horas               | 1 ano                    |
         | NR-12 | 8 horas                   | 8 horas               | 2 anos                   |
-        | NR-06 | 3 horas                   | 3 horas               | 10 anos                   |
+        | NR-06 | 3 horas                   | 3 horas               | 10 anos                  |
         | NR-11 | 16-32 horas               | 16 horas              | 3 anos                   |
         | NR-33 | 16-40 horas               | 8 horas               | 1 ano                    |
         | Brigada | 24 horas (Avançado)     | 16 horas (Avançado)   | 1 ano                    |
@@ -33,36 +33,40 @@ def mostrar_info_normas():
 
 def highlight_expired(row):
     """
-    Destaca a linha se a data de vencimento estiver no passado.
-    Agora verifica se a coluna 'vencimento_dt' existe antes de usá-la.
+    Destaca a linha inteira de vermelho se a data na coluna 'vencimento_dt'
+    for anterior à data de hoje.
     """
-    # --- CORREÇÃO AQUI ---
+    # Verifica se a coluna 'vencimento_dt' existe na linha
     if 'vencimento_dt' not in row.index:
-        return [''] * len(row) # Se a coluna não existe, não faz nada
+        return [''] * len(row)
 
     today = date.today()
-    vencimento_val = row.get('vencimento_dt')
+    vencimento_val = row['vencimento_dt']
     
-    # Verifica se o valor não é nulo (NaT) e se é uma data
+    # pd.notna verifica se o valor não é nulo ou NaT (Not a Time)
     if pd.notna(vencimento_val) and isinstance(vencimento_val, date):
         if vencimento_val < today:
             return ['background-color: #FFCDD2'] * len(row) # Vermelho claro
             
     return [''] * len(row)
 
-
 def style_audit_table(row):
     """Aplica cor à linha inteira se o status for 'Não Conforme'."""
     status_val = str(row.get('Status', '')).lower()
-    if 'Não Conforme' in status_val:
+    if 'não conforme' in status_val:
         return ['background-color: #FFCDD2'] * len(row)
     return [''] * len(row)
 
 def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_type_str, employee_id_key=None):
     """
-    Função genérica e interna que recebe o objeto gerenciador como argumento.
+    Função genérica que executa a análise de PDF e a auditoria com IA.
     """
     if not st.session_state.get(uploader_key):
+        return
+
+    # Garante que os managers necessários estão na sessão
+    if 'nr_analyzer' not in st.session_state:
+        st.error("O analisador de NR não foi inicializado. A análise não pode continuar.")
         return
 
     nr_analyzer = st.session_state.nr_analyzer
@@ -73,7 +77,6 @@ def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_typ
     if employee_id:
         st.session_state[f"{doc_type_str}_funcionario_para_salvar"] = employee_id
 
-    # Pega o método de análise do objeto gerenciador
     analysis_func = getattr(manager, analysis_method_name)
     
     with st.spinner(f"Analisando conteúdo do PDF..."):
@@ -95,8 +98,8 @@ def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_typ
     st.session_state[f"{doc_type_str}_info_para_salvar"] = info
 
 def process_aso_pdf():
-    # Garante que os gerenciadores existam antes de chamar o helper
-    if 'employee_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+    """Função de callback para o uploader de ASO."""
+    if 'employee_manager' in st.session_state:
         _run_analysis_and_audit(
             manager=st.session_state.employee_manager,
             analysis_method_name='analyze_aso_pdf',
@@ -106,7 +109,8 @@ def process_aso_pdf():
         )
 
 def process_training_pdf():
-    if 'employee_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+    """Função de callback para o uploader de Treinamento."""
+    if 'employee_manager' in st.session_state:
         _run_analysis_and_audit(
             manager=st.session_state.employee_manager,
             analysis_method_name='analyze_training_pdf',
@@ -116,7 +120,8 @@ def process_training_pdf():
         )
 
 def process_company_doc_pdf():
-    if 'docs_manager' in st.session_state and 'nr_analyzer' in st.session_state:
+    """Função de callback para o uploader de Documento da Empresa."""
+    if 'docs_manager' in st.session_state:
         _run_analysis_and_audit(
             manager=st.session_state.docs_manager,
             analysis_method_name='analyze_company_doc_pdf',
@@ -125,7 +130,7 @@ def process_company_doc_pdf():
         )
 
 def process_epi_pdf():
-    # EPI não tem auditoria, então sua lógica permanece simples
+    """Função de callback para o uploader de Ficha de EPI."""
     if st.session_state.get('epi_uploader_tab') and 'epi_manager' in st.session_state:
         epi_manager = st.session_state.epi_manager
         with st.spinner("Analisando PDF da Ficha de EPI..."):
