@@ -10,6 +10,7 @@ import re
 import locale
 import json
 from dateutil.relativedelta import relativedelta
+from operations.audit_logger import log_action
 from auth.auth_utils import get_user_email
 from fuzzywuzzy import process
 import logging
@@ -361,30 +362,53 @@ class EmployeeManager:
 
     def delete_aso(self, aso_id: str, file_url: str):
         """
-        Deleta permanentemente um registro de ASO e seu arquivo no Google Drive.
+        Deleta permanentemente um registro de ASO e seu arquivo, e registra a ação.
         """
-        logger.info(f"Iniciando exclusão do ASO ID: {aso_id}")
-        # A classe GoogleApiManager já lida com a extração do ID do arquivo da URL
+        # Coleta informações para o log ANTES de deletar
+        aso_info = self.aso_df[self.aso_df['id'] == aso_id]
+        if not aso_info.empty:
+            details = {
+                "deleted_item_id": aso_id,
+                "item_type": "ASO",
+                "employee_id": aso_info.iloc[0].get('funcionario_id'),
+                "aso_type": aso_info.iloc[0].get('tipo_aso'),
+                "aso_date": str(aso_info.iloc[0].get('data_aso')),
+                "file_url": file_url
+            }
+            log_action("DELETE_ASO", details)
+
+        # Continua com a lógica de exclusão
         if file_url and pd.notna(file_url):
-            if not self.api_manager.delete_file_by_url(file_url):
-                st.warning(f"Aviso: Falha ao deletar o arquivo do ASO no Google Drive (URL: {file_url}), mas o registro na planilha será removido.")
+            self.api_manager.delete_file_by_url(file_url)
         
         if self.sheet_ops.excluir_dados_aba("asos", aso_id):
-            self.load_data() # Recarrega os dados
+            self.load_data()
             return True
         return False
 
     def delete_training(self, training_id: str, file_url: str):
         """
-        Deleta permanentemente um registro de treinamento e seu arquivo no Google Drive.
+        Deleta permanentemente um registro de treinamento e seu arquivo, e registra a ação.
         """
-        logger.info(f"Iniciando exclusão do Treinamento ID: {training_id}")
+        # Coleta informações para o log ANTES de deletar
+        training_info = self.training_df[self.training_df['id'] == training_id]
+        if not training_info.empty:
+            details = {
+                "deleted_item_id": training_id,
+                "item_type": "Treinamento",
+                "employee_id": training_info.iloc[0].get('funcionario_id'),
+                "norma": training_info.iloc[0].get('norma'),
+                "training_date": str(training_info.iloc[0].get('data')),
+                "file_url": file_url
+            }
+            log_action("DELETE_TRAINING", details)
+
+        # Continua com a lógica de exclusão
         if file_url and pd.notna(file_url):
-            if not self.api_manager.delete_file_by_url(file_url):
-                st.warning(f"Aviso: Falha ao deletar o arquivo do treinamento no Google Drive (URL: {file_url}), mas o registro na planilha será removido.")
+            self.api_manager.delete_file_by_url(file_url)
 
         if self.sheet_ops.excluir_dados_aba("treinamentos", training_id):
-            self.load_data() # Recarrega os dados
+            self.load_data()
             return True
         return False
 
