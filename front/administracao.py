@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
-from datetime import date  
+from datetime import date
 from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
-from operations.company_docs import CompanyDocsManager 
 from operations.employee import EmployeeManager
+from operations.company_docs import CompanyDocsManager
 from auth.auth_utils import check_permission
-from ui.metrics import display_minimalist_metrics
+from front.metrics import display_minimalist_metrics
 from gdrive.google_api_manager import GoogleApiManager
 from operations.audit_logger import log_action
-
 
 @st.cache_data(ttl=300)
 def load_aggregated_data():
@@ -17,76 +16,42 @@ def load_aggregated_data():
     e retorna uma tupla de DataFrames.
     """
     progress_bar = st.progress(0, text="Carregando dados consolidados de todas as unidades...")
-    
     matrix_manager_global = GlobalMatrixManager()
     all_units = matrix_manager_global.get_all_units()
-
-    # Dicionário para coletar as listas de DataFrames de cada tipo
-    aggregated_data = {
-        "companies": [], "employees": [], "asos": [], "trainings": [], "company_docs": []
-    }
+    aggregated_data = {"companies": [], "employees": [], "asos": [], "trainings": [], "company_docs": []}
     
-    total_units = len(all_units)
     for i, unit in enumerate(all_units):
-        unit_name = unit.get('nome_unidade')
-        spreadsheet_id = unit.get('spreadsheet_id')
-        folder_id = unit.get('folder_id')
-        
-        progress_bar.progress((i + 1) / total_units, text=f"Lendo unidade: {unit_name}...")
-        
-        if not spreadsheet_id or not unit_name:
-            continue
-
+        unit_name, spreadsheet_id, folder_id = unit.get('nome_unidade'), unit.get('spreadsheet_id'), unit.get('folder_id')
+        progress_bar.progress((i + 1) / len(all_units), text=f"Lendo unidade: {unit_name}...")
+        if not spreadsheet_id or not unit_name: continue
         try:
-            # Cria managers temporários para cada unidade
             temp_employee_manager = EmployeeManager(spreadsheet_id, folder_id)
-            temp_docs_manager = CompanyDocsManager(spreadsheet_id) # Manager para os docs da empresa
-            
-            # Coleta os dados do EmployeeManager
-            for key, df in {
-                "companies": temp_employee_manager.companies_df,
-                "employees": temp_employee_manager.employees_df,
-                "asos": temp_employee_manager.aso_df,
-                "trainings": temp_employee_manager.training_df
-            }.items():
+            temp_docs_manager = CompanyDocsManager(spreadsheet_id)
+            data_to_collect = {
+                "companies": temp_employee_manager.companies_df, "employees": temp_employee_manager.employees_df,
+                "asos": temp_employee_manager.aso_df, "trainings": temp_employee_manager.training_df,
+                "company_docs": temp_docs_manager.docs_df
+            }
+            for key, df in data_to_collect.items():
                 if not df.empty:
                     df['unidade'] = unit_name
                     aggregated_data[key].append(df)
-            
-            # Coleta os dados do CompanyDocsManager
-            company_docs_df = temp_docs_manager.docs_df
-            if not company_docs_df.empty:
-                company_docs_df['unidade'] = unit_name
-                aggregated_data["company_docs"].append(company_docs_df)
-
         except Exception as e:
             st.warning(f"Não foi possível carregar dados da unidade '{unit_name}': {e}")
 
     progress_bar.empty()
-    
-    # Concatena as listas de DataFrames em DataFrames finais
-    final_companies = pd.concat(aggregated_data["companies"], ignore_index=True) if aggregated_data["companies"] else pd.DataFrame()
-    final_employees = pd.concat(aggregated_data["employees"], ignore_index=True) if aggregated_data["employees"] else pd.DataFrame()
-    final_asos = pd.concat(aggregated_data["asos"], ignore_index=True) if aggregated_data["asos"] else pd.DataFrame()
-    final_trainings = pd.concat(aggregated_data["trainings"], ignore_index=True) if aggregated_data["trainings"] else pd.DataFrame()
-    final_company_docs = pd.concat(aggregated_data["company_docs"], ignore_index=True) if aggregated_data["company_docs"] else pd.DataFrame()
-    
-    # Retorna uma tupla com 5 elementos
-    return final_companies, final_employees, final_asos, final_trainings, final_company_docs
-
+    final_dfs = {key: (pd.concat(value, ignore_index=True) if value else pd.DataFrame()) for key, value in aggregated_data.items()}
+    return final_dfs["companies"], final_dfs["employees"], final_dfs["asos"], final_dfs["trainings"], final_dfs["company_docs"]
 
 def display_global_summary_dashboard(companies_df, employees_df, asos_df, trainings_df, company_docs_df):
     """
-    Calcula e exibe o dashboard de resumo executivo, agora incluindo Documentos da Empresa.
-    Aceita os DataFrames como argumentos diretos.
+    Calcula e exibe o dashboard de resumo executivo para a visão global.
     """
     st.header("Dashboard de Resumo Executivo Global")
-
     if companies_df.empty:
         st.info("Nenhuma empresa encontrada em todas as unidades.")
         return
 
-    # --- Métricas Gerais ---
     total_units = companies_df['unidade'].nunique()
     total_companies = len(companies_df)
     total_employees = len(employees_df)
@@ -97,7 +62,6 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("Total de Funcionários", f"{total_employees}")
     st.divider()
 
-    # --- Cálculo de Pendências ---
     today = date.today()
     pendencies_by_unit = {}
     
@@ -106,30 +70,26 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         expired_asos = asos_df[asos_df['vencimento'].dt.date < today]
         if not expired_asos.empty:
             counts = expired_asos.groupby('unidade').size().to_dict()
-            for unit, count in counts.items():
-                pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
 
     expired_trainings = pd.DataFrame()
     if not trainings_df.empty and 'vencimento' in trainings_df.columns:
         expired_trainings = trainings_df[trainings_df['vencimento'].dt.date < today]
         if not expired_trainings.empty:
             counts = expired_trainings.groupby('unidade').size().to_dict()
-            for unit, count in counts.items():
-                pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
 
     expired_company_docs = pd.DataFrame()
     if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
         expired_company_docs = company_docs_df[company_docs_df['vencimento'].dt.date < today]
         if not expired_company_docs.empty:
             counts = expired_company_docs.groupby('unidade').size().to_dict()
-            for unit, count in counts.items():
-                pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+            for unit, count in counts.items(): pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
 
     if not pendencies_by_unit:
-        st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades.")
+        st.success("🎉 Nenhuma pendência de vencimento encontrada em todas as unidades.")
         return
 
-    # --- Métricas por Categoria de Pendência ---
     st.subheader("Total de Pendências por Categoria")
     col1, col2, col3 = st.columns(3)
     col1.metric("🩺 ASOs Vencidos", len(expired_asos))
@@ -137,12 +97,10 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("📄 Documentos da Empresa Vencidos", len(expired_company_docs))
     st.divider()
 
-    # --- Consolidação e Gráfico de Barras ---
     st.subheader("Gráfico de Pendências por Unidade Operacional")
     df_asos = expired_asos.groupby('unidade').size().rename("ASOs Vencidos") if not expired_asos.empty else pd.Series(name="ASOs Vencidos")
     df_trainings = expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos") if not expired_trainings.empty else pd.Series(name="Treinamentos Vencidos")
     df_docs = expired_company_docs.groupby('unidade').size().rename("Docs. Empresa Vencidos") if not expired_company_docs.empty else pd.Series(name="Docs. Empresa Vencidos")
-    
     df_consolidated = pd.concat([df_asos, df_trainings, df_docs], axis=1).fillna(0).astype(int)
     
     if not df_consolidated.empty:
@@ -159,50 +117,31 @@ def show_admin_page():
 
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
-    # --- LÓGICA DAS ABAS ---
     if is_global_view:
-        # --- ABAS PARA O ADMIN GLOBAL ---
         tab_list = ["Dashboard Global", "Logs de Auditoria", "Provisionar Unidade"]
         tab_dashboard, tab_logs, tab_provision = st.tabs(tab_list)
-    else:
-        tab_list = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
-        tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list)
 
-    # --- MODO DE VISÃO GLOBAL ---
-    if is_global_view:
         with tab_dashboard:
-            # --- CORREÇÃO APLICADA AQUI ---
-            # 1. Desempacota a tupla em quatro variáveis
             companies, employees, asos, trainings, company_docs = load_aggregated_data()
-            # Passa as 5 variáveis como argumentos
             display_global_summary_dashboard(companies, employees, asos, trainings, company_docs)
 
         with tab_logs:
             st.header("📜 Logs de Auditoria do Sistema")
-            st.info("Ações de login, logout e exclusão de registros em todo o sistema.")
-            
             matrix_manager_global = GlobalMatrixManager()
             logs_df = matrix_manager_global.get_audit_logs()
-            
             if not logs_df.empty:
-                logs_df_sorted = logs_df.sort_values(by='timestamp', ascending=False)
-                st.dataframe(logs_df_sorted, use_container_width=True, hide_index=True)
+                st.dataframe(logs_df.sort_values(by='timestamp', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-         with tab_provision:
+        with tab_provision:
             st.header("Provisionar Nova Unidade Operacional")
-            st.info("Esta ferramenta criará automaticamente uma nova pasta no Google Drive, uma nova Planilha Google com todas as abas necessárias, e registrará a nova unidade na Planilha Matriz.")
-            
             with st.form("provision_form"):
-                new_unit_name = st.text_input("Nome da Nova Unidade (ex: Santos)", help="Use um nome curto e único.")
-                submitted = st.form_submit_button("🚀 Iniciar Provisionamento")
-
-                if submitted:
+                new_unit_name = st.text_input("Nome da Nova Unidade")
+                if st.form_submit_button("🚀 Iniciar Provisionamento"):
                     if not new_unit_name:
                         st.error("O nome da unidade não pode ser vazio.")
                     else:
-                        # Verifica se a unidade já existe
                         matrix_manager_global = GlobalMatrixManager()
                         if matrix_manager_global.get_unit_info(new_unit_name):
                             st.error(f"Erro: Uma unidade com o nome '{new_unit_name}' já existe.")
@@ -211,56 +150,45 @@ def show_admin_page():
                                 try:
                                     from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
                                     api_manager = GoogleApiManager()
-
-                                    # 1. Criar pasta no Google Drive
                                     st.write("1/4 - Criando pasta no Google Drive...")
                                     new_folder_id = api_manager.create_folder(f"SEGMA-SIS - {new_unit_name}", CENTRAL_DRIVE_FOLDER_ID)
                                     if not new_folder_id: raise Exception("Falha ao criar pasta no Drive.")
-                                    
-                                    # 2. Criar planilha Google Sheets
                                     st.write("2/4 - Criando Planilha Google...")
                                     new_sheet_id = api_manager.create_spreadsheet(f"SEGMA-SIS - Dados - {new_unit_name}", new_folder_id)
                                     if not new_sheet_id: raise Exception("Falha ao criar Planilha Google.")
-
-                                    # 3. Configurar abas da planilha a partir do YAML
                                     st.write("3/4 - Configurando abas da nova planilha...")
                                     if not api_manager.setup_sheets_from_config(new_sheet_id, "sheets_config.yaml"):
-                                        raise Exception("Falha ao configurar as abas da planilha a partir do arquivo YAML.")
-
-                                    # 4. Adicionar unidade à Planilha Matriz
+                                        raise Exception("Falha ao configurar as abas da planilha.")
                                     st.write("4/4 - Registrando nova unidade na Planilha Matriz...")
                                     if not matrix_manager_global.add_unit([new_unit_name, new_sheet_id, new_folder_id]):
                                         raise Exception("Falha ao registrar a nova unidade na Planilha Matriz.")
-
                                     log_action("PROVISION_UNIT", {"unit_name": new_unit_name, "sheet_id": new_sheet_id})
                                     st.success(f"Unidade '{new_unit_name}' provisionada com sucesso!")
-                                    st.balloons()
-                                    st.info("A página será recarregada para refletir a nova unidade na lista.")
                                     st.rerun()
-
                                 except Exception as e:
                                     st.error(f"Ocorreu um erro durante o provisionamento: {e}")
-                                    st.exception(e)
         st.stop()
 
+    # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
+    unit_name = st.session_state.get('unit_name', 'Nenhuma')
+    st.header(f"Gerenciamento da Unidade: '{unit_name}'")
 
-    else:
-        unit_name = st.session_state.get('unit_name', 'Nenhuma')
-        st.header(f"Gerenciamento da Unidade: '{unit_name}'")
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Aguardando a inicialização dos dados da unidade...")
+        st.stop()
 
-        if not st.session_state.get('managers_initialized'):
-            st.warning("Aguardando a inicialização dos dados da unidade...")
-            st.stop()
+    employee_manager = st.session_state.employee_manager
+    matrix_manager_unidade = st.session_state.matrix_manager_unidade
+    nr_analyzer = st.session_state.nr_analyzer
 
-        employee_manager = st.session_state.employee_manager
-        matrix_manager_unidade = st.session_state.matrix_manager_unidade
-        nr_analyzer = st.session_state.nr_analyzer
+    st.subheader("Visão Geral de Pendências da Unidade")
+    display_minimalist_metrics(employee_manager)
+    st.divider()
 
-        st.subheader("Visão Geral de Pendências da Unidade")
-        display_minimalist_metrics(employee_manager)
-        st.divider()
+    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
+    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
 
-        with tab_empresa:
+    with tab_empresa:
             with st.expander("➕ Cadastrar Nova Empresa"):
                 with st.form("form_add_company", clear_on_submit=True):
                     company_name = st.text_input("Nome da Empresa")
