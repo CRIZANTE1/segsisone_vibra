@@ -1,147 +1,432 @@
+# front/administracao.py
+
 import streamlit as st
 import pandas as pd
-from auth.auth_utils import check_permission, get_user_role
+import re
+
+from auth.auth_utils import check_permission
 from gdrive.matrix_manager import MatrixManager
 from gdrive.google_api_manager import GoogleApiManager
 from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
 
 def show_admin_page():
+    if not check_permission(level='admin'):
+        st.stop()
 
-    if not check_permission(level='admin'): st.stop()
+    st.title("🚀 Painel de Administração")
+    st.write("Gerencie usuários, unidades, provisionamento e a Matriz de Treinamentos da unidade selecionada.")
 
-    st.title("🚀 Painel de Super Administração")
-
-    # Placeholder for the content of the Super Admin page
-    st.write("Aqui você pode gerenciar usuários, unidades e provisionamento.")
-
-    # Example of how to use the managers (to be expanded later)
-    matrix_manager = MatrixManager()
+    # --- INICIALIZAÇÃO DOS MANAGERS ---
+    # Os managers da unidade selecionada já devem estar no st.session_state
+    # O MatrixManager (global) é instanciado separadamente
+    matrix_manager_global = MatrixManager()
     google_api_manager = GoogleApiManager()
 
-    if not matrix_manager.data_loaded_successfully:
-        st.error(
-            "Erro Crítico: Não foi possível carregar os dados da Planilha Matriz.",
-            icon="🚨"
+    # --- SEÇÃO DE GERENCIAMENTO DE TENANTS (USUÁRIOS E UNIDADES) ---
+    st.header("Gerenciamento Global do Sistema")
+    with st.expander("Gerenciar Unidades e Usuários"):
+        st.subheader("Unidades Cadastradas")
+        units_data = matrix_manager_global.get_all_units()
+        if units_data:
+            st.dataframe(pd.DataFrame(units_data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhuma unidade cadastrada.")
+
+        st.subheader("Usuários Cadastrados")
+        users_data = matrix_manager_global.get_all_users()
+        if users_data:
+            st.dataframe(pd.DataFrame(users_data), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum usuário cadastrado.")
+        
+        # A lógica de adicionar/provisionar pode ser adicionada aqui se necessário,
+        # mas vamos focar em restaurar a matriz primeiro.
+
+    st.markdown("---")
+
+    # --- SEÇÃO DE GERENCIAMENTO DA UNIDADE SELECIONADA ---
+    st.header(f"Gerenciamento da Unidade: '{st.session_state.get('unit_name', 'Nenhuma')}'")
+
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Selecione uma unidade operacional na barra lateral para gerenciar suas empresas, funcionários e matriz de treinamentos.")
+        st.stop()
+
+    # Carrega os managers específicos da unidade da sessão
+    employee_manager = st.session_state.employee_manager
+    # O MatrixManager para funções/treinamentos também deve ser específico da unidade
+    # Vamos assumir que ele é inicializado junto com os outros managers
+    matrix_manager_unidade = st.session_state.get('matrix_manager_unidade') # Você precisará adicionar isso à sua inicialização
+    if not matrix_manager_unidade:
+        # Se não existir, podemos criá-lo aqui, mas o ideal é na inicialização central
+        from operations.matrix_manager import MatrixManager as UnitMatrixManager
+        st.session_state.matrix_manager_unidade = UnitMatrixManager(st.session_state.spreadsheet_id)
+        matrix_manager_unidade = st.session_state.matrix_manager_unidade
+
+    nr_analyzer = st.session_state.nr_analyzer
+
+    # --- UI COM ABAS PARA CADASTRO (LÓGICA RESTAURADA) ---
+    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs([
+        "Gerenciar Empresas", "Gerenciar Funcionários", 
+        "Gerenciar Matriz Manualmente", "Assistente de Matriz (IA)" 
+    ])
+
+    # --- ABA DE CADASTRO DE EMPRESA ---
+    with tab_empresa:
+        st.header("Gerenciar Empresas")
+        
+        # Seção de Cadastro dentro de um expander
+        with st.expander("➕ Cadastrar Nova Empresa"):
+            with st.form("form_add_company", clear_on_submit=True):
+                company_name = st.text_input("Nome da Empresa", placeholder="Digite o nome completo da empresa")
+                company_cnpj = st.text_input("CNPJ", placeholder="Digite o CNPJ (apenas números)")
+                submitted = st.form_submit_button("Cadastrar Empresa")
+                if submitted:
+                    if not company_name or not company_cnpj:
+                        st.error("Por favor, preencha todos os campos.")
+                    else:
+                        cnpj_clean = "".join(filter(str.isdigit, company_cnpj))
+                        with st.spinner("Cadastrando empresa..."):
+                            company_id, message = employee_manager.add_company(company_name, cnpj_clean)
+                            if company_id:
+                                st.success(f"Sucesso: {message} (ID: {company_id})")
+                                st.rerun()
+                            else:
+                                st.error(f"Falha: {message}")
+
+        st.markdown("---")
+        
+        # Seção de Gerenciamento de Empresas Existentes
+        st.subheader("Empresas Cadastradas")
+        
+        show_archived_companies = st.toggle("Mostrar empresas arquivadas", key="toggle_companies")
+        
+        # Filtra o DataFrame com base no toggle
+        if show_archived_companies:
+            companies_to_show = employee_manager.companies_df
+        else:
+            companies_to_show = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+
+        if companies_to_show.empty:
+            st.info("Nenhuma empresa para exibir com os filtros atuais.")
+        else:
+            # Itera sobre as empresas filtradas para exibição
+            for index, row in companies_to_show.sort_values('nome').iterrows():
+                with st.container(border=True):
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    col1.markdown(f"**{row['nome']}**")
+                    col2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
+                    
+                    with col3:
+                        # Botão muda de acordo com o status
+                        if str(row['status']).lower() == 'ativo':
+                            if st.button("Arquivar", key=f"archive_comp_{row['id']}", use_container_width=True):
+                                employee_manager.archive_company(row['id'])
+                                st.rerun()
+                        else:
+                            if st.button("Reativar", key=f"unarchive_comp_{row['id']}", type="primary", use_container_width=True):
+                                employee_manager.unarchive_company(row['id'])
+                                st.rerun()
+
+    # --- ABA DE CADASTRO DE FUNCIONÁRIO ---
+    with tab_funcionario:
+        st.header("Gerenciar Funcionários")
+        
+        # Seção de Cadastro dentro de um expander
+        with st.expander("➕ Cadastrar Novo Funcionário"):
+            # Mostra apenas empresas ativas no selectbox de cadastro
+            active_companies = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+            if active_companies.empty:
+                st.warning("Nenhuma empresa ativa cadastrada. Por favor, cadastre ou reative uma empresa primeiro.")
+            else:
+                selected_company_id_add = st.selectbox(
+                    "Selecione a Empresa do Funcionário",
+                    options=active_companies['id'].tolist(),
+                    format_func=lambda x: employee_manager.get_company_name(x),
+                    index=None,
+                    placeholder="Escolha uma empresa..."
+                )
+                if selected_company_id_add:
+                    with st.form("form_add_employee", clear_on_submit=True):
+                        employee_name = st.text_input("Nome do Funcionário")
+                        employee_role = st.text_input("Cargo")
+                        admission_date = st.date_input("Data de Admissão", value=None, format="DD/MM/YYYY")
+                        submitted_employee = st.form_submit_button("Cadastrar Funcionário")
+                        if submitted_employee:
+                            if not all([employee_name, employee_role, admission_date]):
+                                st.error("Por favor, preencha todos os campos do funcionário.")
+                            else:
+                                with st.spinner("Cadastrando funcionário..."):
+                                    employee_id, message = employee_manager.add_employee(
+                                        nome=employee_name, cargo=employee_role,
+                                        data_admissao=admission_date, empresa_id=selected_company_id_add
+                                    )
+                                    if employee_id:
+                                        st.success(f"Sucesso: {message}")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Falha: {message}")
+        
+        st.markdown("---")
+        st.subheader("Funcionários Cadastrados")
+        
+        # Filtro para visualizar funcionários de uma empresa específica
+        company_list_filter = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+        selected_company_id_filter = st.selectbox(
+            "Filtrar por Empresa",
+            options=company_list_filter['id'].tolist(),
+            format_func=lambda x: employee_manager.get_company_name(x),
+            index=None, placeholder="Selecione uma empresa para ver os funcionários..."
         )
-        st.warning("A funcionalidade de administração não pode operar. Verifique se a planilha matriz está configurada corretamente e se as abas 'usuarios' e 'unidades' existem.")
-        return
-
-    st.subheader("Gerenciamento de Unidades")
-
-    with st.expander("Adicionar Nova Unidade", expanded=False):
-        with st.form("add_unit_form", clear_on_submit=True):
-            new_unit_name = st.text_input("Nome da Nova Unidade", help="Nome único para identificar a unidade operacional.")
-            new_spreadsheet_id = st.text_input("ID da Planilha Google (existente)", help="ID da planilha Google Sheets já criada para esta unidade.")
-            new_folder_id = st.text_input("ID da Pasta Google Drive (existente)", help="ID da pasta no Google Drive já criada para esta unidade.")
+        
+        if selected_company_id_filter:
+            show_archived_employees = st.toggle("Mostrar funcionários arquivados", key="toggle_employees")
             
-            submitted = st.form_submit_button("Adicionar Unidade")
-
-            if submitted:
-                if new_unit_name and new_spreadsheet_id and new_folder_id:
-                    # Verifica se a unidade já existe
-                    if matrix_manager.get_unit_info(new_unit_name):
-                        st.error(f"A unidade '{new_unit_name}' já existe.")
-                    else:
-                        unit_data = [new_unit_name, new_spreadsheet_id, new_folder_id]
-                        if matrix_manager.add_unit(unit_data):
-                            st.success(f"Unidade '{new_unit_name}' adicionada com sucesso!")
-                            st.rerun()
-                        else:
-                            st.error("Erro ao adicionar unidade. Verifique os logs.")
-                else:
-                    st.warning("Por favor, preencha todos os campos para adicionar uma nova unidade.")
-
-    st.subheader("Unidades Cadastradas")
-    units_data = matrix_manager.get_all_units()
-    if units_data:
-        units_df = pd.DataFrame(units_data)
-        st.dataframe(units_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhuma unidade cadastrada ainda.")
-
-    st.subheader("Gerenciamento de Usuários")
-
-    with st.expander("Adicionar Novo Usuário", expanded=False):
-        with st.form("add_user_form", clear_on_submit=True):
-            new_user_email = st.text_input("E-mail do Usuário")
-            new_user_name = st.text_input("Nome do Usuário")
-            new_user_role = st.selectbox("Função", ["viewer", "editor", "admin"])
-            
-            all_units = matrix_manager.get_all_units()
-            unit_names = [unit['nome_unidade'] for unit in all_units] + ['*'] # Add global admin option
-            selected_unit_for_user = st.selectbox("Unidade Associada", unit_names)
-
-            submitted_user = st.form_submit_button("Adicionar Usuário")
-
-            if submitted_user:
-                if new_user_email and new_user_name and new_user_role and selected_unit_for_user:
-                    user_data = [new_user_email, new_user_name, new_user_role, selected_unit_for_user]
-                    if matrix_manager.get_user_info(new_user_email):
-                        st.error(f"O e-mail '{new_user_email}' já está cadastrado.")
-                    else:
-                        if matrix_manager.add_user(user_data):
-                            st.success(f"Usuário '{new_user_name}' adicionado com sucesso!")
-                            st.rerun()
-                        else:
-                            st.error("Erro ao adicionar usuário. Verifique os logs.")
-                else:
-                    st.warning("Por favor, preencha todos os campos para adicionar um novo usuário.")
-
-    st.subheader("Usuários Cadastrados")
-    users_data = matrix_manager.users_df.to_dict(orient='records') # Assuming users_df is accessible and loaded
-    if users_data:
-        users_df = pd.DataFrame(users_data)
-        st.dataframe(users_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Nenhum usuário cadastrado ainda.")
-
-    st.subheader("Provisionamento de Novas Unidades")
-
-    with st.expander("Provisionar Nova Unidade (Criar Planilha e Pasta)", expanded=False):
-        with st.form("provision_unit_form", clear_on_submit=True):
-            new_provision_unit_name = st.text_input("Nome da Nova Unidade para Provisionamento", help="Nome da unidade a ser criada no Google Drive e na Planilha Matriz.")
-            
-            provision_submitted = st.form_submit_button("Provisionar Unidade")
-
-            if provision_submitted:
-                if new_provision_unit_name:
-                    if matrix_manager.get_unit_info(new_provision_unit_name):
-                        st.error(f"A unidade '{new_provision_unit_name}' já existe na Planilha Matriz.")
-                    else:
-                        with st.spinner(f"Provisionando unidade '{new_provision_unit_name}'..."):
-                            try:
-                                # 1. Criar pasta no Google Drive
-                                st.info("Criando pasta no Google Drive...")
-                                new_folder_id = google_api_manager.create_folder(new_provision_unit_name, CENTRAL_DRIVE_FOLDER_ID)
-                                if not new_folder_id:
-                                    st.error("Falha ao criar pasta no Google Drive.")
-                                    return
-                                st.success(f"Pasta criada: {new_folder_id}")
-
-                                # 2. Criar planilha Google Sheets
-                                st.info("Criando planilha Google Sheets...")
-                                new_spreadsheet = google_api_manager.create_spreadsheet(new_provision_unit_name, new_folder_id)
-                                if not new_spreadsheet:
-                                    st.error("Falha ao criar planilha Google Sheets.")
-                                    return
-                                new_spreadsheet_id = new_spreadsheet.id
-                                st.success(f"Planilha criada: {new_spreadsheet_id}")
-
-                                # 3. Configurar abas da planilha a partir de sheets_config.yaml
-                                st.info("Configurando abas da planilha...")
-                                google_api_manager.setup_sheets_from_config(new_spreadsheet, "sheets_config.yaml")
-                                st.success("Abas configuradas com sucesso.")
-
-                                # 4. Adicionar unidade à Planilha Matriz
-                                st.info("Adicionando unidade à Planilha Matriz...")
-                                unit_data = [new_provision_unit_name, new_spreadsheet_id, new_folder_id]
-                                if matrix_manager.add_unit(unit_data):
-                                    st.success(f"Unidade '{new_provision_unit_name}' provisionada e adicionada à Planilha Matriz com sucesso!")
+            # Usa a função get_employees_by_company com o parâmetro include_archived
+            employees_to_show = employee_manager.get_employees_by_company(
+                selected_company_id_filter, 
+                include_archived=show_archived_employees
+            )
+                
+            if employees_to_show.empty:
+                st.info("Nenhum funcionário para exibir com os filtros atuais.")
+            else:
+                for index, row in employees_to_show.sort_values('nome').iterrows():
+                    with st.container(border=True):
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        col1.markdown(f"**{row['nome']}**")
+                        col2.caption(f"Cargo: {row['cargo']} | Status: {row['status']}")
+                        with col3:
+                            if str(row['status']).lower() == 'ativo':
+                                if st.button("Arquivar", key=f"archive_emp_{row['id']}", use_container_width=True):
+                                    employee_manager.archive_employee(row['id'])
                                     st.rerun()
-                                else:
-                                    st.error("Falha ao adicionar unidade à Planilha Matriz.")
+                            else:
+                                if st.button("Reativar", key=f"unarchive_emp_{row['id']}", type="primary", use_container_width=True):
+                                    employee_manager.unarchive_employee(row['id'])
+                                    st.rerun()
+                                    
+    with tab_matriz:
+        st.header("Matriz de Treinamento por Função")
+        
+        st.subheader("1. Importar Matriz a partir de um Documento (PDF)")
+        
+        uploaded_matrix_file = st.file_uploader(
+            "Selecione um arquivo PDF com a sua matriz de treinamentos",
+            type="pdf",
+            key="matrix_uploader"
+        )
 
-                            except Exception as e:
-                                st.error(f"Erro durante o provisionamento da unidade: {e}")
+        if uploaded_matrix_file:
+            if st.button("Analisar Matriz com IA"):
+                with st.spinner("A IA está lendo e interpretando sua matriz..."):
+                    extracted_data, message = matrix_manager_unidade.analyze_matrix_pdf(uploaded_matrix_file)
+                
+                if extracted_data:
+                    st.success(message)
+                    st.session_state.extracted_matrix_data = extracted_data
                 else:
-                    st.warning("Por favor, insira o nome da nova unidade para provisionar.")
+                    st.error(message)
+
+        # Se houver dados extraídos aguardando confirmação, exibe a visualização aprimorada
+        if 'extracted_matrix_data' in st.session_state:
+            st.markdown("---")
+            st.subheader("Dados Extraídos para Confirmação")
+            st.info("Revise a relação entre Funções e Treinamentos extraída pela IA. Se estiver correta, clique em 'Salvar'.")
+            
+            try:
+                matrix_to_display = {
+                    item.get('funcao', 'Função não identificada'): item.get('normas_obrigatorias', [])
+                    for item in st.session_state.extracted_matrix_data
+                }
+                
+                # Exibe o dicionário formatado com st.json
+                st.json(matrix_to_display, expanded=True)
+
+                if st.button("Confirmar e Salvar Matriz", type="primary"):
+                    with st.spinner("Salvando dados na planilha..."):
+                        # A função de salvar ainda recebe a lista original de dicionários
+                        added_funcs, added_maps = matrix_manager_unidade.save_extracted_matrix(
+                            st.session_state.extracted_matrix_data
+                        )
+                    
+                    st.success(f"Matriz salva! {added_funcs} novas funções e {added_maps} mapeamentos adicionados.")
+                    del st.session_state.extracted_matrix_data
+                    st.rerun()
+
+            except Exception as e:
+                st.error(f"Erro ao exibir ou processar dados extraídos: {e}")
+                del st.session_state.extracted_matrix_data
+
+        st.markdown("---")
+        
+        st.subheader("2. Gerenciamento Manual")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("#### Adicionar/Ver Funções")
+            with st.form("form_add_function"):
+                func_name = st.text_input("Nome da Nova Função (ex: Soldador)")
+                func_desc = st.text_area("Descrição (opcional)")
+                submitted_func = st.form_submit_button("Adicionar Função")
+                if submitted_func and func_name:
+                    func_id, msg = matrix_manager_unidade.add_function(func_name, func_desc)
+                    if func_id:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            st.markdown("---")
+            
+
+        with col2:
+            st.markdown("#### Mapear Treinamentos para Funções")
+            if matrix_manager_unidade.functions_df.empty:
+                st.warning("Cadastre uma função à esquerda primeiro.")
+            else:
+                selected_function_id = st.selectbox(
+                    "Selecione a Função",
+                    options=matrix_manager_unidade.functions_df['id'].tolist(),
+                    format_func=lambda id: matrix_manager_unidade.functions_df.loc[matrix_manager_unidade.functions_df['id'] == id, 'nome_funcao'].iloc[0]
+                )
+                all_norms = sorted(list(employee_manager.nr_config.keys()))
+                if 'NR-20' not in all_norms: all_norms.insert(0, 'NR-20')
+                
+                required_norm = st.selectbox("Selecione o Treinamento Obrigatório", options=all_norms)
+                
+                if st.button("Mapear Treinamento"):
+                    if selected_function_id and required_norm:
+                        map_id, msg = matrix_manager_unidade.add_training_to_function(selected_function_id, required_norm)
+                        if map_id:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+        st.markdown("---")
+        st.subheader("Visão Consolidada da Matriz de Treinamentos")
+        
+        functions_df = matrix_manager_unidade.functions_df
+        matrix_df = matrix_manager_unidade.matrix_df
+        
+        if functions_df.empty:
+            st.info("Nenhuma função cadastrada. Adicione uma função acima para começar.")
+        else:
+            # --- LÓGICA DE CONSOLIDAÇÃO (EXISTENTE) ---
+            if not matrix_df.empty:
+                mappings_grouped = matrix_df.groupby('id_funcao')['norma_obrigatoria'].apply(list).reset_index()
+                
+                consolidated_df = pd.merge(
+                    functions_df.drop_duplicates(subset=['id']),
+                    mappings_grouped,
+                    left_on='id',
+                    right_on='id_funcao',
+                    how='left'
+                )
+            else:
+                consolidated_df = functions_df.drop_duplicates(subset=['id']).copy()
+                consolidated_df['norma_obrigatoria'] = [[] for _ in range(len(consolidated_df))]
+        
+            # --- TRANSFORMAÇÃO PARA DICIONÁRIO E EXIBIÇÃO EM JSON ---
+        
+            # Garante que a coluna exista e preenche valores nulos (funções sem mapeamentos) com listas vazias
+            if 'norma_obrigatoria' not in consolidated_df.columns:
+                consolidated_df['norma_obrigatoria'] = [[] for _ in range(len(consolidated_df))]
+            consolidated_df['norma_obrigatoria'] = consolidated_df['norma_obrigatoria'].apply(
+                lambda x: x if isinstance(x, list) else []
+            )
+        
+            # Cria o dicionário final para exibição
+            # A chave será 'nome_funcao', o valor será a lista de 'norma_obrigatoria'
+            matrix_to_display = pd.Series(
+                consolidated_df.norma_obrigatoria.values,
+                index=consolidated_df.nome_funcao
+            ).to_dict()
+        
+            # Ordena as listas de treinamentos dentro do dicionário
+            for function_name, trainings in matrix_to_display.items():
+                # Se a lista estiver vazia, adiciona a mensagem
+                if not trainings:
+                    matrix_to_display[function_name] = ["Nenhum treinamento mapeado"]
+                else:
+                    matrix_to_display[function_name] = sorted(trainings)
+        
+            # Exibe o dicionário final em formato JSON
+            st.json(matrix_to_display, expanded=True)
+
+    with tab_recomendacoes:
+        st.header("🤖 Assistente de Matriz de Treinamentos com IA")
+        st.info("Selecione uma função e a IA irá analisar sua base de conhecimento para recomendar os treinamentos obrigatórios.")
+
+        if matrix_manager_unidade.functions_df.empty:
+            st.warning("Nenhuma função cadastrada. Por favor, cadastre funções na aba 'Gerenciar Matriz Manualmente' primeiro.")
+        else:
+            selected_function_id = st.selectbox(
+                "Selecione a Função para obter recomendações",
+                options=matrix_manager_unidade.functions_df['id'].tolist(),
+                format_func=lambda id: matrix_manager_unidade.functions_df.loc[matrix_manager_unidade.functions_df['id'] == id, 'nome_funcao'].iloc[0],
+                key="rec_func_select"
+            )
+            
+            if st.button("Gerar Recomendações da IA", type="primary"):
+                selected_function_name = matrix_manager_unidade.functions_df.loc[matrix_manager_unidade.functions_df['id'] == selected_function_id, 'nome_funcao'].iloc[0]
+                with st.spinner(f"A IA está pensando nos treinamentos para '{selected_function_name}'..."):
+                    # --- CORREÇÃO: Passamos a instância do nr_analyzer como argumento ---
+                    recommendations, message = matrix_manager_unidade.get_training_recommendations_for_function(
+                        selected_function_name, 
+                        nr_analyzer
+                    )
+                
+                if recommendations is not None:
+                    st.session_state.recommendations = recommendations
+                    st.session_state.selected_function_for_rec = selected_function_id
+                else:
+                    st.error(message)
+
+        # Se houver recomendações no session_state, exibe a seção de confirmação
+        if 'recommendations' in st.session_state:
+            st.markdown("---")
+            st.subheader("Recomendações Geradas")
+            
+            recommendations = st.session_state.recommendations
+            
+            if not recommendations:
+                st.success("A IA não identificou nenhum treinamento de NR obrigatório para esta função.")
+            else:
+                # Prepara os dados para exibição e seleção
+                rec_data = pd.DataFrame(recommendations)
+                rec_data['aceitar'] = True # Adiciona uma coluna de checkbox, todos marcados por padrão
+                
+                st.write("Marque os treinamentos que você deseja adicionar à matriz para esta função:")
+                
+                edited_df = st.data_editor(
+                    rec_data,
+                    column_config={
+                        "aceitar": st.column_config.CheckboxColumn("Aceitar?", default=True),
+                        "treinamento_recomendado": "Treinamento",
+                        "justificativa_normativa": "Justificativa da IA (não será salvo)"
+                    },
+                    use_container_width=True,
+                    hide_index=True,
+                    key="rec_editor"
+                )
+
+                if st.button("Salvar Mapeamentos Selecionados"):
+                    # Filtra apenas as recomendações que o usuário deixou marcadas
+                    accepted_recommendations = edited_df[edited_df['aceitar']]
+                    norms_to_add = accepted_recommendations['treinamento_recomendado'].tolist()
+                    
+                    if not norms_to_add:
+                        st.warning("Nenhum treinamento foi selecionado para salvar.")
+                    else:
+                        function_id_to_save = st.session_state.selected_function_for_rec
+                        with st.spinner("Salvando mapeamentos..."):
+                            success, message = matrix_manager_unidade.update_function_mappings(function_id_to_save, norms_to_add)
+                        
+                        if success:
+                            st.success(message)
+                            # Limpa o estado para resetar a interface
+                            del st.session_state.recommendations
+                            del st.session_state.selected_function_for_rec
+                            st.rerun()
+                        else:
+                            st.error(message)
