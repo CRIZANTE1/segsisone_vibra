@@ -132,6 +132,10 @@ class MatrixManager:
     def get_all_units(self) -> list:
         return self.units_df.to_dict(orient='records') if not self.units_df.empty else []
 
+    def get_audit_logs(self) -> pd.DataFrame:
+        """Retorna o DataFrame de logs de auditoria."""
+        return self.log_df
+
     def get_all_users(self) -> list:
         return self.users_df.to_dict(orient='records') if not self.users_df.empty else []
 
