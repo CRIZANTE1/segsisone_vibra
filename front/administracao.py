@@ -1,12 +1,9 @@
-# front/administracao.py
-
 import streamlit as st
 import pandas as pd
 from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_permission
 
-# --- FUNÇÃO DE AGREGAÇÃO DE DADOS PARA A VISÃO GLOBAL ---
 @st.cache_data(ttl=300)
 def load_aggregated_data():
     """
@@ -52,7 +49,6 @@ def load_aggregated_data():
 
     return final_companies, final_employees
 
-# --- FUNÇÃO PRINCIPAL DA PÁGINA ---
 def show_admin_page():
     if not check_permission(level='admin'):
         st.stop()
@@ -61,21 +57,13 @@ def show_admin_page():
 
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
-    # --- LÓGICA DAS ABAS ---
-    # Define as abas com base no modo de visualização
     if is_global_view:
         tab_list = ["Visão Global", "Logs de Auditoria"]
         tab_global, tab_logs = st.tabs(tab_list)
-    else:
-        tab_list = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz"]
-        tab_empresa, tab_funcionario, tab_matriz = st.tabs(tab_list)
 
-    # --- MODO DE VISÃO GLOBAL ---
-    if is_global_view:
         with tab_global:
             st.header("Visão Global (Todas as Unidades)")
             st.info("Este modo é para consulta consolidada. Para gerenciar detalhes, selecione uma unidade na barra lateral.")
-            
             all_companies, all_employees = load_aggregated_data()
             
             st.subheader("Todas as Empresas Cadastradas")
@@ -93,18 +81,16 @@ def show_admin_page():
         with tab_logs:
             st.header("📜 Logs de Auditoria do Sistema")
             st.info("Ações de login, logout e exclusão de registros em todo o sistema.")
-            
             matrix_manager_global = GlobalMatrixManager()
             logs_df = matrix_manager_global.get_audit_logs()
             
             if not logs_df.empty:
-                # Ordena os logs do mais recente para o mais antigo
                 logs_df_sorted = logs_df.sort_values(by='timestamp', ascending=False)
                 st.dataframe(logs_df_sorted, use_container_width=True, hide_index=True)
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-        st.stop() # Interrompe a execução aqui para o modo global
+        st.stop()
 
     # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
     unit_name = st.session_state.get('unit_name', 'Nenhuma')
@@ -118,10 +104,9 @@ def show_admin_page():
     matrix_manager_unidade = st.session_state.matrix_manager_unidade
     nr_analyzer = st.session_state.nr_analyzer
 
-    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs([
-        "Gerenciar Empresas", "Gerenciar Funcionários", 
-        "Gerenciar Matriz Manualmente", "Assistente de Matriz (IA)"
-    ])
+    # --- CORREÇÃO APLICADA AQUI: APENAS UM CONJUNTO DE ABAS É CRIADO ---
+    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz Manualmente", "Assistente de Matriz (IA)"]
+    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
 
     with tab_empresa:
         with st.expander("➕ Cadastrar Nova Empresa"):
