@@ -4,6 +4,7 @@ from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_permission
 
+
 @st.cache_data(ttl=300)
 def load_aggregated_data():
     """
@@ -49,6 +50,107 @@ def load_aggregated_data():
 
     return final_companies, final_employees
 
+
+def display_global_summary_dashboard(aggregated_data):
+    """
+    Calcula e exibe o dashboard de resumo executivo para a visão global.
+    """
+    st.header("Dashboard de Resumo Executivo Global")
+
+    companies_df = aggregated_data["companies"]
+    employees_df = aggregated_data["employees"]
+    asos_df = aggregated_data["asos"]
+    trainings_df = aggregated_data["trainings"]
+
+    if companies_df.empty:
+        st.info("Nenhuma empresa encontrada em todas as unidades.")
+        return
+
+    # --- Métricas Gerais ---
+    total_units = companies_df['unidade'].nunique()
+    total_companies = len(companies_df)
+    total_employees = len(employees_df)
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Unidades Operacionais", f"{total_units}")
+    col2.metric("Total de Empresas", f"{total_companies}")
+    col3.metric("Total de Funcionários", f"{total_employees}")
+    st.divider()
+
+    # --- Cálculo de Pendências ---
+    today = pd.to_datetime('today').date()
+    pendencies_by_unit = {}
+    
+    # Prepara os dataframes de pendências uma única vez
+    expired_asos = pd.DataFrame()
+    if not asos_df.empty:
+        asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], errors='coerce').dt.date
+        expired_asos = asos_df[asos_df['vencimento_dt'] < today]
+        if not expired_asos.empty:
+            pendency_counts = expired_asos.groupby('unidade').size().to_dict()
+            for unit, count in pendency_counts.items():
+                pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+
+    expired_trainings = pd.DataFrame()
+    if not trainings_df.empty:
+        trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], errors='coerce').dt.date
+        expired_trainings = trainings_df[trainings_df['vencimento_dt'] < today]
+        if not expired_trainings.empty:
+            pendency_counts = expired_trainings.groupby('unidade').size().to_dict()
+            for unit, count in pendency_counts.items():
+                pendencies_by_unit[unit] = pendencies_by_unit.get(unit, 0) + count
+
+    if not pendencies_by_unit:
+        st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades.")
+        return
+
+    # --- Exibição das Pendências por Unidade ---
+    st.subheader("Pendências de Vencimento por Unidade")
+    pendencies_df = pd.DataFrame(list(pendencies_by_unit.items()), columns=['Unidade', 'Nº de Pendências'])
+    pendencies_df = pendencies_df.sort_values(by='Nº de Pendências', ascending=False).reset_index(drop=True)
+    st.dataframe(pendencies_df, use_container_width=True, hide_index=True)
+
+    # --- Detalhamento da Unidade Mais Crítica ---
+    most_critical_unit = pendencies_df.iloc[0]['Unidade']
+    st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
+
+    unit_companies = companies_df[companies_df['unidade'] == most_critical_unit]
+    unit_employees = employees_df[employees_df['unidade'] == most_critical_unit]
+    
+    pendencies_by_company = {}
+    
+    # Mapeamentos para a unidade crítica
+    emp_to_comp = unit_employees.set_index('id')['empresa_id']
+    comp_to_name = unit_companies.set_index('id')['nome']
+
+    # Recalcula pendências de ASO apenas para a unidade crítica
+    if not expired_asos.empty:
+        expired_asos_unit = expired_asos[expired_asos['unidade'] == most_critical_unit].copy()
+        if not expired_asos_unit.empty:
+            expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(emp_to_comp)
+            expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(comp_to_name)
+            aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in aso_counts.items():
+                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    # --- LÓGICA DE TREINAMENTOS RESTAURADA AQUI ---
+    if not expired_trainings.empty:
+        expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
+        if not expired_trainings_unit.empty:
+            expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(emp_to_comp)
+            expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(comp_to_name)
+            training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in training_counts.items():
+                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    if pendencies_by_company:
+        company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
+        company_pendencies_df = company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False)
+        st.dataframe(company_pendencies_df, use_container_width=True, hide_index=True)
+    else:
+        st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
+        
+
 def show_admin_page():
     if not check_permission(level='admin'):
         st.stop()
@@ -57,30 +159,26 @@ def show_admin_page():
 
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
+    # --- LÓGICA DE ABAS UNIFICADA ---
+    # Define as abas com base no modo de visualização
     if is_global_view:
-        tab_list = ["Visão Global", "Logs de Auditoria"]
-        tab_global, tab_logs = st.tabs(tab_list)
+        tab_list = ["Dashboard Global", "Logs de Auditoria"]
+        tab_dashboard, tab_logs = st.tabs(tab_list)
+    else:
+        tab_list = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
+        tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list)
 
-        with tab_global:
-            st.header("Visão Global (Todas as Unidades)")
-            st.info("Este modo é para consulta consolidada. Para gerenciar detalhes, selecione uma unidade na barra lateral.")
-            all_companies, all_employees = load_aggregated_data()
-            
-            st.subheader("Todas as Empresas Cadastradas")
-            if not all_companies.empty:
-                st.dataframe(all_companies[['unidade', 'nome', 'cnpj', 'status']], use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhuma empresa encontrada em todas as unidades.")
-                
-            st.subheader("Todos os Funcionários Cadastrados")
-            if not all_employees.empty:
-                st.dataframe(all_employees[['unidade', 'nome', 'cargo', 'status']], use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhum funcionário encontrado em todas as unidades.")
+    # --- MODO DE VISÃO GLOBAL ---
+    if is_global_view:
+        with tab_dashboard:
+            # Chama a função que exibe o dashboard de resumo
+            aggregated_data = load_aggregated_data()
+            display_global_summary_dashboard(aggregated_data)
 
         with tab_logs:
             st.header("📜 Logs de Auditoria do Sistema")
             st.info("Ações de login, logout e exclusão de registros em todo o sistema.")
+            
             matrix_manager_global = GlobalMatrixManager()
             logs_df = matrix_manager_global.get_audit_logs()
             
@@ -90,61 +188,55 @@ def show_admin_page():
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-        st.stop()
+        # Não precisa mais de st.stop() aqui, pois a lógica está contida nas abas.
 
-    # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
-    unit_name = st.session_state.get('unit_name', 'Nenhuma')
-    st.header(f"Gerenciamento da Unidade: '{unit_name}'")
+    # --- MODO DE VISÃO DE UNIDADE ESPECÍFICA ---
+    else:
+        unit_name = st.session_state.get('unit_name', 'Nenhuma')
+        st.header(f"Gerenciamento da Unidade: '{unit_name}'")
 
-    if not st.session_state.get('managers_initialized'):
-        st.warning("Aguardando a inicialização dos dados da unidade...")
-        st.stop()
+        if not st.session_state.get('managers_initialized'):
+            st.warning("Aguardando a inicialização dos dados da unidade...")
+            st.stop()
 
-    employee_manager = st.session_state.employee_manager
-    matrix_manager_unidade = st.session_state.matrix_manager_unidade
-    nr_analyzer = st.session_state.nr_analyzer
+        employee_manager = st.session_state.employee_manager
+        matrix_manager_unidade = st.session_state.matrix_manager_unidade
+        nr_analyzer = st.session_state.nr_analyzer
 
-    # --- CORREÇÃO APLICADA AQUI: APENAS UM CONJUNTO DE ABAS É CRIADO ---
-    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz Manualmente", "Assistente de Matriz (IA)"]
-    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
-
-    with tab_empresa:
-        with st.expander("➕ Cadastrar Nova Empresa"):
-            with st.form("form_add_company", clear_on_submit=True):
-                company_name = st.text_input("Nome da Empresa", placeholder="Digite o nome completo da empresa")
-                company_cnpj = st.text_input("CNPJ", placeholder="Digite o CNPJ")
-                submitted = st.form_submit_button("Cadastrar Empresa")
-                if submitted and company_name and company_cnpj:
-                    with st.spinner("Cadastrando..."):
-                        company_id, message = employee_manager.add_company(company_name, company_cnpj)
-                        if company_id:
+        with tab_empresa:
+            with st.expander("➕ Cadastrar Nova Empresa"):
+                with st.form("form_add_company", clear_on_submit=True):
+                    company_name = st.text_input("Nome da Empresa")
+                    company_cnpj = st.text_input("CNPJ")
+                    if st.form_submit_button("Cadastrar Empresa"):
+                        if company_name and company_cnpj:
+                            _, message = employee_manager.add_company(company_name, company_cnpj)
                             st.success(message)
                             st.rerun()
                         else:
-                            st.error(message)
+                            st.warning("Preencha todos os campos.")
 
-        st.subheader("Empresas Cadastradas na Unidade")
-        show_archived = st.toggle("Mostrar empresas arquivadas", key="toggle_companies")
-        
-        df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
-        
-        if df_to_show.empty:
-            st.info("Nenhuma empresa para exibir.")
-        else:
-            for _, row in df_to_show.sort_values('nome').iterrows():
-                with st.container(border=True):
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    col1.markdown(f"**{row['nome']}**")
-                    col2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
-                    with col3:
-                        if str(row['status']).lower() == 'ativo':
-                            if st.button("Arquivar", key=f"archive_comp_{row['id']}", use_container_width=True):
-                                employee_manager.archive_company(row['id'])
-                                st.rerun()
-                        else:
-                            if st.button("Reativar", key=f"unarchive_comp_{row['id']}", type="primary", use_container_width=True):
-                                employee_manager.unarchive_company(row['id'])
-                                st.rerun()
+            st.subheader("Empresas Cadastradas na Unidade")
+            show_archived = st.toggle("Mostrar empresas arquivadas")
+            df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+            
+            if not df_to_show.empty:
+                for _, row in df_to_show.sort_values('nome').iterrows():
+                    with st.container(border=True):
+                        c1, c2, c3 = st.columns([3,2,1])
+                        c1.markdown(f"**{row['nome']}**")
+                        c2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
+                        with c3:
+                            if str(row['status']).lower() == 'ativo':
+                                if st.button("Arquivar", key=f"archive_{row['id']}"):
+                                    employee_manager.archive_company(row['id'])
+                                    st.rerun()
+                            else:
+                                if st.button("Reativar", key=f"unarchive_{row['id']}", type="primary"):
+                                    employee_manager.unarchive_company(row['id'])
+                                    st.rerun()
+            else:
+                st.info("Nenhuma empresa para exibir.")
 
     with tab_funcionario:
         with st.expander("➕ Cadastrar Novo Funcionário"):
