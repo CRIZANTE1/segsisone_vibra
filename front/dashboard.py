@@ -156,9 +156,10 @@ def show_dashboard_page():
                             if not aptitude_asos.empty:
                                 current_aso = aptitude_asos.sort_values('data_aso', ascending=False).iloc[0]
                                 vencimento_obj = current_aso.get('vencimento')
-                                if pd.notna(vencimento_obj) and isinstance(vencimento_obj, date):
+                                
+                                if pd.notna(vencimento_obj):
                                     aso_vencimento = vencimento_obj
-                                    aso_status = 'Válido' if aso_vencimento >= today else 'Vencido'
+                                    aso_status = 'Válido' if aso_vencimento.date() >= today else 'Vencido'
                                 else:
                                     aso_status = 'Venc. Inválido'
                             else:
@@ -169,8 +170,8 @@ def show_dashboard_page():
                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                             trainings_total = len(all_trainings)
                             valid_trainings = all_trainings.copy()
-                            valid_trainings['vencimento_dt'] = pd.to_datetime(valid_trainings['vencimento'], errors='coerce').dt.date
-                            trainings_expired_count = (valid_trainings['vencimento_dt'] < today).sum()
+                            expired_mask = valid_trainings['vencimento'].dt.date < today
+                            trainings_expired_count = expired_mask.sum()
 
                         overall_status = 'Em Dia' if aso_status != 'Vencido' and trainings_expired_count == 0 else 'Pendente'
                         status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
