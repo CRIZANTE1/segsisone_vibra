@@ -47,8 +47,10 @@ def load_aggregated_data():
     progress_bar.empty()
     final_companies = pd.concat(aggregated_companies, ignore_index=True) if aggregated_companies else pd.DataFrame()
     final_employees = pd.concat(aggregated_employees, ignore_index=True) if aggregated_employees else pd.DataFrame()
+    final_asos = pd.concat(aggregated_data["asos"], ignore_index=True) if aggregated_data["asos"] else pd.DataFrame()
+    final_trainings = pd.concat(aggregated_data["trainings"], ignore_index=True) if aggregated_data["trainings"] else pd.DataFrame()
 
-    return final_companies, final_employees
+    return final_companies, final_employees, final_asos, final_trainings
 
 
 def display_global_summary_dashboard(aggregated_data):
@@ -172,7 +174,7 @@ def show_admin_page():
     if is_global_view:
         with tab_dashboard:
             # Chama a função que exibe o dashboard de resumo
-            aggregated_data = load_aggregated_data()
+            companies, employees, asos, trainings = load_aggregated_data()
             display_global_summary_dashboard(aggregated_data)
 
         with tab_logs:
