@@ -60,26 +60,51 @@ def show_admin_page():
     st.title("🚀 Painel de Administração")
 
     is_global_view = st.session_state.get('unit_name') == 'Global'
-
+    
+    # --- LÓGICA DAS ABAS ---
+    # Define as abas com base no modo de visualização
     if is_global_view:
-        st.header("Visão Global (Todas as Unidades)")
-        st.info("Este modo é para consulta consolidada. Para cadastrar ou gerenciar detalhes, selecione uma unidade específica na barra lateral.")
-        
-        all_companies, all_employees = load_aggregated_data()
-        
-        st.subheader("Todas as Empresas Cadastradas")
-        if not all_companies.empty:
-            st.dataframe(all_companies[['unidade', 'nome', 'cnpj', 'status']], use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhuma empresa encontrada em todas as unidades.")
+        tab_list = ["Visão Global", "Logs de Auditoria"]
+        tab_global, tab_logs = st.tabs(tab_list)
+    else:
+        tab_list = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz"]
+        tab_empresa, tab_funcionario, tab_matriz = st.tabs(tab_list)
+
+    # --- MODO DE VISÃO GLOBAL ---
+    if is_global_view:
+        with tab_global:
+            st.header("Visão Global (Todas as Unidades)")
+            st.info("Este modo é para consulta consolidada. Para gerenciar detalhes, selecione uma unidade na barra lateral.")
             
-        st.subheader("Todos os Funcionários Cadastrados")
-        if not all_employees.empty:
-            st.dataframe(all_employees[['unidade', 'nome', 'cargo', 'status']], use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum funcionário encontrado em todas as unidades.")
+            all_companies, all_employees = load_aggregated_data()
+            
+            st.subheader("Todas as Empresas Cadastradas")
+            if not all_companies.empty:
+                st.dataframe(all_companies[['unidade', 'nome', 'cnpj', 'status']], use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhuma empresa encontrada em todas as unidades.")
+                
+            st.subheader("Todos os Funcionários Cadastrados")
+            if not all_employees.empty:
+                st.dataframe(all_employees[['unidade', 'nome', 'cargo', 'status']], use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum funcionário encontrado em todas as unidades.")
+
+        with tab_logs:
+            st.header("📜 Logs de Auditoria do Sistema")
+            st.info("Ações de login, logout e exclusão de registros em todo o sistema.")
+            
+            matrix_manager_global = GlobalMatrixManager()
+            logs_df = matrix_manager_global.get_audit_logs()
+            
+            if not logs_df.empty:
+                # Ordena os logs do mais recente para o mais antigo
+                logs_df_sorted = logs_df.sort_values(by='timestamp', ascending=False)
+                st.dataframe(logs_df_sorted, use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhum registro de log encontrado.")
         
-        st.stop()
+        st.stop() # Interrompe a execução aqui para o modo global
 
     # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
     unit_name = st.session_state.get('unit_name', 'Nenhuma')
