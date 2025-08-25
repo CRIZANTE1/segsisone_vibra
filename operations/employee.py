@@ -58,7 +58,20 @@ class EmployeeManager:
         if self._pdf_analyzer is None: self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-   
+    def upload_documento_e_obter_link(self, arquivo, novo_nome: str):
+        """
+        Faz o upload de um arquivo para a pasta da unidade e retorna o link.
+        Esta função atua como um wrapper para o GoogleApiManager.
+        """
+        if not self.folder_id:
+            st.error("O ID da pasta desta unidade não está definido. Não é possível fazer o upload.")
+            logger.error(f"Tentativa de upload para a unidade, mas o folder_id não foi fornecido no construtor do EmployeeManager.")
+            return None
+        
+        # A instância self.api_manager já foi criada no __init__
+        logger.info(f"Iniciando upload do documento '{novo_nome}' para a pasta ID: ...{self.folder_id[-6:]}")
+        return self.api_manager.upload_file(self.folder_id, arquivo, novo_nome)
+
 
     def load_data(self):
         """
