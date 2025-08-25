@@ -40,6 +40,53 @@ def display_audit_results(audit_result):
     else:
         st.info(f"**Parecer da IA:** {summary}")
 
+def handle_delete_confirmation(docs_manager, employee_manager):
+    """
+    Gerencia o diálogo de confirmação de exclusão.
+    Esta função é chamada no final da renderização da página.
+    """
+    if 'items_to_delete' in st.session_state:
+        items = st.session_state.items_to_delete
+
+        @st.dialog("Confirmar Exclusão")
+        def confirm_multiple_delete():
+            st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
+            
+            with st.container(height=150):
+                for item in items:
+                    st.markdown(f"- **{item['name']}** (ID: {item['id']})")
+            
+            st.caption("Esta ação também removerá os arquivos associados do Google Drive e não pode ser desfeita.")
+            
+            col1, col2 = st.columns(2)
+            if col1.button("Cancelar", use_container_width=True):
+                del st.session_state.items_to_delete
+                st.rerun()
+            
+            if col2.button(f"Sim, Excluir {len(items)} Iten(s)", type="primary", use_container_width=True):
+                total_success = 0
+                with st.spinner("Excluindo registros..."):
+                    for item in items:
+                        success = False
+                        if item['type'] == 'doc_empresa':
+                            success = docs_manager.delete_company_document(item['id'], item.get('file_url'))
+                        elif item['type'] == 'aso':
+                            success = employee_manager.delete_aso(item['id'], item.get('file_url'))
+                        elif item['type'] == 'treinamento':
+                            success = employee_manager.delete_training(item['id'], item.get('file_url'))
+                        if success:
+                            total_success += 1
+                
+                if total_success == len(items):
+                    st.success(f"{total_success} registro(s) excluído(s) com sucesso!")
+                else:
+                    st.error(f"Falha ao excluir. {total_success} de {len(items)} registros foram removidos.")
+                
+                del st.session_state.items_to_delete
+                st.rerun()
+
+        confirm_multiple_delete()
+
 def show_dashboard_page():
     logger.info("Iniciando a renderização da página do dashboard.")
     if not st.session_state.get('managers_initialized'):
@@ -423,16 +470,22 @@ def show_dashboard_page():
                         format_func=lambda doc_id: f"{company_docs[company_docs['id'] == doc_id].iloc[0]['tipo_documento']} (ID: {doc_id})",
                         key="delete_doc_select"
                     )
-                    if st.button("Excluir Documentos Selecionados", type="primary", key="delete_doc_btn"):
+                    if st.button("Adicionar à Lista de Exclusão", key="delete_doc_btn"):
                         if docs_to_delete:
-                            st.session_state.items_to_delete = []
+                            # --- CORREÇÃO APLICADA ---
+                            if 'items_to_delete' not in st.session_state:
+                                st.session_state.items_to_delete = []
+                            
                             for doc_id in docs_to_delete:
                                 row = company_docs[company_docs['id'] == doc_id].iloc[0]
-                                st.session_state.items_to_delete.append({
+                                item_data = {
                                     "type": "doc_empresa", "id": doc_id, "file_url": row.get('arquivo_id'),
                                     "name": f"Documento {row.get('tipo_documento')}"
-                                })
-                            st.rerun()
+                                }
+                                # Evita adicionar duplicatas
+                                if item_data not in st.session_state.items_to_delete:
+                                    st.session_state.items_to_delete.append(item_data)
+                            st.success(f"{len(docs_to_delete)} documento(s) adicionado(s) à lista de exclusão.")
                 else:
                     st.caption("Nenhum documento da empresa para gerenciar.")
 
@@ -460,16 +513,21 @@ def show_dashboard_page():
                                 format_func=lambda aso_id: f"{latest_asos.loc[latest_asos['id'] == aso_id, 'tipo_aso'].iloc[0]} de {latest_asos.loc[latest_asos['id'] == aso_id, 'data_aso'].iloc[0].strftime('%d/%m/%Y') if pd.notna(latest_asos.loc[latest_asos['id'] == aso_id, 'data_aso'].iloc[0]) else 'Data Inválida'} (ID: {aso_id})",
                                 key=f"delete_aso_select_{selected_employee_id}"
                             )
-                            if st.button("Excluir ASOs Selecionados", type="primary", key=f"delete_aso_btn_{selected_employee_id}"):
+                            if st.button("Adicionar à Lista de Exclusão", key=f"delete_aso_btn_{selected_employee_id}"):
                                 if asos_to_delete:
-                                    st.session_state.items_to_delete = []
+                                    # --- CORREÇÃO APLICADA ---
+                                    if 'items_to_delete' not in st.session_state:
+                                        st.session_state.items_to_delete = []
+                                    
                                     for aso_id in asos_to_delete:
                                         row = latest_asos[latest_asos['id'] == aso_id].iloc[0]
-                                        st.session_state.items_to_delete.append({
+                                        item_data = {
                                             "type": "aso", "id": aso_id, "file_url": row.get('arquivo_id'),
                                             "name": f"ASO {row.get('tipo_aso')} de {employee_name}"
-                                        })
-                                    st.rerun()
+                                        }
+                                        if item_data not in st.session_state.items_to_delete:
+                                            st.session_state.items_to_delete.append(item_data)
+                                    st.success(f"{len(asos_to_delete)} ASO(s) adicionado(s) à lista de exclusão.")
                         else:
                             st.caption("Nenhum ASO para gerenciar.")
 
@@ -483,59 +541,36 @@ def show_dashboard_page():
                                 format_func=lambda tr_id: f"{all_trainings.loc[all_trainings['id'] == tr_id, 'norma'].iloc[0]} de {all_trainings.loc[all_trainings['id'] == tr_id, 'data'].iloc[0].strftime('%d/%m/%Y') if pd.notna(all_trainings.loc[all_trainings['id'] == tr_id, 'data'].iloc[0]) else 'Data Inválida'} (ID: {tr_id})",
                                 key=f"delete_tr_select_{selected_employee_id}"
                             )
-                            if st.button("Excluir Treinamentos Selecionados", type="primary", key=f"delete_tr_btn_{selected_employee_id}"):
+                            if st.button("Adicionar à Lista de Exclusão", key=f"delete_tr_btn_{selected_employee_id}"):
                                 if trainings_to_delete:
-                                    st.session_state.items_to_delete = []
+                                    # --- CORREÇÃO APLICADA ---
+                                    if 'items_to_delete' not in st.session_state:
+                                        st.session_state.items_to_delete = []
+
                                     for tr_id in trainings_to_delete:
                                         row = all_trainings[all_trainings['id'] == tr_id].iloc[0]
-                                        st.session_state.items_to_delete.append({
+                                        item_data = {
                                             "type": "treinamento", "id": tr_id, "file_url": row.get('anexo'),
                                             "name": f"Treinamento de {row.get('norma')} de {employee_name}"
-                                        })
-                                    st.rerun()
+                                        }
+                                        if item_data not in st.session_state.items_to_delete:
+                                            st.session_state.items_to_delete.append(item_data)
+                                    st.success(f"{len(trainings_to_delete)} treinamento(s) adicionado(s) à lista de exclusão.")
                         else:
                             st.caption("Nenhum treinamento para gerenciar.")
             else:
                 st.caption("Nenhum funcionário cadastrado para esta empresa.")
 
-if 'items_to_delete' in st.session_state:
-    items = st.session_state.items_to_delete
+            # --- Exibe a lista de exclusão e o botão final para confirmar ---
+            if st.session_state.get('items_to_delete'):
+                st.markdown("---")
+                st.subheader("Itens na Lista de Exclusão")
+                items_to_display = st.session_state.items_to_delete
+                for item in items_to_display:
+                    st.markdown(f"- **{item['name']}** (ID: {item['id']})")
+                
+                if st.button("Confirmar Exclusão de Todos os Itens da Lista", type="primary", use_container_width=True):
+                    # O diálogo de confirmação será acionado pelo 'items_to_delete' na sessão
+                    st.rerun() # Força o rerun para abrir o diálogo
 
-    @st.dialog("Confirmar Exclusão")
-    def confirm_multiple_delete():
-        st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
-        
-        with st.container(height=150):
-            for item in items:
-                st.markdown(f"- **{item['name']}** (ID: {item['id']})")
-        
-        st.caption("Esta ação também removerá os arquivos associados do Google Drive e não pode ser desfeita.")
-        
-        col1, col2 = st.columns(2)
-        if col1.button("Cancelar", use_container_width=True):
-            del st.session_state.items_to_delete
-            st.rerun()
-        
-        if col2.button(f"Sim, Excluir {len(items)} Iten(s)", type="primary", use_container_width=True):
-            total_success = 0
-            with st.spinner("Excluindo registros..."):
-                for item in items:
-                    success = False
-                    if item['type'] == 'doc_empresa':
-                        success = docs_manager.delete_company_document(item['id'], item.get('file_url'))
-                    elif item['type'] == 'aso':
-                        success = employee_manager.delete_aso(item['id'], item.get('file_url'))
-                    elif item['type'] == 'treinamento':
-                        success = employee_manager.delete_training(item['id'], item.get('file_url'))
-                    if success:
-                        total_success += 1
-            
-            if total_success == len(items):
-                st.success(f"{total_success} registro(s) excluído(s) com sucesso!")
-            else:
-                st.error(f"Falha ao excluir. {total_success} de {len(items)} registros foram removidos.")
-            
-            del st.session_state.items_to_delete
-            st.rerun()
 
-    confirm_multiple_delete()
