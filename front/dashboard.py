@@ -500,11 +500,11 @@ def show_dashboard_page():
     
         # --- DIÁLOGO DE CONFIRMAÇÃO ---
     if 'items_to_delete' in st.session_state:
-            items = st.session_state.items_to_delete
+        items = st.session_state.items_to_delete
 
-            @st.dialog("Confirmar Exclusão")
-            def confirm_multiple_delete():
-                st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
+        @st.dialog("Confirmar Exclusão")
+        def confirm_multiple_delete():
+            st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
                 
                 # Mostra uma lista dos itens a serem excluídos
                 with st.container(height=150):
