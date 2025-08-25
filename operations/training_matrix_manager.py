@@ -1,9 +1,8 @@
-# operations/training_matrix_manager.py
-
 import streamlit as st
 import pandas as pd
 import json
 import re
+import logging 
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 from fuzzywuzzy import process 
