@@ -74,7 +74,6 @@ class CompanyDocsManager:
         return pd.DataFrame()
         
     def _parse_flexible_date(self, date_string: str) -> date | None:
-        # ... (código existente sem alteração) ...
         if not date_string or date_string.lower() == 'n/a': return None
         match = re.search(r'(\d{1,2}[/\-.]\d{1,2}[/\-.]\d{2,4})|(\d{1,2} de \w+ de \d{4})|(\d{4}[/\-.]\d{1,2}[/\-.]\d{1,2})', date_string, re.IGNORECASE)
         if not match: return None
@@ -86,7 +85,6 @@ class CompanyDocsManager:
         return None
 
     def analyze_company_doc_pdf(self, pdf_file):
-        # ... (código existente sem alteração) ...
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(pdf_file.getvalue())
@@ -141,7 +139,6 @@ class CompanyDocsManager:
             return None
 
     def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id):
-        # ... (código existente sem alteração) ...
         new_data = [
             str(empresa_id), str(tipo_documento), 
             data_emissao.strftime("%d/%m/%Y"), 
