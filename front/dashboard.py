@@ -499,7 +499,7 @@ def show_dashboard_page():
                     st.caption("Nenhum funcionário cadastrado para esta empresa.")
     
         # --- DIÁLOGO DE CONFIRMAÇÃO ---
-        if 'items_to_delete' in st.session_state:
+    if 'items_to_delete' in st.session_state:
             items = st.session_state.items_to_delete
 
             @st.dialog("Confirmar Exclusão")
