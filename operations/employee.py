@@ -329,6 +329,35 @@ class EmployeeManager:
         st.warning(f"Regras de vencimento não encontradas para '{norma_padronizada}'.")
         return None
 
+    def delete_aso(self, aso_id: str, file_url: str):
+        """
+        Deleta permanentemente um registro de ASO e seu arquivo no Google Drive.
+        """
+        logger.info(f"Iniciando exclusão do ASO ID: {aso_id}")
+        # A classe GoogleApiManager já lida com a extração do ID do arquivo da URL
+        if file_url and pd.notna(file_url):
+            if not self.api_manager.delete_file_by_url(file_url):
+                st.warning(f"Aviso: Falha ao deletar o arquivo do ASO no Google Drive (URL: {file_url}), mas o registro na planilha será removido.")
+        
+        if self.sheet_ops.excluir_dados_aba("asos", aso_id):
+            self.load_data() # Recarrega os dados
+            return True
+        return False
+
+    def delete_training(self, training_id: str, file_url: str):
+        """
+        Deleta permanentemente um registro de treinamento e seu arquivo no Google Drive.
+        """
+        logger.info(f"Iniciando exclusão do Treinamento ID: {training_id}")
+        if file_url and pd.notna(file_url):
+            if not self.api_manager.delete_file_by_url(file_url):
+                st.warning(f"Aviso: Falha ao deletar o arquivo do treinamento no Google Drive (URL: {file_url}), mas o registro na planilha será removido.")
+
+        if self.sheet_ops.excluir_dados_aba("treinamentos", training_id):
+            self.load_data() # Recarrega os dados
+            return True
+        return False
+
     def validar_treinamento(self, norma, modulo, tipo_treinamento, carga_horaria):
         """
         Valida a carga horária de um treinamento com base na norma, módulo e tipo.
