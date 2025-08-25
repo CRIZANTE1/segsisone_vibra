@@ -191,12 +191,40 @@ class MatrixManager:
         except Exception as e:
             return False, f"Erro ao atualizar mapeamentos: {e}"
 
-    def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
-        if self.functions_df.empty or not employee_cargo: return None
-        function_names = self.functions_df['nome_funcao'].tolist()
+    def find_closest_function(self, employee_cargo: str, score_cutoff: int = 90) -> str | None:
+        """
+        Encontra a função mais próxima na matriz de treinamentos usando fuzzy matching,
+        mas apenas se a pontuação de similaridade for alta o suficiente.
+
+        Args:
+            employee_cargo (str): O cargo do funcionário a ser verificado.
+            score_cutoff (int): O limiar de similaridade (0-100). Padrão é 90.
+
+        Returns:
+            str | None: O nome da função correspondente se encontrada, senão None.
+        """
+        if self.functions_df.empty or not employee_cargo:
+            return None
+            
+        function_names = self.functions_df['nome_funcao'].dropna().tolist()
+        if not function_names:
+            return None
+
         best_match = process.extractOne(employee_cargo, function_names)
-        if best_match and best_match[1] >= score_cutoff:
-            return best_match[0]
+        
+
+        if best_match:
+            match_name, score = best_match
+            logger.info(f"Fuzzy match para '{employee_cargo}': Melhor correspondência é '{match_name}' com pontuação {score}.")
+            
+
+            if score >= score_cutoff:
+                logger.info(f"Pontuação {score} >= {score_cutoff}. Aceitando a correspondência.")
+                return match_name
+            else:
+                logger.info(f"Pontuação {score} < {score_cutoff}. Rejeitando a correspondência.")
+                return None
+        
         return None
         
     def get_training_recommendations_for_function(self, function_name: str, nr_analyzer):
