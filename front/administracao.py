@@ -5,7 +5,7 @@ from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from auth.auth_utils import check_permission
-from front.metrics import display_minimalist_metrics
+from ui.metrics import display_minimalist_metrics
 from gdrive.google_api_manager import GoogleApiManager
 from operations.audit_logger import log_action
 
