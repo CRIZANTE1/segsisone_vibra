@@ -64,38 +64,7 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("Total de Funcionários Ativos", len(active_employees))
     st.divider()
 
-    # --- Cálculo de Pendências (Apenas de entidades Ativas) ---
-    today = date.today()
-    active_companies_ids = active_companies['id']
-    active_employees_ids = active_employees['id']
-
-    expired_asos = pd.DataFrame()
-    if not asos_df.empty and 'vencimento' in asos_df.columns:
-        asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees_ids)]
-        expired_asos = asos_actives[asos_actives['vencimento'].dt.date < today]
-
-    expired_trainings = pd.DataFrame()
-    if not trainings_df.empty and 'vencimento' in trainings_df.columns:
-        trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees_ids)]
-        expired_trainings = trainings_actives[trainings_actives['vencimento'].dt.date < today]
-
-    expired_company_docs = pd.DataFrame()
-    if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
-        docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies_ids)]
-        expired_company_docs = docs_actives[docs_actives['vencimento'].dt.date < today]
-
-    total_pendencies = len(expired_asos) + len(expired_trainings) + len(expired_company_docs)
-    if total_pendencies == 0:
-        st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades ativas.")
-        return
-
-    st.subheader("Total de Pendências (Entidades Ativas)")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🩺 ASOs Vencidos", len(expired_asos))
-    col2.metric("🎓 Treinamentos Vencidos", len(expired_trainings))
-    col3.metric("📄 Docs. Empresa Vencidos", len(expired_company_docs))
-    st.divider()
-
+    
 
     # --- Cálculo de Pendências (Apenas de entidades Ativas) ---
     today = date.today()
