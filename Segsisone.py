@@ -21,57 +21,6 @@ if root_dir not in sys.path:
 from auth.login_page import show_login_page, show_user_header, show_logout_button
 from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
 from gdrive.matrix_manager import MatrixManager
-from front.dashboard import show_dashboard_page
-from front.administracao import show_admin_page
-from front.plano_de_acao import show_plano_acao_page
-from operations.employee import EmployeeManager
-from operations.company_docs import CompanyDocsManager
-from operations.epi import EPIManager
-from operations.action_plan import ActionPlanManager
-from analysis.nr_analyzer import NRAnalyzer 
-
-def configurar_pagina():
-    st.set_page_config(
-        page_title="SEGMA-SIS | Gestão Inteligente",
-        page_icon="🚀",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-
-def initialize_managers():
-    """
-    Função central para criar, destruir e gerenciar as instâncias dos managers.
-    Esta é a solução definitiva para os problemas de cache.
-    """
-    unit_id = st.session_state.get('spreadsheet_id')
-    folder_id = st.session_state.get('folder_id')
-    
-    # Condição para (re)inicializar:
-    # 1. Se o ID da unidade mudou.
-    # 2. Ou se os managers ainda não foram inicializados para a unidade atual.
-    import streamlit as st
-import sys
-import os
-import logging
-from streamlit_option_menu import option_menu
-
-# --- Configuração do Logging ---
-logging.basicConfig(
-    level=logging.INFO, # Mude para DEBUG se precisar de mais detalhes
-    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger('segsisone_app')
-
-# --- Configuração do Caminho (Path) ---
-root_dir = os.path.dirname(os.path.abspath(__file__))
-if root_dir not in sys.path:
-    sys.path.append(root_dir)
-
-# --- Importações ---
-from auth.login_page import show_login_page, show_user_header, show_logout_button
-from auth.auth_utils import authenticate_user, is_user_logged_in, get_user_role
-from gdrive.matrix_manager import MatrixManager
 from operations.training_matrix_manager import MatrixManager as TrainingMatrixManager
 from front.dashboard import show_dashboard_page
 from front.administracao import show_admin_page
@@ -93,16 +42,13 @@ def configurar_pagina():
 def initialize_managers():
     """
     Função central para criar, destruir e gerenciar as instâncias dos managers.
-    Esta é a solução definitiva para os problemas de cache.
     """
     unit_id = st.session_state.get('spreadsheet_id')
     folder_id = st.session_state.get('folder_id')
     
-
     if unit_id and st.session_state.get('managers_unit_id') != unit_id:
         logger.info(f"Trocando de unidade. Inicializando managers para a unidade: ...{unit_id[-6:]}")
         with st.spinner("Configurando ambiente da unidade..."):
-            # Cria novas instâncias, forçando o recarregamento dos dados no __init__ de cada manager
             st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
             st.session_state.docs_manager = CompanyDocsManager(unit_id)
             st.session_state.epi_manager = EPIManager(unit_id)
@@ -110,13 +56,11 @@ def initialize_managers():
             st.session_state.nr_analyzer = NRAnalyzer(unit_id)
             st.session_state.matrix_manager_unidade = TrainingMatrixManager(unit_id)
             
-        # Armazena o ID da unidade para a qual os managers foram inicializados
         st.session_state.managers_unit_id = unit_id
         st.session_state.managers_initialized = True
         logger.info("Managers inicializados com sucesso para a nova unidade.")
     
     elif not unit_id:
-        # Se nenhuma unidade está selecionada (ex: admin em modo Global), garante que os managers sejam removidos
         if st.session_state.get('managers_initialized', False):
             logger.info("Nenhuma unidade selecionada. Resetando managers.")
             keys_to_delete = [
@@ -164,11 +108,9 @@ def main():
                 index=default_index, key="admin_unit_selector"
             )
 
-            # Lógica para forçar a re-inicialização ao trocar de unidade
             if selected_admin_unit != current_unit_name:
                 logger.info(f"Admin trocando de unidade: de '{current_unit_name}' para '{selected_admin_unit}'.")
                 
-                # Força a re-inicialização na próxima execução
                 st.session_state.managers_initialized = False
                 if 'managers_unit_id' in st.session_state:
                     del st.session_state['managers_unit_id']
@@ -205,11 +147,8 @@ def main():
         )
         show_logout_button()
     
-    # A inicialização dos managers acontece AQUI, depois que a sidebar foi processada
-    # e a unidade correta foi definida no session_state.
     initialize_managers()
 
-    # Agora, as páginas podem consumir os managers com segurança
     page_to_run = menu_items.get(selected_page)
     if page_to_run:
         logger.info(f"Navegando para a página: {selected_page}")
@@ -217,4 +156,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
