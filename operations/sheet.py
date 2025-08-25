@@ -164,3 +164,18 @@ class SheetOperations:
             logger.error(f"Erro ao adicionar dados em lote na aba '{aba_name}': {e}", exc_info=True)
             st.error(f"Erro ao adicionar dados em lote: {e}")
             return False
+            
+    def adc_dados_aba_sem_id(self, aba_name: str, new_data: list) -> bool:
+        """
+        Adiciona uma linha de dados a uma aba sem gerar um ID na primeira coluna.
+        Ideal para planilhas de log.
+        """
+        worksheet = self._get_worksheet(aba_name)
+        if not worksheet: return False
+        try:
+            worksheet.append_row(new_data, value_input_option='USER_ENTERED')
+            logger.info(f"Linha de log adicionada com sucesso na aba '{aba_name}'.")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao adicionar log na aba '{aba_name}': {e}", exc_info=True)
+            return False
