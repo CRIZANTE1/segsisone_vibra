@@ -404,105 +404,107 @@ def show_dashboard_page():
                 st.warning("Cadastre funcionários nesta empresa primeiro.")
 
     with tab_manage:
-            st.header("Gerenciar Registros da Empresa Selecionada")
-            if not selected_company:
-                st.info("Selecione uma empresa na aba 'Situação Geral' para gerenciar seus registros.")
-            else:
-                company_name = employee_manager.get_company_name(selected_company)
-                st.subheader(f"Exclusão de registros para: **{company_name}**")
-                st.warning("Atenção: A exclusão é permanente e removerá o arquivo do Google Drive.")
-    
-                # --- GERENCIAMENTO DE DOCUMENTOS DA EMPRESA ---
-                with st.container(border=True):
-                    st.markdown("#### Excluir Documentos da Empresa")
-                    company_docs = docs_manager.get_docs_by_company(selected_company)
-                    if not company_docs.empty:
-                        docs_to_delete = st.multiselect(
-                            "Selecione os documentos para excluir:",
-                            options=company_docs['id'],
-                            format_func=lambda doc_id: f"{company_docs[company_docs['id'] == doc_id].iloc[0]['tipo_documento']} (ID: {doc_id})",
-                            key="delete_doc_select"
-                        )
-                        if st.button("Excluir Documentos Selecionados", type="primary", key="delete_doc_btn"):
-                            if docs_to_delete:
-                                st.session_state.items_to_delete = []
-                                for doc_id in docs_to_delete:
-                                    row = company_docs[company_docs['id'] == doc_id].iloc[0]
-                                    st.session_state.items_to_delete.append({
-                                        "type": "doc_empresa", "id": doc_id, "file_url": row.get('arquivo_id'),
-                                        "name": f"Documento {row.get('tipo_documento')}"
-                                    })
-                                st.rerun()
-                    else:
-                        st.caption("Nenhum documento da empresa para gerenciar.")
-    
-                # --- GERENCIAMENTO DE DOCUMENTOS DE FUNCIONÁRIOS ---
-                employees = employee_manager.get_employees_by_company(selected_company)
-                if not employees.empty:
-                    selected_employee_id = st.selectbox(
-                        "Selecione um funcionário para gerenciar seus documentos:",
-                        options=employees['id'],
-                        format_func=employee_manager.get_employee_name,
-                        index=None,
-                        placeholder="Escolha um funcionário..."
+        st.header("Gerenciar Registros da Empresa Selecionada")
+        if not selected_company:
+            st.info("Selecione uma empresa na aba 'Situação Geral' para gerenciar seus registros.")
+        else:
+            company_name = employee_manager.get_company_name(selected_company)
+            st.subheader(f"Exclusão de registros para: **{company_name}**")
+            st.warning("Atenção: A exclusão é permanente e removerá o arquivo do Google Drive.")
+
+            # --- GERENCIAMENTO DE DOCUMENTOS DA EMPRESA ---
+            with st.container(border=True):
+                st.markdown("#### Excluir Documentos da Empresa")
+                company_docs = docs_manager.get_docs_by_company(selected_company)
+                if not company_docs.empty:
+                    docs_to_delete = st.multiselect(
+                        "Selecione os documentos para excluir:",
+                        options=company_docs['id'],
+                        format_func=lambda doc_id: f"{company_docs[company_docs['id'] == doc_id].iloc[0]['tipo_documento']} (ID: {doc_id})",
+                        key="delete_doc_select"
                     )
-    
-                    if selected_employee_id:
-                        employee_name = employee_manager.get_employee_name(selected_employee_id)
-                        
-                        with st.container(border=True):
-                            st.markdown(f"#### Excluir ASOs de **{employee_name}**")
-                            latest_asos = employee_manager.get_latest_aso_by_employee(selected_employee_id)
-                            if not latest_asos.empty:
-                                asos_to_delete = st.multiselect(
-                                    "Selecione os ASOs para excluir:",
-                                    options=latest_asos['id'],
-                                    format_func=lambda aso_id: f"{latest_asos[latest_asos['id'] == aso_id].iloc[0]['tipo_aso']} de {latest_asos[latest_asos['id'] == aso_id].iloc[0]['data_aso'].strftime('%d/%m/%Y')} (ID: {aso_id})",
-                                    key=f"delete_aso_select_{selected_employee_id}"
-                                )
-                                if st.button("Excluir ASOs Selecionados", type="primary", key=f"delete_aso_btn_{selected_employee_id}"):
-                                    if asos_to_delete:
-                                        st.session_state.items_to_delete = []
-                                        for aso_id in asos_to_delete:
-                                            row = latest_asos[latest_asos['id'] == aso_id].iloc[0]
-                                            st.session_state.items_to_delete.append({
-                                                "type": "aso", "id": aso_id, "file_url": row.get('arquivo_id'),
-                                                "name": f"ASO {row.get('tipo_aso')} de {employee_name}"
-                                            })
-                                        st.rerun()
-                            else:
-                                st.caption("Nenhum ASO para gerenciar.")
-    
-                        with st.container(border=True):
-                            st.markdown(f"#### Excluir Treinamentos de **{employee_name}**")
-                            all_trainings = employee_manager.get_all_trainings_by_employee(selected_employee_id)
-                            if not all_trainings.empty:
-                                trainings_to_delete = st.multiselect(
-                                    "Selecione os treinamentos para excluir:",
-                                    options=all_trainings['id'],
-                                    format_func=lambda tr_id: f"{all_trainings[all_trainings['id'] == tr_id].iloc[0]['norma']} de {all_trainings[all_trainings['id'] == tr_id].iloc[0]['data'].strftime('%d/%m/%Y')} (ID: {tr_id})",
-                                    key=f"delete_tr_select_{selected_employee_id}"
-                                )
-                                if st.button("Excluir Treinamentos Selecionados", type="primary", key=f"delete_tr_btn_{selected_employee_id}"):
-                                    if trainings_to_delete:
-                                        st.session_state.items_to_delete = []
-                                        for tr_id in trainings_to_delete:
-                                            row = all_trainings[all_trainings['id'] == tr_id].iloc[0]
-                                            st.session_state.items_to_delete.append({
-                                                "type": "treinamento", "id": tr_id, "file_url": row.get('anexo'),
-                                                "name": f"Treinamento de {row.get('norma')} de {employee_name}"
-                                            })
-                                        st.rerun()
-                            else:
-                                st.caption("Nenhum treinamento para gerenciar.")
+                    if st.button("Excluir Documentos Selecionados", type="primary", key="delete_doc_btn"):
+                        if docs_to_delete:
+                            st.session_state.items_to_delete = []
+                            for doc_id in docs_to_delete:
+                                row = company_docs[company_docs['id'] == doc_id].iloc[0]
+                                st.session_state.items_to_delete.append({
+                                    "type": "doc_empresa", "id": doc_id, "file_url": row.get('arquivo_id'),
+                                    "name": f"Documento {row.get('tipo_documento')}"
+                                })
+                            st.rerun()
                 else:
-                    st.caption("Nenhum funcionário cadastrado para esta empresa.")
-    
+                    st.caption("Nenhum documento da empresa para gerenciar.")
+
+            # --- GERENCIAMENTO DE DOCUMENTOS DE FUNCIONÁRIOS ---
+            employees = employee_manager.get_employees_by_company(selected_company)
+            if not employees.empty:
+                selected_employee_id = st.selectbox(
+                    "Selecione um funcionário para gerenciar seus documentos:",
+                    options=employees['id'],
+                    format_func=employee_manager.get_employee_name,
+                    index=None,
+                    placeholder="Escolha um funcionário..."
+                )
+
+                if selected_employee_id:
+                    employee_name = employee_manager.get_employee_name(selected_employee_id)
+                    
+                    with st.container(border=True):
+                        st.markdown(f"#### Excluir ASOs de **{employee_name}**")
+                        latest_asos = employee_manager.get_latest_aso_by_employee(selected_employee_id)
+                        if not latest_asos.empty:
+                            asos_to_delete = st.multiselect(
+                                "Selecione os ASOs para excluir:",
+                                options=latest_asos['id'],
+                                format_func=lambda aso_id: f"{latest_asos[latest_asos['id'] == aso_id].iloc[0]['tipo_aso']} de {latest_asos[latest_asos['id'] == aso_id].iloc[0]['data_aso'].strftime('%d/%m/%Y')} (ID: {aso_id})",
+                                key=f"delete_aso_select_{selected_employee_id}"
+                            )
+                            if st.button("Excluir ASOs Selecionados", type="primary", key=f"delete_aso_btn_{selected_employee_id}"):
+                                if asos_to_delete:
+                                    st.session_state.items_to_delete = []
+                                    for aso_id in asos_to_delete:
+                                        row = latest_asos[latest_asos['id'] == aso_id].iloc[0]
+                                        st.session_state.items_to_delete.append({
+                                            "type": "aso", "id": aso_id, "file_url": row.get('arquivo_id'),
+                                            "name": f"ASO {row.get('tipo_aso')} de {employee_name}"
+                                        })
+                                    st.rerun()
+                        else:
+                            st.caption("Nenhum ASO para gerenciar.")
+
+                    with st.container(border=True):
+                        st.markdown(f"#### Excluir Treinamentos de **{employee_name}**")
+                        all_trainings = employee_manager.get_all_trainings_by_employee(selected_employee_id)
+                        if not all_trainings.empty:
+                            trainings_to_delete = st.multiselect(
+                                "Selecione os treinamentos para excluir:",
+                                options=all_trainings['id'],
+                                format_func=lambda tr_id: f"{all_trainings[all_trainings['id'] == tr_id].iloc[0]['norma']} de {all_trainings[all_trainings['id'] == tr_id].iloc[0]['data'].strftime('%d/%m/%Y')} (ID: {tr_id})",
+                                key=f"delete_tr_select_{selected_employee_id}"
+                            )
+                            if st.button("Excluir Treinamentos Selecionados", type="primary", key=f"delete_tr_btn_{selected_employee_id}"):
+                                if trainings_to_delete:
+                                    st.session_state.items_to_delete = []
+                                    for tr_id in trainings_to_delete:
+                                        row = all_trainings[all_trainings['id'] == tr_id].iloc[0]
+                                        st.session_state.items_to_delete.append({
+                                            "type": "treinamento", "id": tr_id, "file_url": row.get('anexo'),
+                                            "name": f"Treinamento de {row.get('norma')} de {employee_name}"
+                                        })
+                                    st.rerun()
+                        else:
+                            st.caption("Nenhum treinamento para gerenciar.")
+            else:
+                st.caption("Nenhum funcionário cadastrado para esta empresa.")
+
+    # --- DIÁLOGO DE CONFIRMAÇÃO ---
     if 'items_to_delete' in st.session_state:
         items = st.session_state.items_to_delete
 
         @st.dialog("Confirmar Exclusão")
         def confirm_multiple_delete():
+            # --- CORREÇÃO DE INDENTAÇÃO APLICADA AQUI ---
             st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
             
             with st.container(height=150):
