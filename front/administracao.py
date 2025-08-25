@@ -5,7 +5,7 @@ from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
 from operations.company_docs import CompanyDocsManager 
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_permission
-from front.metrics import display_minimalist_metrics
+from ui.metrics import display_minimalist_metrics
 
 
 @st.cache_data(ttl=300)
