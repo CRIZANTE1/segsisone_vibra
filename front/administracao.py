@@ -57,17 +57,14 @@ def load_aggregated_data():
     
     return final_companies, final_employees, final_asos, final_trainings
 
+# Cole esta função dentro de front/administracao.py
 
-def display_global_summary_dashboard(aggregated_data):
+def display_global_summary_dashboard(companies_df, employees_df, asos_df, trainings_df):
     """
     Calcula e exibe o dashboard de resumo executivo para a visão global.
+    Agora aceita os DataFrames como argumentos diretos.
     """
     st.header("Dashboard de Resumo Executivo Global")
-
-    companies_df = aggregated_data["companies"]
-    employees_df = aggregated_data["employees"]
-    asos_df = aggregated_data["asos"]
-    trainings_df = aggregated_data["trainings"]
 
     if companies_df.empty:
         st.info("Nenhuma empresa encontrada em todas as unidades.")
@@ -85,14 +82,14 @@ def display_global_summary_dashboard(aggregated_data):
     st.divider()
 
     # --- Cálculo de Pendências ---
-    today = pd.to_datetime('today').date()
+    today = date.today()
     pendencies_by_unit = {}
     
     # Prepara os dataframes de pendências uma única vez
     expired_asos = pd.DataFrame()
     if not asos_df.empty:
-        asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], errors='coerce').dt.date
-        expired_asos = asos_df[asos_df['vencimento_dt'] < today]
+        # A coluna 'vencimento' já é datetime, vinda do EmployeeManager
+        expired_asos = asos_df[asos_df['vencimento'].dt.date < today]
         if not expired_asos.empty:
             pendency_counts = expired_asos.groupby('unidade').size().to_dict()
             for unit, count in pendency_counts.items():
@@ -100,8 +97,8 @@ def display_global_summary_dashboard(aggregated_data):
 
     expired_trainings = pd.DataFrame()
     if not trainings_df.empty:
-        trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], errors='coerce').dt.date
-        expired_trainings = trainings_df[trainings_df['vencimento_dt'] < today]
+        # A coluna 'vencimento' já é datetime, vinda do EmployeeManager
+        expired_trainings = trainings_df[trainings_df['vencimento'].dt.date < today]
         if not expired_trainings.empty:
             pendency_counts = expired_trainings.groupby('unidade').size().to_dict()
             for unit, count in pendency_counts.items():
@@ -138,9 +135,10 @@ def display_global_summary_dashboard(aggregated_data):
             expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(comp_to_name)
             aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
             for comp, count in aso_counts.items():
-                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+                if pd.notna(comp): # Evita agrupar por empresas não encontradas (NaN)
+                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
-    # --- LÓGICA DE TREINAMENTOS RESTAURADA AQUI ---
+    # Recalcula pendências de Treinamento apenas para a unidade crítica
     if not expired_trainings.empty:
         expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
         if not expired_trainings_unit.empty:
@@ -148,7 +146,8 @@ def display_global_summary_dashboard(aggregated_data):
             expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(comp_to_name)
             training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
             for comp, count in training_counts.items():
-                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+                if pd.notna(comp): # Evita agrupar por empresas não encontradas (NaN)
+                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
     if pendencies_by_company:
         company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
@@ -166,8 +165,7 @@ def show_admin_page():
 
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
-    # --- LÓGICA DE ABAS UNIFICADA ---
-    # Define as abas com base no modo de visualização
+    # --- LÓGICA DAS ABAS ---
     if is_global_view:
         tab_list = ["Dashboard Global", "Logs de Auditoria"]
         tab_dashboard, tab_logs = st.tabs(tab_list)
@@ -178,9 +176,11 @@ def show_admin_page():
     # --- MODO DE VISÃO GLOBAL ---
     if is_global_view:
         with tab_dashboard:
-            # Chama a função que exibe o dashboard de resumo
+            # --- CORREÇÃO APLICADA AQUI ---
+            # 1. Desempacota a tupla em quatro variáveis
             companies, employees, asos, trainings = load_aggregated_data()
-            display_global_summary_dashboard(aggregated_data)
+            # 2. Passa as quatro variáveis como argumentos para a função de exibição
+            display_global_summary_dashboard(companies, employees, asos, trainings)
 
         with tab_logs:
             st.header("📜 Logs de Auditoria do Sistema")
@@ -195,8 +195,9 @@ def show_admin_page():
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-        # Não precisa mais de st.stop() aqui, pois a lógica está contida nas abas.
-
+        # O st.stop() é útil aqui para garantir que o código da visão de unidade não seja executado
+        st.stop()
+        
     # --- MODO DE VISÃO DE UNIDADE ESPECÍFICA ---
     else:
         unit_name = st.session_state.get('unit_name', 'Nenhuma')
