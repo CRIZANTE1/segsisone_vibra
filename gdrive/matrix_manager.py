@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import logging
 from operations.sheet import SheetOperations
-from gdrive.config import MATRIX_SPREADSHEET_ID
+from gdrive.config import MATRIX_SPREADSHEET_ID, CENTRAL_LOG_SHEET_NAME 
 from fuzzywuzzy import process
 
 logger = logging.getLogger('segsisone_app.matrix_manager')
@@ -18,15 +18,16 @@ def load_matrix_sheets_data():
         sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
         if not sheet_ops.spreadsheet:
             st.error("Erro Crítico: Não foi possível conectar à Planilha Matriz de controle.")
-            return None, None, None, None
+            return None, None, None, None, None
 
         users_data = sheet_ops.carregar_dados_aba("usuarios")
         units_data = sheet_ops.carregar_dados_aba("unidades")
         functions_data = sheet_ops.carregar_dados_aba("funcoes")
         matrix_data = sheet_ops.carregar_dados_aba("matriz_treinamentos")
+        log_data = sheet_ops.carregar_dados_aba(CENTRAL_LOG_SHEET_NAME)
         
         logger.info("Dados da Planilha Matriz carregados com sucesso.")
-        return users_data, units_data, functions_data, matrix_data
+        return users_data, units_data, functions_data, matrix_data, log_data
         
     except Exception as e:
         logger.critical(f"Falha crítica ao carregar dados da Planilha Matriz: {e}", exc_info=True)
@@ -43,40 +44,80 @@ class MatrixManager:
         self.units_df = pd.DataFrame()
         self.functions_df = pd.DataFrame()
         self.training_matrix_df = pd.DataFrame()
+        self.log_df = pd.DataFrame()
         self.data_loaded_successfully = False
         self._load_data_from_cache()
 
     def _load_data_from_cache(self):
         """
-        Carrega os dados da função em cache e os transforma em DataFrames robustos.
+        Carrega os dados da função em cache e os transforma em DataFrames robustos,
+        garantindo que as colunas esperadas sempre existam.
         """
-        users_data, units_data, functions_data, matrix_data = load_matrix_sheets_data()
+        users_data, units_data, functions_data, matrix_data, log_data = load_matrix_sheets_data()
 
+        # Define as colunas esperadas para cada aba
         user_cols = ['email', 'nome', 'role', 'unidade_associada']
         unit_cols = ['nome_unidade', 'spreadsheet_id', 'folder_id']
         func_cols = ['id', 'nome_funcao', 'descricao']
         matrix_cols = ['id', 'id_funcao', 'norma_obrigatoria']
+        log_cols = ['timestamp', 'user_email', 'user_role', 'action', 'details', 'target_uo']
 
-        # Carrega Usuários
+        # --- Carrega Usuários ---
         if users_data and len(users_data) > 1:
             self.users_df = pd.DataFrame(users_data[1:], columns=users_data[0])
+            # Garante que todas as colunas esperadas existam
             for col in user_cols:
-                if col not in self.users_df.columns: self.users_df[col] = None
-            self.users_df['email'] = self.users_df['email'].str.lower().str.strip()
+                if col not in self.users_df.columns:
+                    self.users_df[col] = None
+            # Padroniza a coluna de e-mail
+            if 'email' in self.users_df.columns:
+                self.users_df['email'] = self.users_df['email'].str.lower().str.strip()
         else:
             self.users_df = pd.DataFrame(columns=user_cols)
+            logger.warning("A aba 'usuarios' da Planilha Matriz está vazia ou contém apenas cabeçalho.")
 
-        # Carrega Unidades
-        self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0]) if units_data and len(units_data) > 1 else pd.DataFrame(columns=unit_cols)
+        # --- Carrega Unidades ---
+        if units_data and len(units_data) > 1:
+            self.units_df = pd.DataFrame(units_data[1:], columns=units_data[0])
+            for col in unit_cols:
+                if col not in self.units_df.columns:
+                    self.units_df[col] = None
+        else:
+            self.units_df = pd.DataFrame(columns=unit_cols)
+            logger.warning("A aba 'unidades' da Planilha Matriz está vazia ou contém apenas cabeçalho.")
 
-        # Carrega Funções
-        self.functions_df = pd.DataFrame(functions_data[1:], columns=functions_data[0]) if functions_data and len(functions_data) > 1 else pd.DataFrame(columns=func_cols)
+        # --- Carrega Funções ---
+        if functions_data and len(functions_data) > 1:
+            self.functions_df = pd.DataFrame(functions_data[1:], columns=functions_data[0])
+            for col in func_cols:
+                if col not in self.functions_df.columns:
+                    self.functions_df[col] = None
+        else:
+            self.functions_df = pd.DataFrame(columns=func_cols)
+            logger.warning("A aba 'funcoes' da Planilha Matriz está vazia ou contém apenas cabeçalho.")
 
-        # Carrega Matriz de Treinamentos
-        self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0]) if matrix_data and len(matrix_data) > 1 else pd.DataFrame(columns=matrix_cols)
+        # --- Carrega Matriz de Treinamentos ---
+        if matrix_data and len(matrix_data) > 1:
+            self.training_matrix_df = pd.DataFrame(matrix_data[1:], columns=matrix_data[0])
+            for col in matrix_cols:
+                if col not in self.training_matrix_df.columns:
+                    self.training_matrix_df[col] = None
+        else:
+            self.training_matrix_df = pd.DataFrame(columns=matrix_cols)
+            logger.warning("A aba 'matriz_treinamentos' da Planilha Matriz está vazia ou contém apenas cabeçalho.")
+
+        # --- Carrega Logs de Auditoria ---
+        if log_data and len(log_data) > 1:
+            self.log_df = pd.DataFrame(log_data[1:], columns=log_data[0])
+            for col in log_cols:
+                if col not in self.log_df.columns:
+                    self.log_df[col] = None
+        else:
+            self.log_df = pd.DataFrame(columns=log_cols)
+            logger.info("A aba 'log_auditoria' da Planilha Matriz está vazia ou contém apenas cabeçalho.")
         
         self.data_loaded_successfully = True
-
+        
     # --- Métodos para Usuários e Unidades ---
     def get_user_info(self, email: str) -> dict | None:
         if self.users_df.empty: return None
