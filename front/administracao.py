@@ -47,7 +47,8 @@ def load_aggregated_data():
 
 def display_global_summary_dashboard(companies_df, employees_df, asos_df, trainings_df, company_docs_df):
     """
-    Calcula e exibe o dashboard de resumo executivo com a contagem de pendências e detalhamento corrigidos.
+    Calcula e exibe um dashboard de resumo executivo com a contagem de pendências corrigida,
+    gráficos e detalhamento completo.
     """
     st.header("Dashboard de Resumo Executivo Global")
 
@@ -74,38 +75,25 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("Total de Funcionários Ativos", total_active_employees)
     st.divider()
 
-    # --- 3. CÁLCULO DE PENDÊNCIAS CORRIGIDO (Apenas o mais recente) ---
+    # --- 3. Cálculo de Pendências Corrigido (Apenas o mais recente) ---
     today = date.today()
     
-    # --- Pendências de ASO ---
     expired_asos = pd.DataFrame()
     if not asos_df.empty and 'vencimento' in asos_df.columns:
-        # Filtra ASOs apenas de funcionários ativos
         asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees['id'])].copy()
-        # Pega apenas o ASO mais recente por funcionário e tipo (excluindo demissionais)
-        latest_asos = asos_actives[~asos_actives['tipo_aso'].str.lower().isin(['demissional'])]
-        latest_asos = latest_asos.sort_values('data_aso', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
-        # Agora, filtra os vencidos a partir dos mais recentes
+        latest_asos = asos_actives.sort_values('data_aso', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
         expired_asos = latest_asos[latest_asos['vencimento'].dt.date < today]
 
-    # --- Pendências de Treinamento ---
     expired_trainings = pd.DataFrame()
     if not trainings_df.empty and 'vencimento' in trainings_df.columns:
-        # Filtra treinamentos apenas de funcionários ativos
         trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees['id'])].copy()
-        # Pega apenas o treinamento mais recente por funcionário e norma
         latest_trainings = trainings_actives.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
-        # Agora, filtra os vencidos a partir dos mais recentes
         expired_trainings = latest_trainings[latest_trainings['vencimento'].dt.date < today]
 
-    # --- Pendências de Documentos da Empresa ---
     expired_company_docs = pd.DataFrame()
     if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
-        # Filtra documentos apenas de empresas ativas
         docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies['id'])].copy()
-        # Pega apenas o documento mais recente por empresa e tipo
         latest_docs = docs_actives.sort_values('data_emissao', ascending=False).groupby(['empresa_id', 'tipo_documento']).head(1)
-        # Agora, filtra os vencidos a partir dos mais recentes
         expired_company_docs = latest_docs[latest_docs['vencimento'].dt.date < today]
 
     total_pendencies = len(expired_asos) + len(expired_trainings) + len(expired_company_docs)
@@ -113,7 +101,7 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades ativas.")
         return
 
-    # --- 4. Exibição (permanece a mesma, pois agora recebe os dados corretos) ---
+    # --- 4. Métricas por Categoria de Pendência ---
     st.subheader("Total de Pendências por Categoria (Entidades Ativas)")
     col1, col2, col3 = st.columns(3)
     col1.metric("🩺 ASOs Vencidos", len(expired_asos))
@@ -121,7 +109,7 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("📄 Docs. Empresa Vencidos", len(expired_company_docs))
     st.divider()
 
-    # --- 5. Consolidação e Gráfico de Barras ---
+    # --- 5. Consolidação e Gráfico de Barras (CÓDIGO RESTAURADO) ---
     st.subheader("Gráfico de Pendências por Unidade Operacional")
     
     series_list = []
@@ -140,7 +128,7 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
                 df_consolidated['Total'] = df_consolidated.sum(axis=1)
                 st.dataframe(df_consolidated.sort_values(by='Total', ascending=False), use_container_width=True)
 
-            # --- 6. Detalhamento da Unidade Mais Crítica ---
+            # --- 6. Detalhamento da Unidade Mais Crítica (CÓDIGO RESTAURADO) ---
             most_critical_unit = df_consolidated.sum(axis=1).idxmax()
             st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
 
