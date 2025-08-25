@@ -113,7 +113,8 @@ def show_dashboard_page():
         "**Situação Geral**", "Adicionar Doc. Empresa", "Adicionar ASO", 
         "Adicionar Treinamento", "Adicionar Ficha de EPI", "⚙️ Gerenciar Registros"
     ]
-    tab_situacao, tab_add_doc, tab_add_aso, tab_add_tr, tab_add_epi, tab_manage = st.tabs(tab_list)
+    
+    tab_situacao, tab_add_doc_empresa, tab_add_aso, tab_add_treinamento, tab_add_epi, tab_manage = st.tabs(tab_list)
 
     with tab_situacao:
         if selected_company:
