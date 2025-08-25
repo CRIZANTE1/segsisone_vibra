@@ -7,6 +7,52 @@ from gdrive.matrix_manager import MatrixManager
 from gdrive.google_api_manager import GoogleApiManager
 from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
 
+
+@st.cache_data(ttl=300) # Cache de 5 minutos para os dados agregados
+def load_aggregated_data():
+    """
+    Carrega e agrega dados de TODAS as unidades.
+    Esta é uma operação custosa e deve ser usada com cuidado.
+    """
+    st.info("Carregando dados consolidados de todas as unidades. Isso pode levar um momento...")
+    
+    matrix_manager_global = MatrixManager()
+    all_units = matrix_manager_global.get_all_units()
+
+    aggregated_companies = []
+    aggregated_employees = []
+
+    for unit in all_units:
+        unit_name = unit['nome_unidade']
+        spreadsheet_id = unit['spreadsheet_id']
+        folder_id = unit['folder_id']
+        
+        if not spreadsheet_id:
+            continue
+
+        try:
+            # Cria um manager temporário para cada unidade
+            temp_manager = EmployeeManager(spreadsheet_id, folder_id)
+            
+            # Adiciona a coluna 'unidade' para saber de onde veio o dado
+            companies_df = temp_manager.companies_df
+            if not companies_df.empty:
+                companies_df['unidade'] = unit_name
+                aggregated_companies.append(companies_df)
+
+            employees_df = temp_manager.employees_df
+            if not employees_df.empty:
+                employees_df['unidade'] = unit_name
+                aggregated_employees.append(employees_df)
+        except Exception as e:
+            st.warning(f"Não foi possível carregar dados da unidade '{unit_name}': {e}")
+
+    # Concatena todos os dataframes em um só
+    final_companies = pd.concat(aggregated_companies, ignore_index=True) if aggregated_companies else pd.DataFrame()
+    final_employees = pd.concat(aggregated_employees, ignore_index=True) if aggregated_employees else pd.DataFrame()
+
+    return final_companies, final_employees
+    
 def show_admin_page():
     if not check_permission(level='admin'):
         st.stop()
