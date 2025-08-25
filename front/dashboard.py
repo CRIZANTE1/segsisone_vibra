@@ -498,46 +498,44 @@ def show_dashboard_page():
                 else:
                     st.caption("Nenhum funcionário cadastrado para esta empresa.")
     
-        # --- DIÁLOGO DE CONFIRMAÇÃO ---
     if 'items_to_delete' in st.session_state:
         items = st.session_state.items_to_delete
 
         @st.dialog("Confirmar Exclusão")
         def confirm_multiple_delete():
             st.warning(f"Você tem certeza que deseja excluir permanentemente os {len(items)} registro(s) selecionado(s)?")
-                
-                # Mostra uma lista dos itens a serem excluídos
-                with st.container(height=150):
+            
+            with st.container(height=150):
+                for item in items:
+                    st.markdown(f"- **{item['name']}** (ID: {item['id']})")
+            
+            st.caption("Esta ação também removerá os arquivos associados do Google Drive e não pode ser desfeita.")
+            
+            col1, col2 = st.columns(2)
+            if col1.button("Cancelar", use_container_width=True):
+                del st.session_state.items_to_delete
+                st.rerun()
+            
+            if col2.button(f"Sim, Excluir {len(items)} Iten(s)", type="primary", use_container_width=True):
+                total_success = 0
+                with st.spinner("Excluindo registros..."):
                     for item in items:
-                        st.markdown(f"- **{item['name']}** (ID: {item['id']})")
+                        success = False
+                        if item['type'] == 'doc_empresa':
+                            success = docs_manager.delete_company_document(item['id'], item.get('file_url'))
+                        elif item['type'] == 'aso':
+                            success = employee_manager.delete_aso(item['id'], item.get('file_url'))
+                        elif item['type'] == 'treinamento':
+                            success = employee_manager.delete_training(item['id'], item.get('file_url'))
+                        if success:
+                            total_success += 1
                 
-                st.caption("Esta ação também removerá os arquivos associados do Google Drive e não pode ser desfeita.")
+                if total_success == len(items):
+                    st.success(f"{total_success} registro(s) excluído(s) com sucesso!")
+                else:
+                    st.error(f"Falha ao excluir. {total_success} de {len(items)} registros foram removidos.")
                 
-                col1, col2 = st.columns(2)
-                if col1.button("Cancelar", use_container_width=True):
-                    del st.session_state.items_to_delete
-                    st.rerun()
-                
-                if col2.button(f"Sim, Excluir {len(items)} Iten(s)", type="primary", use_container_width=True):
-                    total_success = 0
-                    with st.spinner("Excluindo registros..."):
-                        for item in items:
-                            success = False
-                            if item['type'] == 'doc_empresa':
-                                success = docs_manager.delete_company_document(item['id'], item.get('file_url'))
-                            elif item['type'] == 'aso':
-                                success = employee_manager.delete_aso(item['id'], item.get('file_url'))
-                            elif item['type'] == 'treinamento':
-                                success = employee_manager.delete_training(item['id'], item.get('file_url'))
-                            if success:
-                                total_success += 1
-                    
-                    if total_success == len(items):
-                        st.success(f"{total_success} registro(s) excluído(s) com sucesso!")
-                    else:
-                        st.error(f"Falha ao excluir. {total_success} de {len(items)} registros foram removidos.")
-                    
-                    del st.session_state.items_to_delete
-                    st.rerun()
-    
-            confirm_multiple_delete()
+                del st.session_state.items_to_delete
+                st.rerun()
+
+        confirm_multiple_delete()
