@@ -1,6 +1,5 @@
 import streamlit as st
-from gdrive.matrix_manager import MatrixManager # Import the new manager
-from gdrive.config import MATRIX_SPREADSHEET_ID, CENTRAL_DRIVE_FOLDER_ID
+from gdrive.matrix_manager import MatrixManager
 
 def is_oidc_available():
     """Verifica se o login OIDC está configurado e disponível."""
@@ -23,42 +22,56 @@ def get_user_display_name() -> str:
     return get_user_email() or "Usuário Desconhecido"
 
 def authenticate_user() -> bool:
-    """Verifica o usuário na Planilha Matriz e carrega o contexto do tenant."""
+    """
+    Verifica o usuário na Planilha Matriz, carrega o contexto do tenant,
+    e armazena as informações essenciais (role, unit_name, etc.) na sessão.
+    Esta função é a única fonte da verdade para as permissões.
+    """
     user_email = get_user_email()
-    if not user_email: return False
+    if not user_email:
+        return False
 
-    # Evita re-autenticar a cada rerun se já estiver tudo ok
-    if st.session_state.get('authenticated_tenant'): return True
+    # Se o usuário já foi autenticado nesta sessão, não faz nada.
+    if st.session_state.get('authenticated_user_email') == user_email:
+        return True
 
+    # Usa o MatrixManager para buscar informações na planilha de controle global.
     matrix_manager = MatrixManager()
     user_info = matrix_manager.get_user_info(user_email)
 
     if not user_info:
-        st.error(f"Seu e-mail ({user_email}) não está autorizado a usar este sistema.")
+        st.error(f"Acesso negado. Seu e-mail ({user_email}) não está autorizado a usar este sistema.")
+        st.session_state.clear() # Limpa a sessão para segurança
         return False
 
+    # Armazena as informações do usuário na sessão.
+    st.session_state.role = user_info.get('role', 'viewer') # Padrão de segurança
     unit_name = user_info.get('unidade_associada')
-    st.session_state.role = user_info.get('role', 'viewer')
 
     if unit_name == '*':
         st.session_state.unit_name = 'Global'
-        st.session_state.spreadsheet_id = None # O spreadsheet_id começa como Nulo
-        st.session_state.folder_id = None      # O folder_id começa como Nulo
+        st.session_state.spreadsheet_id = None
+        st.session_state.folder_id = None
     else:
-        # Para usuários normais, carrega diretamente o contexto da sua unidade.
         unit_info = matrix_manager.get_unit_info(unit_name)
         if not unit_info:
-            st.error(f"A unidade '{unit_name}' associada ao seu usuário não foi encontrada.")
+            st.error(f"Erro de configuração: A unidade '{unit_name}' associada ao seu usuário não foi encontrada na Planilha Matriz.")
+            st.session_state.clear()
             return False
         st.session_state.unit_name = unit_info.get('nome_unidade')
         st.session_state.spreadsheet_id = unit_info.get('spreadsheet_id')
         st.session_state.folder_id = unit_info.get('folder_id')
 
-    st.session_state.authenticated_tenant = True
+    # Marca o usuário como autenticado para esta sessão.
+    st.session_state.authenticated_user_email = user_email
     return True
 
 def get_user_role() -> str:
-    """Retorna o papel (role) do usuário da sessão."""
+    """
+    Retorna o papel (role) do usuário que foi definido durante a autenticação.
+    Se a autenticação ainda não ocorreu, retorna 'viewer' como padrão seguro.
+    """
+
     return st.session_state.get('role', 'viewer')
 
 def is_admin() -> bool:
@@ -70,7 +83,10 @@ def can_edit() -> bool:
     return get_user_role() in ['admin', 'editor']
 
 def check_permission(level: str = 'editor'):
-    """Verifica o nível de permissão e bloqueia a página se não for atendido."""
+    """
+    Verifica o nível de permissão e bloqueia a página se não for atendido.
+    Retorna True se a permissão for concedida, para consistência.
+    """
     if level == 'admin':
         if not is_admin():
             st.error("Acesso restrito a Administradores.")
@@ -79,3 +95,4 @@ def check_permission(level: str = 'editor'):
         if not can_edit():
             st.error("Você não tem permissão para editar. Contate um administrador.")
             st.stop()
+    return True
