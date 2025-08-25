@@ -57,7 +57,8 @@ def show_dashboard_page():
     docs_manager = st.session_state.docs_manager
     epi_manager = st.session_state.epi_manager
     nr_analyzer = st.session_state.nr_analyzer
-    
+    matrix_manager = st.session_state.matrix_manager 
+
     st.title("Dashboard de Conformidade")
     
     company_options = [None] + employee_manager.companies_df['id'].astype(str).tolist()
@@ -128,7 +129,10 @@ def show_dashboard_page():
                         trainings_total, trainings_expired_count = 0, 0
                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                             trainings_total = len(all_trainings)
-                            trainings_expired_count = (all_trainings['vencimento'] < today).sum()
+                            # Converte para datetime para garantir a comparação correta
+                            valid_trainings = all_trainings.copy()
+                            valid_trainings['vencimento_dt'] = pd.to_datetime(valid_trainings['vencimento'], errors='coerce').dt.date
+                            trainings_expired_count = (valid_trainings['vencimento_dt'] < today).sum()
 
                         overall_status = 'Em Dia' if aso_status != 'Vencido' and trainings_expired_count == 0 else 'Pendente'
                         status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
@@ -147,11 +151,9 @@ def show_dashboard_page():
                                 st.dataframe(
                                     latest_asos.style.apply(highlight_expired, axis=1),
                                     column_config={
-                                        "tipo_aso": "Tipo", 
-                                        "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), 
+                                        "tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), 
                                         "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="PDF"), 
-                                        "vencimento_dt": None
+                                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="PDF"), "vencimento_dt": None
                                     },
                                     column_order=["tipo_aso", "data_aso", "vencimento", "arquivo_id"],
                                     hide_index=True, use_container_width=True
@@ -165,11 +167,9 @@ def show_dashboard_page():
                                 st.dataframe(
                                     all_trainings.style.apply(highlight_expired, axis=1),
                                     column_config={
-                                        "norma": "Norma", 
-                                        "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
+                                        "norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
                                         "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                                        "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), 
-                                        "vencimento_dt": None
+                                        "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), "vencimento_dt": None
                                     },
                                     column_order=["norma", "data", "vencimento", "anexo"],
                                     hide_index=True, use_container_width=True
@@ -195,7 +195,27 @@ def show_dashboard_page():
 
                             st.markdown("---")
                             st.markdown("##### Matriz de Conformidade de Treinamentos")
-                            # ... (lógica da matriz)
+                            if not employee_cargo or employee_cargo == 'N/A':
+                                st.info("Cargo não definido, impossibilitando análise de matriz.")
+                            else:
+                                matched_function = matrix_manager.find_closest_function(employee_cargo)
+                                if not matched_function:
+                                    st.success(f"O cargo '{employee_cargo}' não possui treinamentos obrigatórios na matriz global.")
+                                else:
+                                    if matched_function.lower() != employee_cargo.lower():
+                                        st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function}'**")
+                                    
+                                    required_trainings = matrix_manager.get_required_trainings_for_function(matched_function)
+                                    if not required_trainings:
+                                        st.success(f"Nenhum treinamento obrigatório mapeado para a função '{matched_function}'.")
+                                    else:
+                                        current_norms = all_trainings['norma'].dropna().tolist() if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty else []
+                                        missing = [req for req in required_trainings if not any(fuzz.partial_ratio(req.lower(), cur.lower()) > 85 for cur in current_norms)]
+                                        
+                                        if not missing:
+                                            st.success("✅ Todos os treinamentos obrigatórios foram realizados.")
+                                        else:
+                                            st.error(f"⚠️ **Treinamentos Faltantes:** {', '.join(sorted(missing))}")
                 else:
                     st.error(f"Nenhum funcionário encontrado para esta empresa (ID: {selected_company}).")
                     st.info(f"**Ação necessária:** Verifique na aba `funcionarios` da sua planilha se existem registros com `empresa_id` igual a `{selected_company}`.")
