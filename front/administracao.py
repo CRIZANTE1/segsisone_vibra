@@ -4,6 +4,7 @@ from datetime import date
 from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
 from operations.employee import EmployeeManager
 from auth.auth_utils import check_permission
+from front.metrics import display_minimalist_metrics
 
 
 @st.cache_data(ttl=300)
@@ -211,6 +212,10 @@ def show_admin_page():
         employee_manager = st.session_state.employee_manager
         matrix_manager_unidade = st.session_state.matrix_manager_unidade
         nr_analyzer = st.session_state.nr_analyzer
+
+        st.subheader("Visão Geral de Pendências da Unidade")
+        display_minimalist_metrics(employee_manager)
+        st.divider()
 
         with tab_empresa:
             with st.expander("➕ Cadastrar Nova Empresa"):
