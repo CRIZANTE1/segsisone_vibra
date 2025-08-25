@@ -37,10 +37,14 @@ class CompanyDocsManager:
             docs_data = self.sheet_ops.carregar_dados_aba("documentos_empresa")
             if docs_data and len(docs_data) > 1:
                 self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0])
-                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados de 'documentos_empresa'.")
             else:
                 self.docs_df = pd.DataFrame(columns=docs_cols)
-                logger.info("A aba 'documentos_empresa' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
+
+            # --- CORREÇÃO APLICADA AQUI: TRATAMENTO CENTRALIZADO DE DATAS ---
+            if not self.docs_df.empty:
+                self.docs_df['data_emissao'] = pd.to_datetime(self.docs_df['data_emissao'], format='%d/%m/%Y', errors='coerce')
+                self.docs_df['vencimento'] = pd.to_datetime(self.docs_df['vencimento'], format='%d/%m/%Y', errors='coerce')
+                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados e datas tratadas de 'documentos_empresa'.")
 
             # Carregar auditorias
             audit_data = self.sheet_ops.carregar_dados_aba("auditorias")
@@ -50,19 +54,17 @@ class CompanyDocsManager:
                 logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
             else:
                 self.audit_df = pd.DataFrame(columns=audit_cols)
-                logger.info("A aba 'auditorias' está vazia ou contém apenas cabeçalho. DataFrame vazio inicializado.")
 
-            if not self.docs_df.empty:
-                self.data_loaded_successfully = True
-                logger.info("Dados da empresa carregados com sucesso.")
+            self.data_loaded_successfully = True
             
         except Exception as e:
             logger.error(f"FALHA CRÍTICA ao carregar e processar dados da empresa: {str(e)}", exc_info=True)
             st.error(f"Erro ao carregar dados essenciais da empresa: {str(e)}")
-            # Garante que os DataFrames estejam vazios em caso de erro
             self.docs_df = pd.DataFrame(columns=docs_cols)
             self.audit_df = pd.DataFrame(columns=audit_cols)
+            self.data_loaded_successfully = False
 
+    
     def get_docs_by_company(self, company_id):
         if self.docs_df.empty: return pd.DataFrame()
         return self.docs_df[self.docs_df['empresa_id'] == str(company_id)]
