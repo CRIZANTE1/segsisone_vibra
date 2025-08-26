@@ -179,13 +179,73 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
                 st.dataframe(company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
+
+@st.dialog("Gerenciar Usuário")
+def user_dialog(user_data=None):
+    is_edit_mode = user_data is not None
+    title = "Editar Usuário" if is_edit_mode else "Adicionar Novo Usuário"
+    st.subheader(title)
+
+    matrix_manager_global = GlobalMatrixManager()
+    all_units = matrix_manager_global.get_all_units()
+    unit_names = [unit['nome_unidade'] for unit in all_units] + ["*"]
+
+    with st.form("user_form"):
+        email = st.text_input("E-mail", value=user_data['email'] if is_edit_mode else "", disabled=is_edit_mode)
+        nome = st.text_input("Nome", value=user_data['nome'] if is_edit_mode else "")
+        
+        roles = ["admin", "editor", "viewer"]
+        current_role_index = roles.index(user_data['role']) if is_edit_mode and user_data.get('role') in roles else 0
+        role = st.selectbox("Papel (Role)", roles, index=current_role_index)
+        
+        current_unit_index = unit_names.index(user_data['unidade_associada']) if is_edit_mode and user_data.get('unidade_associada') in unit_names else 0
+        unidade_associada = st.selectbox("Unidade Associada", unit_names, index=current_unit_index)
+
+        if st.form_submit_button("Salvar"):
+            if not email or not nome:
+                st.error("E-mail and Nome são obrigatórios.")
+                return
+
+            if is_edit_mode:
+                updates = {"nome": nome, "role": role, "unidade_associada": unidade_associada}
+                if matrix_manager_global.update_user(user_data['email'], updates):
+                    st.success("Usuário atualizado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Falha ao atualizar usuário.")
+            else:
+                if matrix_manager_global.get_user_info(email):
+                    st.error(f"O e-mail '{email}' já está cadastrado.")
+                else:
+                    user_data = [email, nome, role, unidade_associada]
+                    if matrix_manager_global.add_user(user_data):
+                        st.success(f"Usuário '{nome}' adicionado com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Falha ao adicionar usuário.")
+
+# --- DIÁLOGO PARA CONFIRMAR EXCLUSÃO ---
+@st.dialog("Confirmar Exclusão")
+def confirm_delete_dialog(user_email):
+    st.warning(f"Você tem certeza que deseja remover permanentemente o usuário **{user_email}**?")
+    st.caption("Esta ação não pode ser desfeita.")
+    
+    col1, col2 = st.columns(2)
+    if col1.button("Cancelar", use_container_width=True):
+        st.rerun()
+    if col2.button("Sim, Remover", type="primary", use_container_width=True):
+        matrix_manager_global = GlobalMatrixManager()
+        if matrix_manager_global.remove_user(user_email):
+            st.success(f"Usuário '{user_email}' removido com sucesso!")
+            st.rerun()
+        else:
+            st.error("Falha ao remover usuário.")
         
 def show_admin_page():
     if not check_permission(level='admin'):
         st.stop()
 
     st.title("🚀 Painel de Administração")
-
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
     if is_global_view:
@@ -243,75 +303,79 @@ def show_admin_page():
             st.divider()
             st.subheader("Gerenciar Usuários do Sistema")
 
-            with st.expander("➕ Adicionar Novo Usuário"):
-                with st.form("add_user_form", clear_on_submit=True):
-                    email = st.text_input("E-mail")
-                    nome = st.text_input("Nome")
-                    role = st.selectbox("Papel", ["admin", "editor", "viewer"])
-                    all_units = matrix_manager_global.get_all_units()
-                    unit_names = [unit['nome_unidade'] for unit in all_units] + ["*"]
-                    unidade_associada = st.selectbox("Unidade Associada", unit_names)
-                    if st.form_submit_button("Adicionar Usuário"):
-                        if email and nome:
-                            if matrix_manager_global.get_user_info(email):
-                                st.error(f"O e-mail '{email}' já está cadastrado.")
-                            else:
-                                if matrix_manager_global.add_user([email, nome, role, unidade_associada]):
-                                    st.success(f"Usuário '{nome}' adicionado!")
-                                    st.rerun()
+            if st.button("➕ Adicionar Novo Usuário"):
+                user_dialog()
+
+            all_users_df = pd.DataFrame(matrix_manager_global.get_all_users())
+            if not all_users_df.empty:
+                all_users_df["delete_action"] = False
+                edited_df = st.data_editor(
+                    all_users_df,
+                    column_config={"delete_action": st.column_config.CheckboxColumn("Excluir?")},
+                    disabled=["email", "nome", "role", "unidade_associada"],
+                    use_container_width=True, hide_index=True, key="user_editor"
+                )
+                
+                users_to_delete = edited_df[edited_df['delete_action']]
+                if not users_to_delete.empty:
+                    user_email = users_to_delete.iloc[0]['email']
+                    confirm_delete_dialog(user_email)
+            else:
+                st.info("Nenhum usuário cadastrado.")
         st.stop()
 
     # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
-    unit_name = st.session_state.get('unit_name', 'Nenhuma')
-    st.header(f"Gerenciamento da Unidade: '{unit_name}'")
+    else:
+        unit_name = st.session_state.get('unit_name', 'Nenhuma')
+        st.header(f"Gerenciamento da Unidade: '{unit_name}'")
 
-    if not st.session_state.get('managers_initialized'):
-        st.warning("Aguardando a inicialização dos dados da unidade...")
-        st.stop()
+        if not st.session_state.get('managers_initialized'):
+            st.warning("Aguardando a inicialização dos dados da unidade...")
+            st.stop()
 
-    employee_manager = st.session_state.employee_manager
-    matrix_manager_unidade = st.session_state.matrix_manager_unidade
-    nr_analyzer = st.session_state.nr_analyzer
+        employee_manager = st.session_state.employee_manager
+        matrix_manager_unidade = st.session_state.matrix_manager_unidade
+        nr_analyzer = st.session_state.nr_analyzer
 
-    st.subheader("Visão Geral de Pendências da Unidade")
-    display_minimalist_metrics(employee_manager)
-    st.divider()
+        st.subheader("Visão Geral de Pendências da Unidade")
+        display_minimalist_metrics(employee_manager)
+        st.divider()
 
-    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
-    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
+        tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
+        tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
 
-    with tab_empresa:
-        with st.expander("➕ Cadastrar Nova Empresa"):
-            with st.form("form_add_company", clear_on_submit=True):
-                company_name = st.text_input("Nome da Empresa")
-                company_cnpj = st.text_input("CNPJ")
-                if st.form_submit_button("Cadastrar Empresa"):
-                    if company_name and company_cnpj:
-                        _, message = employee_manager.add_company(company_name, company_cnpj)
-                        st.success(message)
-                        st.rerun()
-                    else:
-                        st.warning("Preencha todos os campos.")
-        st.subheader("Empresas Cadastradas na Unidade")
-        show_archived = st.toggle("Mostrar empresas arquivadas")
-        df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
-        if not df_to_show.empty:
-            for _, row in df_to_show.sort_values('nome').iterrows():
-                with st.container(border=True):
-                    c1, c2, c3 = st.columns([3,2,1])
-                    c1.markdown(f"**{row['nome']}**")
-                    c2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
-                    with c3:
-                        if str(row['status']).lower() == 'ativo':
-                            if st.button("Arquivar", key=f"archive_{row['id']}"):
-                                employee_manager.archive_company(row['id'])
-                                st.rerun()
+        with tab_empresa:
+            with st.expander("➕ Cadastrar Nova Empresa"):
+                with st.form("form_add_company", clear_on_submit=True):
+                    company_name = st.text_input("Nome da Empresa")
+                    company_cnpj = st.text_input("CNPJ")
+                    if st.form_submit_button("Cadastrar Empresa"):
+                        if company_name and company_cnpj:
+                            _, message = employee_manager.add_company(company_name, company_cnpj)
+                            st.success(message)
+                            st.rerun()
                         else:
-                            if st.button("Reativar", key=f"unarchive_{row['id']}", type="primary"):
-                                employee_manager.unarchive_company(row['id'])
-                                st.rerun()
-        else:
-            st.info("Nenhuma empresa para exibir.")
+                            st.warning("Preencha todos os campos.")
+            st.subheader("Empresas Cadastradas na Unidade")
+            show_archived = st.toggle("Mostrar empresas arquivadas")
+            df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+            if not df_to_show.empty:
+                for _, row in df_to_show.sort_values('nome').iterrows():
+                    with st.container(border=True):
+                        c1, c2, c3 = st.columns([3,2,1])
+                        c1.markdown(f"**{row['nome']}**")
+                        c2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
+                        with c3:
+                            if str(row['status']).lower() == 'ativo':
+                                if st.button("Arquivar", key=f"archive_{row['id']}"):
+                                    employee_manager.archive_company(row['id'])
+                                    st.rerun()
+                            else:
+                                if st.button("Reativar", key=f"unarchive_{row['id']}", type="primary"):
+                                    employee_manager.unarchive_company(row['id'])
+                                    st.rerun()
+            else:
+                st.info("Nenhuma empresa para exibir.")
 
     with tab_funcionario:
         with st.expander("➕ Cadastrar Novo Funcionário"):
