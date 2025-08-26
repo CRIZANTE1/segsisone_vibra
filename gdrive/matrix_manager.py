@@ -4,6 +4,8 @@ import logging
 from operations.sheet import SheetOperations
 from gdrive.config import MATRIX_SPREADSHEET_ID, CENTRAL_LOG_SHEET_NAME 
 from fuzzywuzzy import process
+from operations.audit_logger import log_action
+
 
 logger = logging.getLogger('segsisone_app.matrix_manager')
 
@@ -140,44 +142,103 @@ class MatrixManager:
         return self.users_df.to_dict(orient='records') if not self.users_df.empty else []
 
     def add_unit(self, unit_data: list) -> bool:
-        sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-        result = sheet_ops.adc_dados_aba("unidades", unit_data)
-        if result:
-            load_matrix_sheets_data.clear()
-            return True
-        return False
-
-    def add_unit(self, unit_data: list) -> bool:
-        """Adiciona uma nova unidade usando adc_linha_simples e limpa o cache."""
+        """
+        Adiciona uma nova unidade à Planilha Matriz e registra a ação no log.
+        unit_data deve ser uma lista na ordem: [nome_unidade, spreadsheet_id, folder_id]
+        """
         try:
             sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-            # --- CORREÇÃO APLICADA AQUI ---
-            # Usa o novo método que não adiciona um ID automático
             success = sheet_ops.adc_linha_simples("unidades", unit_data)
+            
             if success:
+                # --- LOG ADICIONADO AQUI ---
+                log_action(
+                    action="ADD_UNIT",
+                    details={
+                        "message": f"Nova unidade '{unit_data[0]}' adicionada ao sistema.",
+                        "unit_name": unit_data[0],
+                        "spreadsheet_id": unit_data[1],
+                        "folder_id": unit_data[2]
+                    }
+                )
+                
                 load_matrix_sheets_data.clear()
-                logger.info("Nova unidade adicionada. Cache da Planilha Matriz invalidado.")
+                logger.info(f"Nova unidade '{unit_data[0]}' adicionada. Cache invalidado.")
                 return True
+                
             return False
+            
         except Exception as e:
             logger.error(f"Falha ao adicionar nova unidade: {e}")
             return False
 
     def add_user(self, user_data: list) -> bool:
-        """Adiciona um novo usuário usando adc_linha_simples e limpa o cache."""
+        """
+        Adiciona um novo usuário à Planilha Matriz e registra a ação no log.
+        user_data deve ser uma lista na ordem: [email, nome, role, unidade_associada]
+        """
         try:
             sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-            # --- CORREÇÃO APLICADA AQUI ---
-            # Usa o novo método que não adiciona um ID automático
             success = sheet_ops.adc_linha_simples("usuarios", user_data)
+            
             if success:
+                # --- LOG ADICIONADO AQUI ---
+                log_action(
+                    action="ADD_USER",
+                    details={
+                        "message": f"Novo usuário '{user_data[1]}' ({user_data[0]}) adicionado.",
+                        "email": user_data[0],
+                        "name": user_data[1],
+                        "role": user_data[2],
+                        "assigned_unit": user_data[3]
+                    }
+                )
+                
                 load_matrix_sheets_data.clear()
-                logger.info(f"Novo usuário adicionado. Cache da Planilha Matriz invalidado.")
+                logger.info(f"Novo usuário '{user_data[0]}' adicionado. Cache invalidado.")
                 return True
+                
             return False
+            
         except Exception as e:
             logger.error(f"Falha ao adicionar novo usuário: {e}")
             return False
+
+    def remove_user(self, user_email: str) -> bool:
+        """
+        Remove um usuário da Planilha Matriz pelo e-mail e registra a ação no log.
+        """
+        if self.users_df.empty or not user_email:
+            return False
+        
+        user_email_clean = user_email.lower().strip()
+        user_row = self.users_df[self.users_df['email'] == user_email_clean]
+        
+        if user_row.empty:
+            logger.warning(f"Tentativa de remover usuário inexistente: {user_email_clean}")
+            return False
+        
+        # O gspread precisa do índice da linha (começando em 1) + 1 (cabeçalho)
+        # O índice do DataFrame (user_row.index[0]) corresponde à posição nos dados (sem o cabeçalho)
+        row_to_delete_in_sheet = user_row.index[0] + 2
+        
+        try:
+            sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
+            success = sheet_ops.excluir_linha_por_indice("usuarios", row_to_delete_in_sheet)
+            
+            if success:
+                # --- LOG ADICIONADO AQUI ---
+                log_action(
+                    action="REMOVE_USER",
+                    details={
+                        "message": f"Usuário '{user_email_clean}' foi removido do sistema.",
+                        "removed_user_email": user_email_clean
+                    }
+                )
+                
+                load_matrix_sheets_data.clear()
+                logger.info(f"Usuário '{user_email_clean}' removido. Cache invalidado.")
+                return True
 
     # --- Métodos para Matriz de Treinamentos ---
     def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
