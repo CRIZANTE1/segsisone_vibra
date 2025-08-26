@@ -12,36 +12,59 @@ from AI.api_Operation import PDFQA
 from operations.action_plan import ActionPlanManager
 from operations.sheet import SheetOperations 
 
-# --- FUNÇÃO DE CARREGAMENTO LOCAL (CACHEADA) ---
+import streamlit as st
+import pandas as pd
+import numpy as np
+import google.generativeai as genai
+import re
+import json
+import tempfile
+import os
+from datetime import datetime
+from sklearn.metrics.pairwise import cosine_similarity
+from AI.api_Operation import PDFQA
+from operations.action_plan import ActionPlanManager
+from operations.sheet import SheetOperations 
+
+
 @st.cache_data(ttl=3600)
 def load_preprocessed_rag_base() -> tuple[pd.DataFrame, np.ndarray | None]:
     """
     Carrega o DataFrame e os embeddings pré-processados de arquivos locais.
-    Esta função é cacheada para performance entre sessões.
+    Esta função agora apenas carrega e retorna os dados, sem st.toast ou st.error.
     """
     try:
         df = pd.read_pickle("rag_dataframe.pkl")
         embeddings = np.load("rag_embeddings.npy")
-        st.toast("Base de conhecimento carregada.", icon="🧠")
         return df, embeddings
     except FileNotFoundError:
-        st.error("ERRO CRÍTICO: Arquivos da base de conhecimento ('rag_dataframe.pkl' ou 'rag_embeddings.npy') não encontrados.")
-        return pd.DataFrame(), None
+        # Em vez de st.error, retornamos None para que a função que chama possa lidar com o erro.
+        return None, None
     except Exception as e:
-        st.error(f"Falha ao carregar a base de conhecimento pré-processada: {e}")
-        return pd.DataFrame(), None
+        # Logar o erro pode ser útil aqui, mas não usamos st.error.
+        print(f"Falha ao carregar a base de conhecimento pré-processada: {e}")
+        return None, None
 
 class NRAnalyzer:
     def __init__(self, spreadsheet_id: str):
         """
-        Inicialização robusta que carrega a base RAG dos arquivos locais
-        e a armazena como atributos da classe.
+        Inicialização que carrega a base RAG e lida com as mensagens de UI.
         """
         self.pdf_analyzer = PDFQA()
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.action_plan_manager = ActionPlanManager(spreadsheet_id)
         
-        self.rag_df, self.rag_embeddings = load_preprocessed_rag_base()
+        with st.spinner("Carregando base de conhecimento..."):
+            self.rag_df, self.rag_embeddings = load_preprocessed_rag_base()
+
+        # Verifica o resultado do carregamento e mostra as mensagens apropriadas
+        if self.rag_df is None or self.rag_embeddings is None:
+            st.error("ERRO CRÍTICO: Arquivos da base de conhecimento ('rag_dataframe.pkl' ou 'rag_embeddings.npy') não encontrados. A funcionalidade de auditoria com IA será desativada.")
+            # Garante que os atributos sejam DataFrames vazios para evitar erros posteriores
+            self.rag_df = pd.DataFrame()
+            self.rag_embeddings = np.array([])
+        else:
+            st.toast("Base de conhecimento carregada com sucesso.", icon="🧠")
         
         try:
             if not st.secrets.get("general", {}).get("GEMINI_AUDIT_KEY"):
@@ -50,12 +73,10 @@ class NRAnalyzer:
             pass
 
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
-        # A verificação agora é feita diretamente nos atributos da classe
         if self.rag_df.empty or self.rag_embeddings is None or self.rag_embeddings.size == 0:
             return "Base de conhecimento indisponível ou não indexada."
 
         try:
-            # A única chamada à API do Gemini que resta é para gerar o embedding da PERGUNTA
             query_embedding_result = genai.embed_content(
                 model='models/gemini-embedding-001',
                 content=[query_text]
@@ -70,7 +91,7 @@ class NRAnalyzer:
         except Exception as e:
             st.warning(f"Erro durante a busca semântica (verifique a chave de API): {e}")
             return "Erro ao buscar chunks relevantes na base de conhecimento."
-
+            
     def perform_initial_audit(self, doc_info: dict, file_content: bytes) -> dict | None:
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "")
