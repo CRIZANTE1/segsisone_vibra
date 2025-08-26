@@ -179,3 +179,21 @@ class SheetOperations:
         except Exception as e:
             logger.error(f"Erro ao adicionar log na aba '{aba_name}': {e}", exc_info=True)
             return False
+            
+    def adc_linha_simples(self, aba_name: str, new_data_row: list) -> bool:
+        """
+        Adiciona uma única linha de dados a uma aba, sem gerar ou manipular IDs.
+        Ideal para abas como 'unidades' ou 'usuarios' na Planilha Matriz.
+        """
+        worksheet = self._get_worksheet(aba_name)
+        if not worksheet: return False
+        try:
+            worksheet.append_row(new_data_row, value_input_option='USER_ENTERED')
+            # Não limpamos o cache aqui para evitar recargas desnecessárias
+            # A função que chama este método é responsável por limpar o cache se precisar.
+            logger.info(f"Linha adicionada com sucesso na aba '{aba_name}'.")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao adicionar linha na aba '{aba_name}': {e}", exc_info=True)
+            st.error(f"Erro ao adicionar dados: {e}")
+            return False
