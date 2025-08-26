@@ -189,9 +189,8 @@ def show_admin_page():
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
     if is_global_view:
-        # --- LÓGICA PARA VISÃO GLOBAL ---
-        tab_list = ["Dashboard Global", "Logs de Auditoria", "Provisionar Unidade"]
-        tab_dashboard, tab_logs, tab_provision = st.tabs(tab_list)
+        tab_list = ["Dashboard Global", "Logs de Auditoria", "Gerenciamento Global"]
+        tab_dashboard, tab_logs, tab_global_manage = st.tabs(tab_list)
 
         with tab_dashboard:
             companies, employees, asos, trainings, company_docs = load_aggregated_data()
@@ -206,97 +205,113 @@ def show_admin_page():
             else:
                 st.info("Nenhum registro de log encontrado.")
         
-        with tab_provision:
-            st.header("Provisionar Nova Unidade Operacional")
-            with st.form("provision_form"):
-                new_unit_name = st.text_input("Nome da Nova Unidade")
-                if st.form_submit_button("🚀 Iniciar Provisionamento"):
-                    if not new_unit_name:
-                        st.error("O nome da unidade não pode ser vazio.")
-                    else:
-                        matrix_manager_global = GlobalMatrixManager()
-                        if matrix_manager_global.get_unit_info(new_unit_name):
+        with tab_global_manage:
+            st.header("Gerenciamento Global do Sistema")
+            matrix_manager_global = GlobalMatrixManager()
+
+            with st.expander("Provisionar Nova Unidade Operacional"):
+                with st.form("provision_form"):
+                    new_unit_name = st.text_input("Nome da Nova Unidade")
+                    if st.form_submit_button("🚀 Iniciar Provisionamento"):
+                        if not new_unit_name:
+                            st.error("O nome da unidade não pode ser vazio.")
+                        elif matrix_manager_global.get_unit_info(new_unit_name):
                             st.error(f"Erro: Uma unidade com o nome '{new_unit_name}' já existe.")
                         else:
                             with st.spinner(f"Criando infraestrutura para '{new_unit_name}'..."):
                                 try:
                                     from gdrive.config import CENTRAL_DRIVE_FOLDER_ID
                                     api_manager = GoogleApiManager()
-                                    st.write("1/4 - Criando pasta no Google Drive...")
+                                    st.write("1/4 - Criando pasta...")
                                     new_folder_id = api_manager.create_folder(f"SEGMA-SIS - {new_unit_name}", CENTRAL_DRIVE_FOLDER_ID)
-                                    if not new_folder_id: raise Exception("Falha ao criar pasta no Drive.")
-                                    st.write("2/4 - Criando Planilha Google...")
+                                    if not new_folder_id: raise Exception("Falha ao criar pasta.")
+                                    st.write("2/4 - Criando Planilha...")
                                     new_sheet_id = api_manager.create_spreadsheet(f"SEGMA-SIS - Dados - {new_unit_name}", new_folder_id)
-                                    if not new_sheet_id: raise Exception("Falha ao criar Planilha Google.")
-                                    st.write("3/4 - Configurando abas da nova planilha...")
+                                    if not new_sheet_id: raise Exception("Falha ao criar Planilha.")
+                                    st.write("3/4 - Configurando abas...")
                                     if not api_manager.setup_sheets_from_config(new_sheet_id, "sheets_config.yaml"):
-                                        raise Exception("Falha ao configurar as abas da planilha.")
-                                    st.write("4/4 - Registrando nova unidade na Planilha Matriz...")
+                                        raise Exception("Falha ao configurar as abas.")
+                                    st.write("4/4 - Registrando na Matriz...")
                                     if not matrix_manager_global.add_unit([new_unit_name, new_sheet_id, new_folder_id]):
-                                        raise Exception("Falha ao registrar a nova unidade na Planilha Matriz.")
+                                        raise Exception("Falha ao registrar na Planilha Matriz.")
                                     log_action("PROVISION_UNIT", {"unit_name": new_unit_name, "sheet_id": new_sheet_id})
                                     st.success(f"Unidade '{new_unit_name}' provisionada com sucesso!")
                                     st.rerun()
                                 except Exception as e:
-                                    st.error(f"Ocorreu um erro durante o provisionamento: {e}")
+                                    st.error(f"Ocorreu um erro: {e}")
+            
+            st.divider()
+            st.subheader("Gerenciar Usuários do Sistema")
+
+            with st.expander("➕ Adicionar Novo Usuário"):
+                with st.form("add_user_form", clear_on_submit=True):
+                    email = st.text_input("E-mail")
+                    nome = st.text_input("Nome")
+                    role = st.selectbox("Papel", ["admin", "editor", "viewer"])
+                    all_units = matrix_manager_global.get_all_units()
+                    unit_names = [unit['nome_unidade'] for unit in all_units] + ["*"]
+                    unidade_associada = st.selectbox("Unidade Associada", unit_names)
+                    if st.form_submit_button("Adicionar Usuário"):
+                        if email and nome:
+                            if matrix_manager_global.get_user_info(email):
+                                st.error(f"O e-mail '{email}' já está cadastrado.")
+                            else:
+                                if matrix_manager_global.add_user([email, nome, role, unidade_associada]):
+                                    st.success(f"Usuário '{nome}' adicionado!")
+                                    st.rerun()
         st.stop()
 
     # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
-    else:
-        unit_name = st.session_state.get('unit_name', 'Nenhuma')
-        st.header(f"Gerenciamento da Unidade: '{unit_name}'")
+    unit_name = st.session_state.get('unit_name', 'Nenhuma')
+    st.header(f"Gerenciamento da Unidade: '{unit_name}'")
 
-        if not st.session_state.get('managers_initialized'):
-            st.warning("Aguardando a inicialização dos dados da unidade...")
-            st.stop()
+    if not st.session_state.get('managers_initialized'):
+        st.warning("Aguardando a inicialização dos dados da unidade...")
+        st.stop()
 
-        employee_manager = st.session_state.employee_manager
-        matrix_manager_unidade = st.session_state.matrix_manager_unidade
-        nr_analyzer = st.session_state.nr_analyzer
+    employee_manager = st.session_state.employee_manager
+    matrix_manager_unidade = st.session_state.matrix_manager_unidade
+    nr_analyzer = st.session_state.nr_analyzer
 
-        st.subheader("Visão Geral de Pendências da Unidade")
-        display_minimalist_metrics(employee_manager)
-        st.divider()
+    st.subheader("Visão Geral de Pendências da Unidade")
+    display_minimalist_metrics(employee_manager)
+    st.divider()
 
-        # --- CORREÇÃO APLICADA AQUI ---
-        # A criação das abas agora está dentro do bloco 'else'
-        tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
-        tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
+    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
+    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
 
-        with tab_empresa:
-            with st.expander("➕ Cadastrar Nova Empresa"):
-                with st.form("form_add_company", clear_on_submit=True):
-                    company_name = st.text_input("Nome da Empresa")
-                    company_cnpj = st.text_input("CNPJ")
-                    if st.form_submit_button("Cadastrar Empresa"):
-                        if company_name and company_cnpj:
-                            _, message = employee_manager.add_company(company_name, company_cnpj)
-                            st.success(message)
-                            st.rerun()
+    with tab_empresa:
+        with st.expander("➕ Cadastrar Nova Empresa"):
+            with st.form("form_add_company", clear_on_submit=True):
+                company_name = st.text_input("Nome da Empresa")
+                company_cnpj = st.text_input("CNPJ")
+                if st.form_submit_button("Cadastrar Empresa"):
+                    if company_name and company_cnpj:
+                        _, message = employee_manager.add_company(company_name, company_cnpj)
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.warning("Preencha todos os campos.")
+        st.subheader("Empresas Cadastradas na Unidade")
+        show_archived = st.toggle("Mostrar empresas arquivadas")
+        df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
+        if not df_to_show.empty:
+            for _, row in df_to_show.sort_values('nome').iterrows():
+                with st.container(border=True):
+                    c1, c2, c3 = st.columns([3,2,1])
+                    c1.markdown(f"**{row['nome']}**")
+                    c2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
+                    with c3:
+                        if str(row['status']).lower() == 'ativo':
+                            if st.button("Arquivar", key=f"archive_{row['id']}"):
+                                employee_manager.archive_company(row['id'])
+                                st.rerun()
                         else:
-                            st.warning("Preencha todos os campos.")
-
-            st.subheader("Empresas Cadastradas na Unidade")
-            show_archived = st.toggle("Mostrar empresas arquivadas")
-            df_to_show = employee_manager.companies_df if show_archived else employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
-            
-            if not df_to_show.empty:
-                for _, row in df_to_show.sort_values('nome').iterrows():
-                    with st.container(border=True):
-                        c1, c2, c3 = st.columns([3,2,1])
-                        c1.markdown(f"**{row['nome']}**")
-                        c2.caption(f"CNPJ: {row['cnpj']} | Status: {row['status']}")
-                        with c3:
-                            if str(row['status']).lower() == 'ativo':
-                                if st.button("Arquivar", key=f"archive_{row['id']}"):
-                                    employee_manager.archive_company(row['id'])
-                                    st.rerun()
-                            else:
-                                if st.button("Reativar", key=f"unarchive_{row['id']}", type="primary"):
-                                    employee_manager.unarchive_company(row['id'])
-                                    st.rerun()
-            else:
-                st.info("Nenhuma empresa para exibir.")
+                            if st.button("Reativar", key=f"unarchive_{row['id']}", type="primary"):
+                                employee_manager.unarchive_company(row['id'])
+                                st.rerun()
+        else:
+            st.info("Nenhuma empresa para exibir.")
 
     with tab_funcionario:
         with st.expander("➕ Cadastrar Novo Funcionário"):
