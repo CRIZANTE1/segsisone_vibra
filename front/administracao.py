@@ -246,6 +246,7 @@ def show_admin_page():
         st.stop()
 
     st.title("🚀 Painel de Administração")
+
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
     if is_global_view:
@@ -376,7 +377,7 @@ def show_admin_page():
                                     st.rerun()
             else:
                 st.info("Nenhuma empresa para exibir.")
-
+                
     with tab_funcionario:
         with st.expander("➕ Cadastrar Novo Funcionário"):
             active_companies = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
