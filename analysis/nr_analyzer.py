@@ -62,11 +62,11 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
             
             # Faz a chamada para o lote atual
             result = genai.embed_content(
-                model='models/text-embedding-004',
-                content=batch,
-                task_type="RETRIEVAL_DOCUMENT"
+                model='models/gemini-embedding-001',
+                content=batch
             )
             all_embeddings.extend(result['embedding'])
+            time.sleep(1)
             
             # Pausa de 1 segundo entre os lotes para não exceder o limite de 15 RPM
             time.sleep(1)
