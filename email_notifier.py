@@ -14,6 +14,7 @@ if root_dir not in sys.path:
 
 from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
+from gdrive.matrix_manager import MatrixManager # Para ler todas as unidades
 
 def get_smtp_config_from_env():
     """Lê a configuração SMTP a partir de variáveis de ambiente."""
@@ -29,10 +30,9 @@ def get_smtp_config_from_env():
         raise ValueError(f"Variáveis de ambiente de e-mail ausentes: {', '.join(missing)}. Verifique os Secrets.")
     return config
 
-def categorize_expirations(employee_manager: EmployeeManager, docs_manager: CompanyDocsManager):
+def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_manager: CompanyDocsManager):
     """
-    Carrega e categoriza os documentos, considerando APENAS empresas e
-    funcionários com status 'Ativo'.
+    Categoriza os vencimentos para uma única unidade.
     """
     today = date.today()
     
@@ -95,14 +95,9 @@ def categorize_expirations(employee_manager: EmployeeManager, docs_manager: Comp
             df.loc[:, 'empresa'] = df['empresa_id'].map(employee_manager.companies_df.set_index('id')['nome'])
 
     return {
-        "Treinamentos Vencidos": vencidos_tr, 
-        "Treinamentos que vencem em até 15 dias": vence_15_tr, 
-        "Treinamentos que vencem entre 16 e 45 dias": vence_45_tr,
-        "ASOs Vencidos": vencidos_aso, 
-        "ASOs que vencem em até 15 dias": vence_15_aso, 
-        "ASOs que vencem entre 16 e 45 dias": vence_45_aso,
-        "Documentos da Empresa Vencidos": vencidos_docs, 
-        "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
+        "Treinamentos Vencidos": vencidos_tr, "Treinamentos que vencem em até 15 dias": vence_15_tr, "Treinamentos que vencem entre 16 e 45 dias": vence_45_tr,
+        "ASOs Vencidos": vencidos_aso, "ASOs que vencem em até 15 dias": vence_15_aso, "ASOs que vencem entre 16 e 45 dias": vence_45_aso,
+        "Documentos da Empresa Vencidos": vencidos_docs, "Documentos da Empresa que vencem nos próximos 30 dias": vence_30_docs,
     }
 
 
@@ -112,7 +107,7 @@ def format_email_body(categorized_data: dict) -> str:
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
         .container { max-width: 800px; margin: 20px auto; padding: 20px; background-color: #ffffff; border-radius: 8px; }
         h1 { font-size: 24px; text-align: center; }
-        h2 { font-size: 18px; color: #34495e; margin-top: 35px; border-bottom: 2px solid #e0e0e0; }
+        h2 { font-size: 18px; color: #34495e; margin-top: 35px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; }
         table { border-collapse: collapse; width: 100%; margin-bottom: 25px; font-size: 13px; }
         th, td { border: 1px solid #dddddd; padding: 8px 12px; text-align: left; }
         th { background-color: #f2f2f2; }
@@ -124,26 +119,49 @@ def format_email_body(categorized_data: dict) -> str:
     <p style="text-align:center;">Relatório automático gerado em {date.today().strftime('%d/%m/%Y')}</p>
     """
     has_content = False
+    
+    # Ordem de exibição das seções no e-mail
+    report_order = [
+        "Documentos da Empresa Vencidos",
+        "ASOs Vencidos",
+        "Treinamentos Vencidos",
+        "Documentos da Empresa que vencem nos próximos 30 dias",
+        "ASOs que vencem em até 15 dias",
+        "Treinamentos que vencem em até 15 dias",
+        "ASOs que vencem entre 16 e 45 dias",
+        "Treinamentos que vencem entre 16 e 45 dias"
+    ]
+
+    # Configuração das colunas para cada seção (sem a coluna 'unidade')
     report_configs = {
         "Documentos da Empresa Vencidos": {"cols": ['empresa', 'tipo_documento', 'vencimento']},
         "Documentos da Empresa que vencem nos próximos 30 dias": {"cols": ['empresa', 'tipo_documento', 'vencimento']},
-        "Treinamentos Vencidos": {"cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento']},
         "ASOs Vencidos": {"cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']},
-        "Treinamentos que vencem em até 15 dias": {"cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento']},
+        "Treinamentos Vencidos": {"cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento']},
         "ASOs que vencem em até 15 dias": {"cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']},
+        "Treinamentos que vencem em até 15 dias": {"cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento']},
+        "ASOs que vencem entre 16 e 45 dias": {"cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']},
+        "Treinamentos que vencem entre 16 e 45 dias": {"cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento']},
     }
     
-    for title, data_df in categorized_data.items():
-        if not data_df.empty:
+    for title in report_order:
+        if title in categorized_data and not categorized_data[title].empty:
+            data_df = categorized_data[title]
             has_content = True
             config = report_configs.get(title, {})
             html_body += f'<h2>{title} ({len(data_df)})</h2>'
-            cols_to_show = [col for col in config.get("cols", data_df.columns) if col in data_df.columns]
-            df_display = data_df[cols_to_show]
-            html_body += df_display.to_html(index=False, border=0, na_rep='N/A')
+            
+            # Garante que a coluna 'vencimento' seja formatada corretamente
+            df_display = data_df.copy()
+            if 'vencimento' in df_display.columns:
+                df_display['vencimento'] = pd.to_datetime(df_display['vencimento']).dt.strftime('%d/%m/%Y')
+
+            cols_to_show = [col for col in config.get("cols", df_display.columns) if col in df_display.columns]
+            html_body += df_display[cols_to_show].to_html(index=False, border=0, na_rep='N/A')
             
     if not has_content:
         html_body += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos estão em dia.</p>"
+    
     html_body += "</div></body></html>"
     return html_body
 
@@ -168,22 +186,62 @@ def send_smtp_email(html_body: str, config: dict):
         raise
 
 def main():
-    """Função principal do script para um ambiente single-tenant."""
-    print("Iniciando script de notificação de vencimentos (modo single-tenant)...")
+    """Função principal que itera sobre todas as unidades e envia um único e-mail consolidado."""
+    print("Iniciando script de notificação de vencimentos...")
     try:
         config = get_smtp_config_from_env()
         
-        # Instancia os managers sem argumentos, como na arquitetura single-tenant
-        employee_manager = EmployeeManager()
-        docs_manager = CompanyDocsManager()
+        # 1. Carrega a lista de todas as unidades da Planilha Matriz
+        matrix_manager = MatrixManager()
+        all_units = matrix_manager.get_all_units()
         
-        categorized_data = categorize_expirations(employee_manager, docs_manager)
+        all_units_categorized_data = {}
+        
+        # 2. Itera sobre cada unidade
+        for unit in all_units:
+            unit_name = unit.get('nome_unidade')
+            spreadsheet_id = unit.get('spreadsheet_id')
+            folder_id = unit.get('folder_id')
+            
+            if not spreadsheet_id:
+                print(f"AVISO: Unidade '{unit_name}' não possui um spreadsheet_id. Pulando.")
+                continue
+            
+            print(f"\n--- Processando unidade: {unit_name} ---")
+            
+            # 3. Cria managers específicos para a unidade atual
+            employee_manager = EmployeeManager(spreadsheet_id, folder_id)
+            docs_manager = CompanyDocsManager(spreadsheet_id)
+            
+            # 4. Categoriza os vencimentos para esta unidade
+            categorized_data = categorize_expirations_for_unit(employee_manager, docs_manager)
+            
+            # Adiciona a coluna 'unidade' a cada dataframe de pendência
+            for category in categorized_data.values():
+                if not category.empty:
+                    category['unidade'] = unit_name
+            
+            all_units_categorized_data[unit_name] = categorized_data
 
-        if not any(not df.empty for df in categorized_data.values()):
-            print("Nenhuma pendência encontrada para entidades ativas. E-mail não será enviado.")
+        # 5. Consolida os dados de todas as unidades
+        consolidated_data = {}
+        for unit_name, unit_data in all_units_categorized_data.items():
+            for category_name, df in unit_data.items():
+                if category_name not in consolidated_data:
+                    consolidated_data[category_name] = []
+                if not df.empty:
+                    consolidated_data[category_name].append(df)
+        
+        final_report_data = {
+            name: pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+            for name, dfs in consolidated_data.items()
+        }
+
+        if not any(not df.empty for df in final_report_data.values()):
+            print("Nenhuma pendência encontrada em todas as unidades. E-mail não será enviado.")
         else:
-            print("Pendências encontradas, gerando e-mail.")
-            email_body = format_email_body(categorized_data)
+            print("Pendências encontradas, gerando e-mail consolidado.")
+            email_body = format_email_body(final_report_data)
             send_smtp_email(email_body, config)
         
         print("Script finalizado com sucesso.")
