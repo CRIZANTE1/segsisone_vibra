@@ -215,11 +215,11 @@ class MatrixManager:
         user_row = self.users_df[self.users_df['email'] == user_email_clean]
         
         if user_row.empty:
+            # Adiciona um log de aviso para facilitar a depuração
             logger.warning(f"Tentativa de remover usuário inexistente: {user_email_clean}")
             return False
         
         # O gspread precisa do índice da linha (começando em 1) + 1 (cabeçalho)
-        # O índice do DataFrame (user_row.index[0]) corresponde à posição nos dados (sem o cabeçalho)
         row_to_delete_in_sheet = user_row.index[0] + 2
         
         try:
@@ -227,7 +227,7 @@ class MatrixManager:
             success = sheet_ops.excluir_linha_por_indice("usuarios", row_to_delete_in_sheet)
             
             if success:
-                # --- LOG ADICIONADO AQUI ---
+                # A sua chamada de log, que está correta
                 log_action(
                     action="REMOVE_USER",
                     details={
@@ -239,6 +239,12 @@ class MatrixManager:
                 load_matrix_sheets_data.clear()
                 logger.info(f"Usuário '{user_email_clean}' removido. Cache invalidado.")
                 return True
+                
+            return False
+            
+        except Exception as e:
+            logger.error(f"Falha ao remover usuário '{user_email_clean}': {e}")
+            return False
 
     # --- Métodos para Matriz de Treinamentos ---
     def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
