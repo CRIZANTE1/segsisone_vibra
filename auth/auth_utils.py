@@ -25,7 +25,6 @@ def authenticate_user() -> bool:
     """
     Verifica o usuário na Planilha Matriz, carrega o contexto do tenant,
     armazena as informações na sessão e registra o evento de login.
-    Esta função é a única fonte da verdade para as permissões.
     """
     user_email = get_user_email()
     if not user_email:
@@ -35,17 +34,17 @@ def authenticate_user() -> bool:
     if st.session_state.get('authenticated_user_email') == user_email:
         return True
 
-    # Usa o MatrixManager para buscar informações na planilha de controle global.
     matrix_manager = MatrixManager()
     user_info = matrix_manager.get_user_info(user_email)
 
     if not user_info:
         st.error(f"Acesso negado. Seu e-mail ({user_email}) não está autorizado a usar este sistema.")
-        st.session_state.clear() # Limpa a sessão para segurança
+        st.session_state.clear()
         return False
 
-    # Armazena as informações do usuário na sessão.
-    st.session_state.role = user_info.get('role', 'viewer') # Padrão de segurança
+
+    st.session_state.user_info = user_info
+    st.session_state.role = user_info.get('role', 'viewer')
     unit_name = user_info.get('unidade_associada')
 
     if unit_name == '*':
@@ -65,8 +64,7 @@ def authenticate_user() -> bool:
     # Marca o usuário como autenticado para esta sessão.
     st.session_state.authenticated_user_email = user_email
     
-    # --- FUNCIONALIDADE RESTAURADA AQUI ---
-    # Importa a função de log e registra o evento de login bem-sucedido.
+    # Importa a função de log e registra o evento de login.
     from operations.audit_logger import log_action
     log_action(
         action="USER_LOGIN",
