@@ -204,6 +204,37 @@ class MatrixManager:
             logger.error(f"Falha ao adicionar novo usuário: {e}")
             return False
 
+    def update_user(self, original_email: str, updates: dict) -> bool:
+        """Atualiza os dados de um usuário pelo e-mail original."""
+        if self.users_df.empty or not original_email:
+            return False
+        
+        user_row = self.users_df[self.users_df['email'] == original_email.lower().strip()]
+        if user_row.empty:
+            return False
+            
+        row_to_update_in_sheet = user_row.index[0] + 2
+        
+        try:
+            sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
+            # gspread update_cells precisa de uma lista de células para atualizar
+            header = sheet_ops._get_worksheet("usuarios").row_values(1)
+            cells_to_update = []
+            for col_name, new_value in updates.items():
+                if col_name in header:
+                    col_index = header.index(col_name) + 1
+                    cells_to_update.append(gspread.Cell(row_to_update_in_sheet, col_index, new_value))
+            
+            if cells_to_update:
+                sheet_ops._get_worksheet("usuarios").update_cells(cells_to_update)
+                log_action("UPDATE_USER", {"email": original_email, "updates": updates})
+                load_matrix_sheets_data.clear()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Falha ao atualizar usuário '{original_email}': {e}")
+            return False
+            
     def remove_user(self, user_email: str) -> bool:
         if self.users_df.empty or not user_email: return False
         user_email_clean = user_email.lower().strip()
