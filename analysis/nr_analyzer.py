@@ -12,22 +12,18 @@ from AI.api_Operation import PDFQA
 from operations.action_plan import ActionPlanManager
 from operations.sheet import SheetOperations 
 
-@st.cache_data(ttl=3600) # Cache de 1 hora
+@st.cache_data(ttl=3600)
 def load_preprocessed_rag_base() -> tuple[pd.DataFrame, np.ndarray | None]:
     """
     Carrega o DataFrame e os embeddings pré-processados de arquivos locais.
-    Esta função é cacheada para performance entre sessões.
     """
     try:
-        # O Pandas lê o arquivo .pkl para recriar o DataFrame
         df = pd.read_pickle("rag_dataframe.pkl")
-        # O NumPy lê o arquivo .npy para carregar o array de embeddings
         embeddings = np.load("rag_embeddings.npy")
-        
         st.toast("Base de conhecimento carregada.", icon="🧠")
         return df, embeddings
     except FileNotFoundError:
-        st.error("ERRO CRÍTICO: Arquivos da base de conhecimento ('rag_dataframe.pkl' ou 'rag_embeddings.npy') não encontrados. Execute o script 'preprocess_rag.py' e faça o upload dos arquivos para o repositório.")
+        st.error("ERRO CRÍTICO: Arquivos da base de conhecimento ('rag_dataframe.pkl' ou 'rag_embeddings.npy') não encontrados.")
         return pd.DataFrame(), None
     except Exception as e:
         st.error(f"Falha ao carregar a base de conhecimento pré-processada: {e}")
@@ -41,7 +37,6 @@ class NRAnalyzer:
         self.pdf_analyzer = PDFQA()
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.action_plan_manager = ActionPlanManager(spreadsheet_id)
-        # Apenas verifica se a chave de API do Gemini existe para a busca de queries
         try:
             if not st.secrets.get("general", {}).get("GEMINI_AUDIT_KEY"):
                  st.warning("Chave 'GEMINI_AUDIT_KEY' não encontrada. A busca na base de conhecimento será desativada.")
@@ -50,8 +45,7 @@ class NRAnalyzer:
 
     def _ensure_rag_base_is_loaded(self):
         """
-        Verifica se a base RAG está na sessão. Se não estiver, chama a função
-        de carregamento pesado (cacheada) e armazena o resultado na sessão.
+        Verifica se a base RAG está na sessão. Se não, carrega dos arquivos locais.
         """
         if 'rag_df' not in st.session_state or 'rag_embeddings' not in st.session_state:
             with st.spinner("Carregando e preparando a base de conhecimento..."):
@@ -59,8 +53,7 @@ class NRAnalyzer:
                 st.session_state.rag_df = rag_df
                 st.session_state.rag_embeddings = rag_embeddings
         
-        # Verifica se o carregamento foi bem-sucedido
-        return not st.session_state.rag_df.empty and st.session_state.rag_embeddings is not None
+        return st.session_state.rag_df is not None and not st.session_state.rag_df.empty and st.session_state.rag_embeddings is not None
 
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
         if not self._ensure_rag_base_is_loaded():
@@ -69,15 +62,17 @@ class NRAnalyzer:
         rag_df = st.session_state.rag_df
         rag_embeddings = st.session_state.rag_embeddings
 
+        # A verificação agora é feita na variável local
+        if rag_df.empty or rag_embeddings is None or rag_embeddings.size == 0:
+            return "Base de conhecimento indisponível ou não indexada."
+
         try:
-            # A única chamada à API do Gemini que resta é para gerar o embedding da PERGUNTA do usuário
             query_embedding_result = genai.embed_content(
                 model='models/gemini-embedding-001',
                 content=[query_text]
             )
             query_embedding = np.array(query_embedding_result['embedding'])
             
-            # Calcula a similaridade e encontra os melhores resultados
             similarities = cosine_similarity(query_embedding, rag_embeddings)[0]
             top_k_indices = similarities.argsort()[-top_k:][::-1]
             relevant_chunks = rag_df.iloc[top_k_indices]
