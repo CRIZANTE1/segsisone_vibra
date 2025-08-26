@@ -29,12 +29,12 @@ from gdrive.config import get_credentials_dict
 from google.oauth2.service_account import Credentials
 
 @st.cache_data(ttl=3600)
-def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
+def _execute_embedding_process(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
     """
-    Carrega a planilha RAG e gera embeddings em lotes para respeitar os limites da API.
+    Função interna e cacheada que executa o processo pesado de carregar e gerar embeddings
+    usando o modelo gemini-embedding-001, com st.spinner em vez de progress bar.
     """
     try:
-        # Carrega os dados da planilha (código existente, está correto)
         scopes = ['https://www.googleapis.com/auth/spreadsheets']
         creds_dict = get_credentials_dict()
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
@@ -47,41 +47,35 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
             st.error("A planilha RAG está vazia ou não contém a coluna 'Answer_Chunk'.")
             return pd.DataFrame(), None
 
-        # --- 2. LÓGICA DE BATCHING APLICADA AQUI ---
+        # --- LÓGICA DE BATCHING COM SPINNER ---
         all_embeddings = []
         chunks_to_embed = df["Answer_Chunk"].tolist()
         batch_size = 90
         
-        progress_bar = st.progress(0, text=f"Indexando a base de conhecimento ({len(chunks_to_embed)} itens)...")
-        
-        for i in range(0, len(chunks_to_embed), batch_size):
-            batch = chunks_to_embed[i:i + batch_size]
-            
-            # Atualiza a barra de progresso
-            progress_bar.progress(i / len(chunks_to_embed), text=f"Processando lote {i//batch_size + 1}...")
-            
-            # Faz a chamada para o lote atual
-            result = genai.embed_content(
-                model='models/gemini-embedding-001',
-                content=batch
-            )
-            all_embeddings.extend(result['embedding'])
-            time.sleep(1)
-            
-            # Pausa de 1 segundo entre os lotes para não exceder o limite de 15 RPM
-            time.sleep(1)
+        # Usa st.spinner para mostrar uma mensagem de carregamento
+        with st.spinner(f"Indexando a base de conhecimento pela primeira vez ({len(chunks_to_embed)} itens)..."):
+            for i in range(0, len(chunks_to_embed), batch_size):
+                batch = chunks_to_embed[i:i + batch_size]
+                
+                # Faz a chamada para o lote atual
+                result = genai.embed_content(
+                    model='models/gemini-embedding-001',
+                    content=batch
+                )
+                all_embeddings.extend(result['embedding'])
+                
+                # Pausa para não exceder o limite de requisições por minuto
+                time.sleep(1)
 
-        
         embeddings = np.array(all_embeddings)
         
+        # A mensagem de sucesso aparecerá quando o 'with st.spinner' terminar
         st.success("Base de conhecimento indexada e pronta para uso!")
         return df, embeddings
 
     except Exception as e:
         st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
-        st.warning("Verifique sua chave de API e os limites de quota. Se o erro persistir, considere habilitar o faturamento no seu projeto Google Cloud.")
         return pd.DataFrame(), None
-
 class NRAnalyzer:
     def __init__(self, spreadsheet_id: str):
         """
