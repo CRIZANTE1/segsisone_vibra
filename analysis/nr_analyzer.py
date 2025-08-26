@@ -12,10 +12,12 @@ from AI.api_Operation import PDFQA
 from operations.action_plan import ActionPlanManager
 from operations.sheet import SheetOperations 
 
+# --- FUNÇÃO DE CARREGAMENTO LOCAL (CACHEADA) ---
 @st.cache_data(ttl=3600)
 def load_preprocessed_rag_base() -> tuple[pd.DataFrame, np.ndarray | None]:
     """
     Carrega o DataFrame e os embeddings pré-processados de arquivos locais.
+    Esta função é cacheada para performance entre sessões.
     """
     try:
         df = pd.read_pickle("rag_dataframe.pkl")
@@ -32,50 +34,37 @@ def load_preprocessed_rag_base() -> tuple[pd.DataFrame, np.ndarray | None]:
 class NRAnalyzer:
     def __init__(self, spreadsheet_id: str):
         """
-        Inicialização rápida. Não carrega a base RAG aqui.
+        Inicialização robusta que carrega a base RAG dos arquivos locais
+        e a armazena como atributos da classe.
         """
         self.pdf_analyzer = PDFQA()
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.action_plan_manager = ActionPlanManager(spreadsheet_id)
+        
+        self.rag_df, self.rag_embeddings = load_preprocessed_rag_base()
+        
         try:
             if not st.secrets.get("general", {}).get("GEMINI_AUDIT_KEY"):
                  st.warning("Chave 'GEMINI_AUDIT_KEY' não encontrada. A busca na base de conhecimento será desativada.")
         except Exception:
             pass
 
-    def _ensure_rag_base_is_loaded(self):
-        """
-        Verifica se a base RAG está na sessão. Se não, carrega dos arquivos locais.
-        """
-        if 'rag_df' not in st.session_state or 'rag_embeddings' not in st.session_state:
-            with st.spinner("Carregando e preparando a base de conhecimento..."):
-                rag_df, rag_embeddings = load_preprocessed_rag_base()
-                st.session_state.rag_df = rag_df
-                st.session_state.rag_embeddings = rag_embeddings
-        
-        return st.session_state.rag_df is not None and not st.session_state.rag_df.empty and st.session_state.rag_embeddings is not None
-
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
-        if not self._ensure_rag_base_is_loaded():
-            return "Base de conhecimento indisponível."
-
-        rag_df = st.session_state.rag_df
-        rag_embeddings = st.session_state.rag_embeddings
-
-        # A verificação agora é feita na variável local
-        if rag_df.empty or rag_embeddings is None or rag_embeddings.size == 0:
+        # A verificação agora é feita diretamente nos atributos da classe
+        if self.rag_df.empty or self.rag_embeddings is None or self.rag_embeddings.size == 0:
             return "Base de conhecimento indisponível ou não indexada."
 
         try:
+            # A única chamada à API do Gemini que resta é para gerar o embedding da PERGUNTA
             query_embedding_result = genai.embed_content(
                 model='models/gemini-embedding-001',
                 content=[query_text]
             )
             query_embedding = np.array(query_embedding_result['embedding'])
             
-            similarities = cosine_similarity(query_embedding, rag_embeddings)[0]
+            similarities = cosine_similarity(query_embedding, self.rag_embeddings)[0]
             top_k_indices = similarities.argsort()[-top_k:][::-1]
-            relevant_chunks = rag_df.iloc[top_k_indices]
+            relevant_chunks = self.rag_df.iloc[top_k_indices]
             
             return "\n\n---\n\n".join(relevant_chunks['Answer_Chunk'].tolist())
         except Exception as e:
