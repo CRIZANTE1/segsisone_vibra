@@ -50,7 +50,7 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
         # --- 2. LÓGICA DE BATCHING APLICADA AQUI ---
         all_embeddings = []
         chunks_to_embed = df["Answer_Chunk"].tolist()
-        batch_size = 99
+        batch_size = 90
         
         progress_bar = st.progress(0, text=f"Indexando a base de conhecimento ({len(chunks_to_embed)} itens)...")
         
