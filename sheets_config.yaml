@@ -1,4 +1,5 @@
-
+# sheets_config.yaml
+# Template para a criação de novas planilhas de unidade.
 
 empresas:
   - id
@@ -79,3 +80,13 @@ auditorias:
   - item_de_verificacao
   - Status
   - observacao
+
+funcoes:
+  - id
+  - nome_funcao
+  - descricao
+
+matriz_treinamentos:
+  - id
+  - id_funcao
+  - norma_obrigatoria
