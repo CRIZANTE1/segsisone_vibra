@@ -1,120 +1,101 @@
 import streamlit as st
 import pandas as pd
-import tempfile
-import os
+import numpy as np
+import google.generativeai as genai
 import re
 import json
-import numpy as np
+import tempfile
+import os
+from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
-import google.generativeai as genai
-import random
-import gspread
 from AI.api_Operation import PDFQA
-from gdrive.config import get_credentials_dict
 from operations.action_plan import ActionPlanManager
 from operations.sheet import SheetOperations 
-from google.oauth2.service_account import Credentials
-from datetime import datetime
-import time
 
-
-@st.cache_data(ttl=3600)
-def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | None]:
+@st.cache_data(ttl=3600) # Cache de 1 hora
+def load_preprocessed_rag_base() -> tuple[pd.DataFrame, np.ndarray | None]:
     """
-    Carrega a planilha RAG e gera embeddings em lotes com uma pausa conservadora
-    para respeitar os limites da API do Gemini, usando st.spinner.
+    Carrega o DataFrame e os embeddings pré-processados de arquivos locais.
+    Esta função é cacheada para performance entre sessões.
     """
     try:
-        # Carrega os dados da planilha
-        scopes = ['https://www.googleapis.com/auth/spreadsheets']
-        creds_dict = get_credentials_dict()
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        gc = gspread.authorize(creds)
-        spreadsheet = gc.open_by_key(sheet_id)
-        worksheet = spreadsheet.sheet1
-        df = pd.DataFrame(worksheet.get_all_records())
-
-        if df.empty or "Answer_Chunk" not in df.columns:
-            st.error("A planilha RAG está vazia ou não contém a coluna 'Answer_Chunk'.")
-            return pd.DataFrame(), None
-
-        all_embeddings = []
-        chunks_to_embed = df["Answer_Chunk"].tolist()
-        batch_size = 90
+        # O Pandas lê o arquivo .pkl para recriar o DataFrame
+        df = pd.read_pickle("rag_dataframe.pkl")
+        # O NumPy lê o arquivo .npy para carregar o array de embeddings
+        embeddings = np.load("rag_embeddings.npy")
         
-        # --- LÓGICA COM SPINNER E PAUSA MAIOR ---
-        with st.spinner(f"Indexando a base de conhecimento ({len(chunks_to_embed)} itens)... Este processo pode levar alguns minutos na primeira vez."):
-            for i in range(0, len(chunks_to_embed), batch_size):
-                batch = chunks_to_embed[i:i + batch_size]
-                
-                result = genai.embed_content(
-                    model='models/gemini-embedding-001',
-                    content=batch
-                )
-                all_embeddings.extend(result['embedding'])
-                
-                # Pausa aumentada para 6 segundos para ser mais conservador (10 RPM)
-                time.sleep(6)
-
-        embeddings = np.array(all_embeddings)
-        
-        st.success("Base de conhecimento indexada e pronta para uso!")
+        st.toast("Base de conhecimento carregada.", icon="🧠")
         return df, embeddings
-
-    except Exception as e:
-        st.error(f"Falha ao carregar e gerar embeddings para a base RAG: {e}")
-        st.warning("Verifique sua chave de API e os limites de quota. Se o erro persistir, a única solução pode ser habilitar o faturamento no seu projeto Google Cloud para aumentar os limites da API.")
+    except FileNotFoundError:
+        st.error("ERRO CRÍTICO: Arquivos da base de conhecimento ('rag_dataframe.pkl' ou 'rag_embeddings.npy') não encontrados. Execute o script 'preprocess_rag.py' e faça o upload dos arquivos para o repositório.")
         return pd.DataFrame(), None
-
+    except Exception as e:
+        st.error(f"Falha ao carregar a base de conhecimento pré-processada: {e}")
+        return pd.DataFrame(), None
 
 class NRAnalyzer:
     def __init__(self, spreadsheet_id: str):
         """
-        Inicializa o analisador com o ID da planilha da unidade.
+        Inicialização rápida. Não carrega a base RAG aqui.
         """
         self.pdf_analyzer = PDFQA()
-        # Agora, ele cria suas próprias dependências, corrigindo o erro.
         self.sheet_ops = SheetOperations(spreadsheet_id)
         self.action_plan_manager = ActionPlanManager(spreadsheet_id)
-
-        self.rag_sheet_id = None
-        self.rag_df = pd.DataFrame()
-        self.rag_embeddings = np.array([])
-        
+        # Apenas verifica se a chave de API do Gemini existe para a busca de queries
         try:
-            self.rag_sheet_id = st.secrets.app_settings.get("rag_sheet_id")
-            if not self.rag_sheet_id:
-                st.error("ID da planilha RAG ('rag_sheet_id') não encontrado nos secrets.")
-            else:
-                self.rag_df, self.rag_embeddings = load_and_embed_rag_base(self.rag_sheet_id)
-        except (AttributeError, KeyError):
-            st.error("Seção [app_settings] com 'rag_sheet_id' não encontrada no secrets.toml.")
+            if not st.secrets.get("general", {}).get("GEMINI_AUDIT_KEY"):
+                 st.warning("Chave 'GEMINI_AUDIT_KEY' não encontrada. A busca na base de conhecimento será desativada.")
+        except Exception:
+            pass
+
+    def _ensure_rag_base_is_loaded(self):
+        """
+        Verifica se a base RAG está na sessão. Se não estiver, chama a função
+        de carregamento pesado (cacheada) e armazena o resultado na sessão.
+        """
+        if 'rag_df' not in st.session_state or 'rag_embeddings' not in st.session_state:
+            with st.spinner("Carregando e preparando a base de conhecimento..."):
+                rag_df, rag_embeddings = load_preprocessed_rag_base()
+                st.session_state.rag_df = rag_df
+                st.session_state.rag_embeddings = rag_embeddings
+        
+        # Verifica se o carregamento foi bem-sucedido
+        return not st.session_state.rag_df.empty and st.session_state.rag_embeddings is not None
 
     def _find_semantically_relevant_chunks(self, query_text: str, top_k: int = 5) -> str:
-        if self.rag_df.empty or self.rag_embeddings is None or self.rag_embeddings.size == 0:
-            return "Base de conhecimento indisponível ou não indexada."
+        if not self._ensure_rag_base_is_loaded():
+            return "Base de conhecimento indisponível."
+
+        rag_df = st.session_state.rag_df
+        rag_embeddings = st.session_state.rag_embeddings
 
         try:
+            # A única chamada à API do Gemini que resta é para gerar o embedding da PERGUNTA do usuário
             query_embedding_result = genai.embed_content(
-                model='gemini-embedding-001',
-                content=[query_text],
+                model='models/gemini-embedding-001',
+                content=[query_text]
             )
             query_embedding = np.array(query_embedding_result['embedding'])
-            similarities = cosine_similarity(query_embedding, self.rag_embeddings)[0]
+            
+            # Calcula a similaridade e encontra os melhores resultados
+            similarities = cosine_similarity(query_embedding, rag_embeddings)[0]
             top_k_indices = similarities.argsort()[-top_k:][::-1]
-            relevant_chunks = self.rag_df.iloc[top_k_indices]
-            context_text = "\n\n---\n\n".join(relevant_chunks['Answer_Chunk'].tolist())
-            return context_text
+            relevant_chunks = rag_df.iloc[top_k_indices]
+            
+            return "\n\n---\n\n".join(relevant_chunks['Answer_Chunk'].tolist())
         except Exception as e:
-            st.warning(f"Erro durante a busca semântica: {e}")
+            st.warning(f"Erro durante a busca semântica (verifique a chave de API): {e}")
             return "Erro ao buscar chunks relevantes na base de conhecimento."
 
     def perform_initial_audit(self, doc_info: dict, file_content: bytes) -> dict | None:
         doc_type = doc_info.get("type", "documento")
         norma = doc_info.get("norma", "")
-        query = f"Quais são os principais requisitos de conformidade, validade e conteúdo para um {doc_type} da norma {norma}?"
-
-        relevant_knowledge = self._find_semantically_relevant_chunks(query, top_k=5)
+        query = f"Quais são os principais requisitos de conformidade para um {doc_type} da norma {norma}?"
+        
+        relevant_knowledge = self._find_semantically_relevant_chunks(query, top_k=7)
+        
+        if "Base de conhecimento indisponível" in relevant_knowledge:
+             return {"summary": "Falha na Auditoria", "details": [{"item_verificacao": "Base de conhecimento indisponível.", "status": "Não Conforme"}]}
 
         prompt = self._get_advanced_audit_prompt(doc_info, relevant_knowledge)
         
@@ -123,8 +104,7 @@ class NRAnalyzer:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
                 temp_file.write(file_content)
                 temp_path = temp_file.name
-
-            analysis_result, _ = self.pdf_analyzer.answer_question([temp_path], prompt)
+            analysis_result, _ = self.pdf_analyzer.answer_question([temp_path], prompt, task_type='audit')
             return self._parse_advanced_audit_result(analysis_result) if analysis_result else None
         finally:
             if temp_path and os.path.exists(temp_path):
