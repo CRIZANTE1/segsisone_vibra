@@ -205,43 +205,21 @@ class MatrixManager:
             return False
 
     def remove_user(self, user_email: str) -> bool:
-        """
-        Remove um usuário da Planilha Matriz pelo e-mail e registra a ação no log.
-        """
-        if self.users_df.empty or not user_email:
-            return False
-        
+        if self.users_df.empty or not user_email: return False
         user_email_clean = user_email.lower().strip()
         user_row = self.users_df[self.users_df['email'] == user_email_clean]
-        
         if user_row.empty:
-            # Adiciona um log de aviso para facilitar a depuração
             logger.warning(f"Tentativa de remover usuário inexistente: {user_email_clean}")
             return False
-        
-        # O gspread precisa do índice da linha (começando em 1) + 1 (cabeçalho)
         row_to_delete_in_sheet = user_row.index[0] + 2
-        
         try:
             sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
             success = sheet_ops.excluir_linha_por_indice("usuarios", row_to_delete_in_sheet)
-            
             if success:
-                # A sua chamada de log, que está correta
-                log_action(
-                    action="REMOVE_USER",
-                    details={
-                        "message": f"Usuário '{user_email_clean}' foi removido do sistema.",
-                        "removed_user_email": user_email_clean
-                    }
-                )
-                
+                log_action("REMOVE_USER", {"removed_user_email": user_email_clean})
                 load_matrix_sheets_data.clear()
-                logger.info(f"Usuário '{user_email_clean}' removido. Cache invalidado.")
                 return True
-                
             return False
-            
         except Exception as e:
             logger.error(f"Falha ao remover usuário '{user_email_clean}': {e}")
             return False
