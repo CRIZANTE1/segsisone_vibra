@@ -189,6 +189,7 @@ def show_admin_page():
     is_global_view = st.session_state.get('unit_name') == 'Global'
     
     if is_global_view:
+        # --- LÓGICA PARA VISÃO GLOBAL ---
         tab_list = ["Dashboard Global", "Logs de Auditoria", "Provisionar Unidade"]
         tab_dashboard, tab_logs, tab_provision = st.tabs(tab_list)
 
@@ -241,25 +242,28 @@ def show_admin_page():
         st.stop()
 
     # --- CÓDIGO PARA VISÃO DE UNIDADE ESPECÍFICA ---
-    unit_name = st.session_state.get('unit_name', 'Nenhuma')
-    st.header(f"Gerenciamento da Unidade: '{unit_name}'")
+    else:
+        unit_name = st.session_state.get('unit_name', 'Nenhuma')
+        st.header(f"Gerenciamento da Unidade: '{unit_name}'")
 
-    if not st.session_state.get('managers_initialized'):
-        st.warning("Aguardando a inicialização dos dados da unidade...")
-        st.stop()
+        if not st.session_state.get('managers_initialized'):
+            st.warning("Aguardando a inicialização dos dados da unidade...")
+            st.stop()
 
-    employee_manager = st.session_state.employee_manager
-    matrix_manager_unidade = st.session_state.matrix_manager_unidade
-    nr_analyzer = st.session_state.nr_analyzer
+        employee_manager = st.session_state.employee_manager
+        matrix_manager_unidade = st.session_state.matrix_manager_unidade
+        nr_analyzer = st.session_state.nr_analyzer
 
-    st.subheader("Visão Geral de Pendências da Unidade")
-    display_minimalist_metrics(employee_manager)
-    st.divider()
+        st.subheader("Visão Geral de Pendências da Unidade")
+        display_minimalist_metrics(employee_manager)
+        st.divider()
 
-    tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
-    tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
+        # --- CORREÇÃO APLICADA AQUI ---
+        # A criação das abas agora está dentro do bloco 'else'
+        tab_list_unidade = ["Gerenciar Empresas", "Gerenciar Funcionários", "Gerenciar Matriz", "Assistente de Matriz (IA)"]
+        tab_empresa, tab_funcionario, tab_matriz, tab_recomendacoes = st.tabs(tab_list_unidade)
 
-    with tab_empresa:
+        with tab_empresa:
             with st.expander("➕ Cadastrar Nova Empresa"):
                 with st.form("form_add_company", clear_on_submit=True):
                     company_name = st.text_input("Nome da Empresa")
