@@ -50,7 +50,7 @@ def _execute_embedding_process(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray 
         # --- LÓGICA DE BATCHING COM SPINNER ---
         all_embeddings = []
         chunks_to_embed = df["Answer_Chunk"].tolist()
-        batch_size = 90
+        batch_size = 50
         
         # Usa st.spinner para mostrar uma mensagem de carregamento
         with st.spinner(f"Indexando a base de conhecimento pela primeira vez ({len(chunks_to_embed)} itens)..."):
