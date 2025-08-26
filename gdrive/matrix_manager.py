@@ -147,13 +147,37 @@ class MatrixManager:
             return True
         return False
 
+    def add_unit(self, unit_data: list) -> bool:
+        """Adiciona uma nova unidade usando adc_linha_simples e limpa o cache."""
+        try:
+            sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
+            # --- CORREÇÃO APLICADA AQUI ---
+            # Usa o novo método que não adiciona um ID automático
+            success = sheet_ops.adc_linha_simples("unidades", unit_data)
+            if success:
+                load_matrix_sheets_data.clear()
+                logger.info("Nova unidade adicionada. Cache da Planilha Matriz invalidado.")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Falha ao adicionar nova unidade: {e}")
+            return False
+
     def add_user(self, user_data: list) -> bool:
-        sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-        result = sheet_ops.adc_dados_aba("usuarios", user_data)
-        if result:
-            load_matrix_sheets_data.clear()
-            return True
-        return False
+        """Adiciona um novo usuário usando adc_linha_simples e limpa o cache."""
+        try:
+            sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
+            # --- CORREÇÃO APLICADA AQUI ---
+            # Usa o novo método que não adiciona um ID automático
+            success = sheet_ops.adc_linha_simples("usuarios", user_data)
+            if success:
+                load_matrix_sheets_data.clear()
+                logger.info(f"Novo usuário adicionado. Cache da Planilha Matriz invalidado.")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Falha ao adicionar novo usuário: {e}")
+            return False
 
     # --- Métodos para Matriz de Treinamentos ---
     def find_closest_function(self, employee_cargo: str, score_cutoff: int = 80) -> str | None:
