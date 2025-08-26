@@ -47,8 +47,7 @@ def load_aggregated_data():
 
 def display_global_summary_dashboard(companies_df, employees_df, asos_df, trainings_df, company_docs_df):
     """
-    Calcula e exibe o dashboard de resumo executivo com a contagem de pendências corrigida,
-    gráficos e detalhamento completo, com correção para IDs duplicados.
+    Calcula e exibe o dashboard de resumo executivo com a contagem de pendências e detalhamento corrigidos.
     """
     st.header("Dashboard de Resumo Executivo Global")
 
@@ -128,17 +127,18 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
                 df_consolidated['Total'] = df_consolidated.sum(axis=1)
                 st.dataframe(df_consolidated.sort_values(by='Total', ascending=False), use_container_width=True)
 
-            # --- 6. Detalhamento da Unidade Mais Crítica ---
+            # --- 6. Detalhamento da Unidade Mais Crítica (LÓGICA CORRIGIDA) ---
             most_critical_unit = df_consolidated.sum(axis=1).idxmax()
             st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
 
             # --- CORREÇÃO APLICADA AQUI ---
-            # Remove duplicatas dos IDs antes de criar os mapeamentos para evitar o InvalidIndexError
-            employees_unique = active_employees.drop_duplicates(subset=['id'])
-            companies_unique = active_companies.drop_duplicates(subset=['id'])
+            # Filtra os dados para a unidade crítica ANTES de criar os mapeamentos
+            unit_active_companies = active_companies[active_companies['unidade'] == most_critical_unit]
+            unit_active_employees = active_employees[active_employees['unidade'] == most_critical_unit]
 
-            employee_to_company_id = employees_unique.set_index('id')['empresa_id']
-            company_id_to_name = companies_unique.set_index('id')['nome']
+            # Agora, os mapeamentos são específicos da unidade e não terão IDs duplicados ou de outras unidades
+            employee_to_company_id = unit_active_employees.set_index('id')['empresa_id']
+            company_id_to_name = unit_active_companies.set_index('id')['nome']
             
             pendencies_by_company = {}
 
