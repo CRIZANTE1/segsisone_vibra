@@ -71,7 +71,7 @@ def load_and_embed_rag_base(sheet_id: str) -> tuple[pd.DataFrame, np.ndarray | N
             # Pausa de 1 segundo entre os lotes para não exceder o limite de 15 RPM
             time.sleep(1)
 
-        progress_bar.empty()
+        
         embeddings = np.array(all_embeddings)
         
         st.success("Base de conhecimento indexada e pronta para uso!")
