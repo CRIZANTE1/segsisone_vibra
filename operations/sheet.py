@@ -197,3 +197,17 @@ class SheetOperations:
             logger.error(f"Erro ao adicionar linha na aba '{aba_name}': {e}", exc_info=True)
             st.error(f"Erro ao adicionar dados: {e}")
             return False
+
+  
+    def excluir_linha_por_indice(self, aba_name: str, row_index: int) -> bool:
+        """Exclui uma linha de uma aba pelo seu número de índice."""
+        worksheet = self._get_worksheet(aba_name)
+        if not worksheet: return False
+        try:
+            worksheet.delete_rows(row_index)
+            st.cache_data.clear() # Limpa o cache de dados do Streamlit
+            logger.info(f"Linha {row_index} da aba '{aba_name}' excluída com sucesso.")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao excluir linha {row_index} da aba '{aba_name}': {e}", exc_info=True)
+            return False
