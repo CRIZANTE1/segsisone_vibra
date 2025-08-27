@@ -262,7 +262,7 @@ def show_admin_page():
             matrix_manager_global = GlobalMatrixManager()
             logs_df = matrix_manager_global.get_audit_logs()
             if not logs_df.empty:
-                st.dataframe(logs_df.sort_values(by='timestamp', ascending=False), use_container_width=True, hide_index=True)
+                st.dataframe(logs_df.sort_values(by='timestamp', ascending=False), width='stretch', hide_index=True)
             else:
                 st.info("Nenhum registro de log encontrado.")
         
@@ -314,7 +314,8 @@ def show_admin_page():
                     all_users_df,
                     column_config={"delete_action": st.column_config.CheckboxColumn("Excluir?")},
                     disabled=["email", "nome", "role", "unidade_associada"],
-                    use_container_width=True, hide_index=True, key="user_editor"
+                    width='stretch', # <-- CORREÇÃO
+                    hide_index=True, key="user_editor"
                 )
                 
                 users_to_delete = edited_df[edited_df['delete_action']]
@@ -377,7 +378,8 @@ def show_admin_page():
                                     st.rerun()
             else:
                 st.info("Nenhuma empresa para exibir.")
-                
+
+    
     with tab_funcionario:
         with st.expander("➕ Cadastrar Novo Funcionário"):
             active_companies = employee_manager.companies_df[employee_manager.companies_df['status'].str.lower() == 'ativo']
