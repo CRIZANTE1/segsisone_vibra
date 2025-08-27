@@ -1,5 +1,5 @@
 import streamlit as st
-from .auth_utils import is_oidc_available, is_user_logged_in, get_user_display_name
+from .auth_utils import is_oidc_available, is_user_logged_in, get_user_display_name, get_user_email
 from operations.audit_logger import log_action
 
 def show_login_page():
@@ -44,21 +44,22 @@ def show_logout_button():
     """Mostra o botão de logout no sidebar e registra o evento."""
     with st.sidebar:
         if st.button("Sair do Sistema"):
-
+            # Coleta o e-mail ANTES de fazer o logout
             user_email_to_log = get_user_email()
             
             # Registra o evento de logout
-            log_action(
-                action="USER_LOGOUT",
-                details={
-                    "message": f"Usuário '{user_email_to_log}' deslogado do sistema."
-                }
-            )
+            if user_email_to_log:
+                log_action(
+                    action="USER_LOGOUT",
+                    details={
+                        "message": f"Usuário '{user_email_to_log}' deslogado do sistema."
+                    }
+                )
             
             # Continua com a lógica de logout
             try:
                 st.logout()
-                # Limpar a sessão manualmente como fallback, caso st.logout() não limpe tudo
+                # Limpar a sessão manualmente como fallback
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
@@ -68,3 +69,4 @@ def show_logout_button():
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
+
