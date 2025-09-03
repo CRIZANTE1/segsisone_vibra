@@ -15,13 +15,14 @@ logger = logging.getLogger('segsisone_app.company_docs_manager')
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str, folder_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id # Armazena o ID
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self.data_loaded_successfully = False
         self.docs_df = pd.DataFrame()
         self.audit_df = pd.DataFrame()
         self.load_company_data()
-        self._pdf_analyzer = None
+        self._pdf_analyzer = Non
 
     def upload_documento_e_obter_link(self, arquivo, novo_nome: str):
         """
@@ -45,42 +46,27 @@ class CompanyDocsManager:
         return self._pdf_analyzer
 
     def load_company_data(self):
-        logger.info("Iniciando o carregamento dos dados de documentos da empresa e auditorias.")
-        docs_cols = ['id', 'empresa_id', 'tipo_documento', 'data_emissao', 'vencimento', 'arquivo_id']
-        audit_cols = ["id", "id_auditoria", "data_auditoria", "id_empresa", "id_documento_original", 
-                      "id_funcionario", "tipo_documento", "norma_auditada", 
-                      "item_de_verificacao", "Status", "observacao"]
-        
+        logger.info("Iniciando o carregamento dos dados de documentos (via cache).")
         try:
-            # Carregar documentos da empresa
-            docs_data = self.sheet_ops.carregar_dados_aba("documentos_empresa")
-            if docs_data and len(docs_data) > 1:
-                self.docs_df = pd.DataFrame(docs_data[1:], columns=docs_data[0])
-            else:
-                self.docs_df = pd.DataFrame(columns=docs_cols)
+            # Carregar usando os loaders cacheados
+            self.docs_df = load_company_docs_df(self.spreadsheet_id)
+            self.audit_df = load_audits_df(self.spreadsheet_id)
 
-            # --- CORREÇÃO APLICADA AQUI: TRATAMENTO CENTRALIZADO DE DATAS ---
-            if not self.docs_df.empty:
+            if not self.docs_df.empty and 'data_emissao' in self.docs_df.columns:
                 self.docs_df['data_emissao'] = pd.to_datetime(self.docs_df['data_emissao'], format='%d/%m/%Y', errors='coerce')
                 self.docs_df['vencimento'] = pd.to_datetime(self.docs_df['vencimento'], format='%d/%m/%Y', errors='coerce')
-                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados e datas tratadas de 'documentos_empresa'.")
+                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados de 'documentos_empresa'.")
 
-            # Carregar auditorias
-            audit_data = self.sheet_ops.carregar_dados_aba("auditorias")
-            if audit_data and len(audit_data) > 1:
-                header = audit_data[0]
-                self.audit_df = pd.DataFrame(audit_data[1:], columns=header)
-                logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
-            else:
-                self.audit_df = pd.DataFrame(columns=audit_cols)
+            if not self.audit_df.empty:
+                 logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
 
             self.data_loaded_successfully = True
             
         except Exception as e:
-            logger.error(f"FALHA CRÍTICA ao carregar e processar dados da empresa: {str(e)}", exc_info=True)
+            logger.error(f"FALHA CRÍTICA ao carregar dados da empresa via cache: {str(e)}", exc_info=True)
             st.error(f"Erro ao carregar dados essenciais da empresa: {str(e)}")
-            self.docs_df = pd.DataFrame(columns=docs_cols)
-            self.audit_df = pd.DataFrame(columns=audit_cols)
+            self.docs_df = pd.DataFrame()
+            self.audit_df = pd.DataFrame()
             self.data_loaded_successfully = False
 
     
