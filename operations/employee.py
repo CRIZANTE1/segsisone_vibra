@@ -29,6 +29,7 @@ class EmployeeManager:
     def __init__(self, spreadsheet_id: str, folder_id: str):
         logger.info(f"Inicializando EmployeeManager para spreadsheet_id: ...{spreadsheet_id[-6:]}")
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id 
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self._pdf_analyzer = None
