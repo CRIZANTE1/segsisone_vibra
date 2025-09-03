@@ -14,6 +14,9 @@ from operations.audit_logger import log_action
 from auth.auth_utils import get_user_email
 from fuzzywuzzy import process
 import logging
+from operations.cached_loaders import (
+    load_companies_df, load_employees_df, load_asos_df, load_trainings_df
+)
 
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
