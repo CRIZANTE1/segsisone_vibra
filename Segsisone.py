@@ -50,7 +50,7 @@ def initialize_managers():
         logger.info(f"Trocando de unidade. Inicializando managers para a unidade: ...{unit_id[-6:]}")
         with st.spinner("Configurando ambiente da unidade..."):
             st.session_state.employee_manager = EmployeeManager(unit_id, folder_id)
-            st.session_state.docs_manager = CompanyDocsManager(unit_id)
+            st.session_state.docs_manager = CompanyDocsManager(unit_id, folder_id)
             st.session_state.epi_manager = EPIManager(unit_id)
             st.session_state.action_plan_manager = ActionPlanManager(unit_id)
             st.session_state.nr_analyzer = NRAnalyzer(unit_id)

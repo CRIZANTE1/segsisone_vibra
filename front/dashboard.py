@@ -296,11 +296,37 @@ def show_dashboard_page():
                                         selected_company, doc_info['tipo_documento'], 
                                         doc_info['data_emissao'], doc_info['vencimento'], arquivo_id
                                     )
-                                    if doc_id:
+                                                                         if doc_id:
                                         st.success("Documento da empresa salvo com sucesso!")
+                                        
+                                        # --- INÍCIO DA CORREÇÃO ---
+                                        # Após salvar o doc, verifica se há não conformidades para criar o plano de ação
+                                        audit_result = doc_info.get('audit_result', {})
+                                        if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                            action_plan_manager = st.session_state.action_plan_manager
+                                            non_conformities = [
+                                                item for item in audit_result.get('details', []) 
+                                                if item.get('status', '').lower() == 'não conforme'
+                                            ]
+                                            
+                                            if non_conformities:
+                                                st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
+                                                audit_run_id = audit_result.get('audit_run_id', f"doc_{doc_id}")
+                                                
+                                                for item_details in non_conformities:
+                                                    action_plan_manager.add_action_item(
+                                                        audit_run_id=audit_run_id,
+                                                        company_id=selected_company,
+                                                        doc_id=doc_id,
+                                                        item_details=item_details
+                                                    )
+                                                st.success("Itens de ação criados com sucesso!")
+                                        # --- FIM DA CORREÇÃO ---
+
                                         # Limpa o estado para a próxima submissão
                                         for key in ['Doc. Empresa_info_para_salvar', 'Doc. Empresa_anexo_para_salvar']:
                                             if key in st.session_state: del st.session_state[key]
+                                        
                                         st.rerun()
                                     else:
                                         st.error("Falha ao salvar os dados na planilha.")
@@ -346,8 +372,33 @@ def show_dashboard_page():
                                     if arquivo_id:
                                         aso_data = {**aso_info, 'funcionario_id': emp_id, 'arquivo_id': arquivo_id}
                                         aso_id = employee_manager.add_aso(aso_data)
-                                        if aso_id:
+                                                                                 if aso_id:
                                             st.success("ASO salvo com sucesso!")
+
+                                            # --- INÍCIO DA CORREÇÃO ---
+                                            audit_result = aso_info.get('audit_result', {})
+                                            if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                                action_plan_manager = st.session_state.action_plan_manager
+                                                non_conformities = [
+                                                    item for item in audit_result.get('details', [])
+                                                    if item.get('status', '').lower() == 'não conforme'
+                                                ]
+
+                                                if non_conformities:
+                                                    st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
+                                                    audit_run_id = audit_result.get('audit_run_id', f"aso_{aso_id}")
+                                                    
+                                                    for item_details in non_conformities:
+                                                        action_plan_manager.add_action_item(
+                                                            audit_run_id=audit_run_id,
+                                                            company_id=selected_company,
+                                                            doc_id=aso_id,
+                                                            item_details=item_details,
+                                                            employee_id=emp_id
+                                                        )
+                                                    st.success("Itens de ação criados com sucesso!")
+                                            # --- FIM DA CORREÇÃO ---
+
                                             for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar']:
                                                 if key in st.session_state: del st.session_state[key]
                                             st.rerun()
@@ -397,8 +448,33 @@ def show_dashboard_page():
                                     if arquivo_id:
                                         training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
                                         training_id = employee_manager.add_training(training_data)
-                                        if training_id:
+                                                                                 if training_id:
                                             st.success("Treinamento salvo com sucesso!")
+
+                                            # --- INÍCIO DA CORREÇÃO ---
+                                            audit_result = training_info.get('audit_result', {})
+                                            if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                                action_plan_manager = st.session_state.action_plan_manager
+                                                non_conformities = [
+                                                    item for item in audit_result.get('details', [])
+                                                    if item.get('status', '').lower() == 'não conforme'
+                                                ]
+
+                                                if non_conformities:
+                                                    st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
+                                                    audit_run_id = audit_result.get('audit_run_id', f"trn_{training_id}")
+
+                                                    for item_details in non_conformities:
+                                                        action_plan_manager.add_action_item(
+                                                            audit_run_id=audit_run_id,
+                                                            company_id=selected_company,
+                                                            doc_id=training_id,
+                                                            item_details=item_details,
+                                                            employee_id=emp_id
+                                                        )
+                                                    st.success("Itens de ação criados com sucesso!")
+                                            # --- FIM DA CORREÇÃO ---
+
                                             for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
                                                 if key in st.session_state: del st.session_state[key]
                                             st.rerun()

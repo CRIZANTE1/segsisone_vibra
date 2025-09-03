@@ -8,18 +8,35 @@ from AI.api_Operation import PDFQA
 import tempfile
 import os
 from operations.audit_logger import log_action
-
+from gdrive.google_api_manager import GoogleApiManager
 
 logger = logging.getLogger('segsisone_app.company_docs_manager')
 
 class CompanyDocsManager:
-    def __init__(self, spreadsheet_id: str):
+    def __init__(self, spreadsheet_id: str, folder_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.folder_id = folder_id
+        self.api_manager = GoogleApiManager()
         self.data_loaded_successfully = False
         self.docs_df = pd.DataFrame()
         self.audit_df = pd.DataFrame()
         self.load_company_data()
         self._pdf_analyzer = None
+
+    def upload_documento_e_obter_link(self, arquivo, novo_nome: str):
+        """
+        Faz o upload de um arquivo para a pasta da unidade e retorna o link.
+        """
+        if not self.folder_id:
+            st.error("O ID da pasta desta unidade não está definido. Não é possível fazer o upload.")
+            return None
+        return self.api_manager.upload_file(self.folder_id, arquivo, novo_nome)
+
+    @property
+    def pdf_analyzer(self):
+        if self._pdf_analyzer is None:
+            self._pdf_analyzer = PDFQA()
+        return self._pdf_analyzer
 
     @property
     def pdf_analyzer(self):

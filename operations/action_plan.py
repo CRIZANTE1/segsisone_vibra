@@ -43,22 +43,25 @@ class ActionPlanManager:
         item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
         full_description = f"{item_title.strip()}: {item_observation.strip()}"
         
+        # --- INÍCIO DA CORREÇÃO ---
+        # Garante que o employee_id seja uma string ou uma string vazia
+        employee_id_str = str(employee_id) if employee_id and pd.notna(employee_id) else ""
 
         new_data = [
             str(audit_run_id),                      # Coluna 2: audit_run_id
             str(company_id),                        # Coluna 3: id_empresa
             str(doc_id),                            # Coluna 4: id_documento_original
-            full_description,                       # Coluna 5: item_nao_conforme
-            item_details.get('referencia', ''),     # Coluna 6: referencia_normativa
-            "",                                     # Coluna 7: plano_de_acao (inicialmente vazio)
-            "",                                     # Coluna 8: responsavel (inicialmente vazio)
-            "",                                     # Coluna 9: prazo (inicialmente vazio)
-            "Aberto",                               # Coluna 10: status
-            date.today().strftime("%d/%m/%Y"),      # Coluna 11: data_criacao
-            ""                                      # Coluna 12: data_conclusao (inicialmente vazio)
+            employee_id_str,                        # Coluna 5: id_funcionario
+            full_description,                       # Coluna 6: item_nao_conforme
+            item_details.get('referencia', ''),     # Coluna 7: referencia_normativa
+            "",                                     # Coluna 8: plano_de_acao (inicialmente vazio)
+            "",                                     # Coluna 9: responsavel (inicialmente vazio)
+            "",                                     # Coluna 10: prazo (inicialmente vazio)
+            "Aberto",                               # Coluna 11: status
+            date.today().strftime("%d/%m/%Y"),      # Coluna 12: data_criacao
+            ""                                      # Coluna 13: data_conclusao (inicialmente vazio)
         ]
-        
-
+        # --- FIM DA CORREÇÃO ---
         
         print(f"DEBUG: Tentando adicionar ao plano de ação: {new_data}")
         item_id = self.sheet_ops.adc_dados_aba("plano_acao", new_data)
