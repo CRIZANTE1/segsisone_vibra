@@ -362,10 +362,12 @@ class NRAnalyzer:
         created_count = 0
         
         for item in actionable_items:
-
             if self.action_plan_manager.add_action_item(
                 audit_run_id, company_id, doc_id, item, employee_id=employee_id
             ):
                 created_count += 1
-                
+        
+        if created_count > 0:
+            st.info(f"{created_count} item(ns) de não conformidade foram adicionados ao Plano de Ação.")
+        
         return created_count
