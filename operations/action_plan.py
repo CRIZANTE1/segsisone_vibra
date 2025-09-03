@@ -39,38 +39,42 @@ class ActionPlanManager:
         """
         Adiciona um novo item ao plano de ação, garantindo a correspondência exata com as colunas da planilha.
         """
+        if not self.data_loaded_successfully:
+            st.error("Não é possível adicionar item de ação, pois os dados da planilha não foram carregados.")
+            return None
+    
         item_title = item_details.get('item_verificacao', 'Não conformidade não especificada')
         item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
         full_description = f"{item_title.strip()}: {item_observation.strip()}"
         
+        # A ordem agora corresponde exatamente à estrutura self.columns (ignorando 'id' que é adicionado automaticamente)
+        # ['audit_run_id', 'id_empresa', 'id_documento_original', 'id_funcionario', 'item_nao_conforme', ...]
         new_data = [
-            str(audit_run_id),                      # Coluna 2: audit_run_id
-            str(company_id),                        # Coluna 3: id_empresa
-            str(doc_id),                            # Coluna 4: id_documento_original
-            full_description,                       # Coluna 5: item_nao_conforme
-            item_details.get('referencia', ''),     # Coluna 6: referencia_normativa
-            "",                                     # Coluna 7: plano_de_acao (inicialmente vazio)
-            "",                                     # Coluna 8: responsavel (inicialmente vazio)
-            "",                                     # Coluna 9: prazo (inicialmente vazio)
-            "Aberto",                               # Coluna 10: status
-            date.today().strftime("%d/%m/%Y"),      # Coluna 11: data_criacao
-            ""                                      # Coluna 12: data_conclusao (inicialmente vazio)
+            str(audit_run_id),                                  # audit_run_id
+            str(company_id),                                    # id_empresa
+            str(doc_id),                                        # id_documento_original
+            str(employee_id) if employee_id else "",            # id_funcionario (CORRIGIDO)
+            full_description,                                   # item_nao_conforme
+            item_details.get('referencia_normativa', ''),       # referencia_normativa (CORRIGIDO)
+            "",                                                 # plano_de_acao
+            "",                                                 # responsavel
+            "",                                                 # prazo
+            "Aberto",                                           # status
+            date.today().strftime("%d/%m/%Y"),                  # data_criacao
+            ""                                                  # data_conclusao
         ]
         
-        print(f"DEBUG: Tentando adicionar ao plano de ação: {new_data}")
         item_id = self.sheet_ops.adc_dados_aba("plano_acao", new_data)
         
         if item_id:
-            print(f"DEBUG: Sucesso! Novo ID do item de ação: {item_id}")
             st.toast(f"Item de ação '{item_title}' criado com sucesso!", icon="✅")
             log_action("CREATE_ACTION_ITEM", {
                 "item_id": item_id, "company_id": company_id,
                 "original_doc_id": doc_id, "description": full_description
             })
-            self.load_data()
+            self.load_data() # Recarrega os dados para refletir a nova adição
             return item_id
         else:
-            print("DEBUG: Falha! A função adc_dados_aba retornou None.")
             st.error("Falha crítica: Não foi possível salvar o item no Plano de Ação na planilha.")
             return None
 
