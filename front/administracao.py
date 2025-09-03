@@ -10,7 +10,6 @@ from gdrive.google_api_manager import GoogleApiManager
 from operations.audit_logger import log_action
 
 @st.cache_data(ttl=300)
-@st.cache_data(ttl=300)
 def load_aggregated_data():
     """
     Carrega e agrega dados de TODAS as unidades, incluindo a conversão e tratamento
@@ -97,16 +96,20 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         st.info("Nenhuma empresa encontrada em todas as unidades. Não há dados para exibir.")
         return
 
+    # --- 1. Filtra para entidades ATIVAS primeiro ---
     active_companies = companies_df[companies_df['status'].str.lower() == 'ativo'].copy()
     if active_companies.empty:
-        st.info("Nenhuma empresa ativa encontrada. O dashboard de pendências considera apenas entidades ativas.")
+        st.info("Nenhuma empresa ativa encontrada. O dashboard considera apenas entidades ativas.")
         return
-
-    active_employees = employees_df[employees_df['status'].str.lower() == 'ativo'].copy()
+    
+    active_employees = pd.DataFrame()
+    if not employees_df.empty:
+        active_employees = employees_df[employees_df['status'].str.lower() == 'ativo'].copy()
+    
     if active_employees.empty:
-        st.warning("Nenhum funcionário ativo encontrado em todas as unidades. As pendências de funcionários (ASOs, Treinamentos) não serão calculadas.")
+        st.warning("Nenhum funcionário ativo encontrado. Pendências de ASOs e Treinamentos não serão calculadas.")
 
-    # --- 2. Métricas Gerais (baseadas em ativos) ---
+    # --- 2. Métricas Gerais ---
     total_units = companies_df['unidade'].nunique()
     total_active_companies = len(active_companies)
     total_active_employees = len(active_employees)
@@ -117,29 +120,25 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("Total de Funcionários Ativos", total_active_employees)
     st.divider()
 
-    # --- 3. Cálculo de Pendências (Lógica Robusta e Segura) ---
+    # --- 3. Cálculo de Pendências (Lógica Robusta) ---
     today = date.today()
     expired_asos, expired_trainings, expired_company_docs = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    # Processar ASOs Vencidos
-    if not asos_df.empty and not active_employees.empty and 'vencimento' in asos_df.columns:
+    if not asos_df.empty and not active_employees.empty:
         asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees['id'])].copy()
-        asos_actives.dropna(subset=['vencimento'], inplace=True) # Verifica se a data não é nula
+        asos_actives.dropna(subset=['vencimento'], inplace=True)
         if not asos_actives.empty:
             latest_asos = asos_actives.sort_values('data_aso', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
-            # A comparação agora é direta com .dt.date
             expired_asos = latest_asos[latest_asos['vencimento'].dt.date < today]
 
-    # Processar Treinamentos Vencidos
-    if not trainings_df.empty and not active_employees.empty and 'vencimento' in trainings_df.columns:
+    if not trainings_df.empty and not active_employees.empty:
         trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees['id'])].copy()
         trainings_actives.dropna(subset=['vencimento'], inplace=True)
         if not trainings_actives.empty:
             latest_trainings = trainings_actives.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
             expired_trainings = latest_trainings[latest_trainings['vencimento'].dt.date < today]
 
-    # Processar Documentos da Empresa Vencidos
-    if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
+    if not company_docs_df.empty:
         docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies['id'])].copy()
         docs_actives.dropna(subset=['vencimento'], inplace=True)
         if not docs_actives.empty:
@@ -151,7 +150,7 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
         st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades ativas.")
         return
 
-    # --- 4. Métricas por Categoria de Pendência ---
+    # --- 4. Métricas por Categoria ---
     st.subheader("Total de Pendências por Categoria (Entidades Ativas)")
     col1, col2, col3 = st.columns(3)
     col1.metric("🩺 ASOs Vencidos", len(expired_asos))
@@ -159,90 +158,92 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("📄 Docs. Empresa Vencidos", len(expired_company_docs))
     st.divider()
 
-    # --- 5. Consolidação e Gráfico de Barras (Lógica Robusta) ---
+    # --- 5. Consolidação e Gráfico de Barras (LÓGICA FINAL E CORRIGIDA) ---
     st.subheader("Gráfico de Pendências por Unidade Operacional")
 
-    # Cria um DataFrame mestre com todas as unidades únicas que possuem empresas ativas
-    active_unit_names = active_companies['unidade'].unique()
-    df_consolidated = pd.DataFrame(active_unit_names, columns=['unidade']).set_index('unidade')
-
-    # Conta pendências para cada categoria e faz um join seguro
+    # Coleta todas as contagens em uma lista
+    counts_list = []
     if not expired_asos.empty:
-        aso_counts = expired_asos.groupby('unidade').size().rename("ASOs Vencidos")
-        df_consolidated = df_consolidated.join(aso_counts)
-
+        counts_list.append(expired_asos.groupby('unidade').size().rename("ASOs Vencidos"))
     if not expired_trainings.empty:
-        training_counts = expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos")
-        df_consolidated = df_consolidated.join(training_counts)
-
+        counts_list.append(expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos"))
     if not expired_company_docs.empty:
-        doc_counts = expired_company_docs.groupby('unidade').size().rename("Docs. Empresa Vencidos")
-        df_consolidated = df_consolidated.join(doc_counts)
+        counts_list.append(expired_company_docs.groupby('unidade').size().rename("Docs. Empresa Vencidos"))
     
-    # Limpeza final: preenche com 0 onde não há pendências e remove unidades sem pendências
-    df_consolidated.fillna(0, inplace=True)
-    df_consolidated = df_consolidated.astype(int)
+    # Concatena apenas se houver o que contar
+    if not counts_list:
+        st.info("Nenhuma pendência encontrada para gerar o gráfico.")
+        return
+
+    df_consolidated = pd.concat(counts_list, axis=1).fillna(0).astype(int)
+    
+    # **A CORREÇÃO CRÍTICA ESTÁ AQUI**
+    # Garante que qualquer linha com soma zero seja removida ANTES de qualquer outra operação
     df_consolidated = df_consolidated[df_consolidated.sum(axis=1) > 0]
 
-    if not df_consolidated.empty:
-        st.bar_chart(df_consolidated)
-        with st.expander("Ver tabela de dados de pendências consolidada"):
-            df_consolidated['Total'] = df_consolidated.sum(axis=1)
-            st.dataframe(df_consolidated.sort_values(by='Total', ascending=False), use_container_width=True)
+    # Agora, verifica se o DataFrame ainda tem dados APÓS a remoção dos zeros
+    if df_consolidated.empty:
+        # Este caso ocorre se havia pendências, mas elas foram filtradas (caso raro)
+        # A mensagem de sucesso no início já deve ter capturado isso, mas é uma segurança extra.
+        st.success("Todas as pendências foram resolvidas ou filtradas. Gráfico não será exibido.")
+        return
 
-        # --- 6. Detalhamento da Unidade Mais Crítica (Lógica Corrigida) ---
-        most_critical_unit = df_consolidated.sum(axis=1).idxmax()
-        st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
+    st.bar_chart(df_consolidated)
+    with st.expander("Ver tabela de dados de pendências consolidada"):
+        df_with_total = df_consolidated.copy()
+        df_with_total['Total'] = df_with_total.sum(axis=1)
+        st.dataframe(df_with_total.sort_values(by='Total', ascending=False), use_container_width=True)
 
-        # Filtra os dados para a unidade crítica ANTES de criar os mapeamentos
-        unit_active_companies = active_companies[active_companies['unidade'] == most_critical_unit]
-        unit_active_employees = active_employees[active_employees['unidade'] == most_critical_unit]
+    # --- 6. Detalhamento da Unidade Mais Crítica (Lógica já corrigida anteriormente) ---
+    most_critical_unit = df_consolidated.sum(axis=1).idxmax()
+    st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
 
-        # Mapeamentos específicos da unidade para evitar conflitos de ID
-        employee_to_company_id = unit_active_employees.set_index('id')['empresa_id']
-        company_id_to_name = unit_active_companies.set_index('id')['nome']
-        
-        pendencies_by_company = {}
+    # A lógica abaixo já foi corrigida e está correta, dependendo de um df_consolidated limpo.
+    unit_active_companies = active_companies[active_companies['unidade'] == most_critical_unit]
+    unit_active_employees = active_employees[active_employees['unidade'] == most_critical_unit]
 
-        # Detalhamento de ASOs
-        if not expired_asos.empty:
-            expired_asos_unit = expired_asos[expired_asos['unidade'] == most_critical_unit].copy()
-            if not expired_asos_unit.empty:
-                expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(employee_to_company_id)
-                expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(company_id_to_name)
-                expired_asos_unit.dropna(subset=['nome_empresa'], inplace=True)
-                aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
-                for comp, count in aso_counts.items():
-                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+    employee_to_company_id = unit_active_employees.set_index('id')['empresa_id']
+    company_id_to_name = unit_active_companies.set_index('id')['nome']
+    
+    pendencies_by_company = {}
 
-        # Detalhamento de Treinamentos
-        if not expired_trainings.empty:
-            expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
-            if not expired_trainings_unit.empty:
-                expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(employee_to_company_id)
-                expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(company_id_to_name)
-                expired_trainings_unit.dropna(subset=['nome_empresa'], inplace=True)
-                training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
-                for comp, count in training_counts.items():
-                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+    # Detalhamento de ASOs
+    if not expired_asos.empty:
+        expired_asos_unit = expired_asos[expired_asos['unidade'] == most_critical_unit].copy()
+        if not expired_asos_unit.empty:
+            expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(employee_to_company_id)
+            expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(company_id_to_name)
+            expired_asos_unit.dropna(subset=['nome_empresa'], inplace=True)
+            aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in aso_counts.items():
+                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
-        # Detalhamento de Documentos da Empresa
-        if not expired_company_docs.empty:
-            expired_docs_unit = expired_company_docs[expired_company_docs['unidade'] == most_critical_unit].copy()
-            if not expired_docs_unit.empty:
-                expired_docs_unit['nome_empresa'] = expired_docs_unit['empresa_id'].map(company_id_to_name)
-                expired_docs_unit.dropna(subset=['nome_empresa'], inplace=True)
-                doc_counts = expired_docs_unit.groupby('nome_empresa').size().to_dict()
-                for comp, count in doc_counts.items():
-                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+    # Detalhamento de Treinamentos
+    if not expired_trainings.empty:
+        expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
+        if not expired_trainings_unit.empty:
+            expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(employee_to_company_id)
+            expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(company_id_to_name)
+            expired_trainings_unit.dropna(subset=['nome_empresa'], inplace=True)
+            training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in training_counts.items():
+                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
-        if pendencies_by_company:
-            company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
-            st.dataframe(company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), use_container_width=True, hide_index=True)
-        else:
-            st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
+    # Detalhamento de Documentos da Empresa
+    if not expired_company_docs.empty:
+        expired_docs_unit = expired_company_docs[expired_company_docs['unidade'] == most_critical_unit].copy()
+        if not expired_docs_unit.empty:
+            expired_docs_unit['nome_empresa'] = expired_docs_unit['empresa_id'].map(company_id_to_name)
+            expired_docs_unit.dropna(subset=['nome_empresa'], inplace=True)
+            doc_counts = expired_docs_unit.groupby('nome_empresa').size().to_dict()
+            for comp, count in doc_counts.items():
+                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+
+    if pendencies_by_company:
+        company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
+        st.dataframe(company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), use_container_width=True, hide_index=True)
     else:
-        st.info("Nenhuma unidade com pendências a ser exibida no gráfico.")
+        st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
         
 @st.dialog("Gerenciar Usuário")
 def user_dialog(user_data=None):
