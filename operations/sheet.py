@@ -217,3 +217,21 @@ class SheetOperations:
         except Exception as e:
             logger.error(f"Erro ao excluir linha {row_index} da aba '{aba_name}': {e}", exc_info=True)
             return False
+
+    def get_df_from_worksheet(self, aba_name: str) -> pd.DataFrame:
+        """
+        Carrega dados de uma aba e os retorna diretamente como um DataFrame do Pandas.
+        Retorna um DataFrame vazio se a aba não tiver dados ou não for encontrada.
+        """
+        logger.info(f"Tentando obter DataFrame para a aba: '{aba_name}'.")
+        data = self.carregar_dados_aba(aba_name)
+        if data and len(data) > 1:
+            header = data[0]
+            df = pd.DataFrame(data[1:], columns=header)
+            logger.info(f"DataFrame para '{aba_name}' criado com sucesso com {len(df)} linhas.")
+            return df
+        
+        logger.warning(f"Não foi possível criar DataFrame para a aba '{aba_name}'. Retornando DataFrame vazio.")
+        return pd.DataFrame()
+
+    
