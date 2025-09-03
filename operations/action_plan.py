@@ -35,36 +35,36 @@ class ActionPlanManager:
 
     def add_action_item(self, audit_run_id, company_id, doc_id, item_details, employee_id=None):
         """
-        Adiciona um novo item ao plano de ação.
+        Adiciona um novo item ao plano de ação e fornece feedback visual.
         """
         item_title = item_details.get('item_verificacao', 'Não conformidade não especificada')
         item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
         full_description = f"{item_title.strip()}: {item_observation.strip()}"
         
-        # Monta a linha na ordem correta das colunas
         new_data = [
-            str(audit_run_id),
-            str(company_id),
-            str(doc_id),
-            str(employee_id) if employee_id else "", # id_funcionario
-            full_description, # item_nao_conforme
-            item_details.get('referencia', ''), # referencia_normativa
-            "",  # plano_de_acao (inicialmente vazio)
-            "",  # responsavel (inicialmente vazio)
-            "",  # prazo (inicialmente vazio)
-            "Aberto", # status
-            date.today().strftime("%d/%m/%Y"), # data_criacao
-            ""   # data_conclusao (inicialmente vazio)
+            str(audit_run_id), str(company_id), str(doc_id),
+            str(employee_id) if employee_id else "",
+            full_description, item_details.get('referencia', ''),
+            "", "", "", "Aberto",
+            date.today().strftime("%d/%m/%Y"), ""
         ]
         
+        print(f"DEBUG: Tentando adicionar ao plano de ação: {new_data}")
         item_id = self.sheet_ops.adc_dados_aba("plano_acao", new_data)
+        
         if item_id:
+            print(f"DEBUG: Sucesso! Novo ID do item de ação: {item_id}")
+            st.toast(f"Item de ação '{item_title}' criado com sucesso!", icon="✅")
             log_action("CREATE_ACTION_ITEM", {
                 "item_id": item_id, "company_id": company_id,
                 "original_doc_id": doc_id, "description": full_description
             })
-            self.load_data() # Recarrega os dados
-        return item_id
+            self.load_data()
+            return item_id
+        else:
+            print("DEBUG: Falha! A função adc_dados_aba retornou None.")
+            st.error("Falha crítica: Não foi possível salvar o item no Plano de Ação na planilha.")
+            return None
 
     def update_action_item(self, item_id, updates: dict):
         if 'prazo' in updates and isinstance(updates['prazo'], date):
