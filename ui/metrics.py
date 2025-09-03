@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 from operations.employee import EmployeeManager
 
+
 def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
     today = date.today()
     metrics = {
@@ -19,43 +20,47 @@ def calculate_overall_metrics(employee_manager: EmployeeManager) -> dict:
     metrics['total_companies'] = len(companies_df)
     pendencies_by_company = {}
     
-    # --- CORREÇÃO AQUI: Definimos o mapeamento no início ---
     # Garante que a variável sempre exista, mesmo que vazia.
     if not employee_manager.employees_df.empty:
         employee_to_company = employee_manager.employees_df.set_index('id')['empresa_id']
     else:
-        employee_to_company = pd.Series()
+        employee_to_company = pd.Series(dtype=str) # Cria uma Series vazia, mas definida
 
     # Processar ASOs Vencidos
     if not employee_manager.aso_df.empty:
         asos = employee_manager.aso_df.copy()
-        asos['vencimento_dt'] = pd.to_datetime(asos['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        latest_asos = asos[~asos['tipo_aso'].str.lower().isin(['demissional'])].dropna(subset=['vencimento_dt'])
-        if not latest_asos.empty:
-            latest_asos = latest_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1)
-            expired_asos = latest_asos[latest_asos['vencimento_dt'] < today].copy()
-            
-            if not expired_asos.empty and not employee_to_company.empty:
-                expired_asos.loc[:, 'empresa_id'] = expired_asos['funcionario_id'].map(employee_to_company)
-                aso_pendencies = expired_asos.groupby('empresa_id').size()
-                for company_id, count in aso_pendencies.items():
-                    pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
+        # Garante que a coluna de data exista antes de usar
+        if 'vencimento' in asos.columns:
+            asos['vencimento_dt'] = pd.to_datetime(asos['vencimento'], errors='coerce').dt.date
+            latest_asos = asos[~asos['tipo_aso'].str.lower().isin(['demissional'])].dropna(subset=['vencimento_dt'])
+            if not latest_asos.empty:
+                latest_asos = latest_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1)
+                expired_asos = latest_asos[latest_asos['vencimento_dt'] < today].copy()
+                
+                # Adiciona a verificação de segurança
+                if not expired_asos.empty and not employee_to_company.empty:
+                    expired_asos['empresa_id'] = expired_asos['funcionario_id'].map(employee_to_company)
+                    aso_pendencies = expired_asos.groupby('empresa_id').size()
+                    for company_id, count in aso_pendencies.items():
+                        pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
 
     # Processar Treinamentos Vencidos
     if not employee_manager.training_df.empty:
         trainings = employee_manager.training_df.copy()
-        trainings['vencimento_dt'] = pd.to_datetime(trainings['vencimento'], format='%d/%m/%Y', errors='coerce').dt.date
-        latest_trainings = trainings.dropna(subset=['vencimento_dt'])
-        if not latest_trainings.empty:
-            latest_trainings = latest_trainings.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
-            expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today].copy()
-            
-            if not expired_trainings.empty and not employee_to_company.empty:
-                # Agora esta linha funcionará, pois 'employee_to_company' sempre existe
-                expired_trainings.loc[:, 'empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
-                training_pendencies = expired_trainings.groupby('empresa_id').size()
-                for company_id, count in training_pendencies.items():
-                    pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
+        # Garante que a coluna de data exista antes de usar
+        if 'vencimento' in trainings.columns:
+            trainings['vencimento_dt'] = pd.to_datetime(trainings['vencimento'], errors='coerce').dt.date
+            latest_trainings = trainings.dropna(subset=['vencimento_dt'])
+            if not latest_trainings.empty:
+                latest_trainings = latest_trainings.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
+                expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today].copy()
+                
+                # Adiciona a verificação de segurança
+                if not expired_trainings.empty and not employee_to_company.empty:
+                    expired_trainings['empresa_id'] = expired_trainings['funcionario_id'].map(employee_to_company)
+                    training_pendencies = expired_trainings.groupby('empresa_id').size()
+                    for company_id, count in training_pendencies.items():
+                        pendencies_by_company[company_id] = pendencies_by_company.get(company_id, 0) + count
 
     if pendencies_by_company:
         metrics['companies_with_pendencies'] = len(pendencies_by_company)
