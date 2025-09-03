@@ -349,16 +349,23 @@ class NRAnalyzer:
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str, employee_id: str | None = None):
         if "não conforme" not in audit_result.get("summary", "").lower():
             return 0
+            
         actionable_items = [
             item for item in audit_result.get("details", []) 
             if item.get("status", "").lower() == "não conforme" 
             and "resumo executivo" not in item.get("item_verificacao", "").lower()
         ]
+        
         if not actionable_items: return 0
+        
         audit_run_id = f"audit_{doc_id}_{random.randint(1000, 9999)}"
         created_count = 0
+        
         for item in actionable_items:
-            item['employee_id'] = employee_id if employee_id else 'N/A'
-            if self.action_plan_manager.add_action_item(audit_run_id, company_id, doc_id, item):
+
+            if self.action_plan_manager.add_action_item(
+                audit_run_id, company_id, doc_id, item, employee_id=employee_id
+            ):
                 created_count += 1
+                
         return created_count
