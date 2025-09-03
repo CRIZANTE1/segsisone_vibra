@@ -33,21 +33,32 @@ class ActionPlanManager:
             self.action_plan_df = pd.DataFrame(columns=self.columns)
             self.data_loaded_successfully = False
 
+    # Cole esta função dentro da classe ActionPlanManager, em operations/action_plan.py
+
     def add_action_item(self, audit_run_id, company_id, doc_id, item_details, employee_id=None):
         """
-        Adiciona um novo item ao plano de ação e fornece feedback visual.
+        Adiciona um novo item ao plano de ação, garantindo a correspondência exata com as colunas da planilha.
         """
         item_title = item_details.get('item_verificacao', 'Não conformidade não especificada')
         item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
         full_description = f"{item_title.strip()}: {item_observation.strip()}"
         
+
         new_data = [
-            str(audit_run_id), str(company_id), str(doc_id),
-            str(employee_id) if employee_id else "",
-            full_description, item_details.get('referencia', ''),
-            "", "", "", "Aberto",
-            date.today().strftime("%d/%m/%Y"), ""
+            str(audit_run_id),                      # Coluna 2: audit_run_id
+            str(company_id),                        # Coluna 3: id_empresa
+            str(doc_id),                            # Coluna 4: id_documento_original
+            full_description,                       # Coluna 5: item_nao_conforme
+            item_details.get('referencia', ''),     # Coluna 6: referencia_normativa
+            "",                                     # Coluna 7: plano_de_acao (inicialmente vazio)
+            "",                                     # Coluna 8: responsavel (inicialmente vazio)
+            "",                                     # Coluna 9: prazo (inicialmente vazio)
+            "Aberto",                               # Coluna 10: status
+            date.today().strftime("%d/%m/%Y"),      # Coluna 11: data_criacao
+            ""                                      # Coluna 12: data_conclusao (inicialmente vazio)
         ]
+        
+
         
         print(f"DEBUG: Tentando adicionar ao plano de ação: {new_data}")
         item_id = self.sheet_ops.adc_dados_aba("plano_acao", new_data)
