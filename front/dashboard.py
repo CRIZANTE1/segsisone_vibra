@@ -296,7 +296,7 @@ def show_dashboard_page():
                                         selected_company, doc_info['tipo_documento'], 
                                         doc_info['data_emissao'], doc_info['vencimento'], arquivo_id
                                     )
-                                                                         if doc_id:
+                                    if doc_id:
                                         st.success("Documento da empresa salvo com sucesso!")
                                         
                                         # --- INÍCIO DA CORREÇÃO ---
@@ -372,7 +372,7 @@ def show_dashboard_page():
                                     if arquivo_id:
                                         aso_data = {**aso_info, 'funcionario_id': emp_id, 'arquivo_id': arquivo_id}
                                         aso_id = employee_manager.add_aso(aso_data)
-                                                                                 if aso_id:
+                                        if aso_id:
                                             st.success("ASO salvo com sucesso!")
 
                                             # --- INÍCIO DA CORREÇÃO ---
@@ -448,7 +448,7 @@ def show_dashboard_page():
                                     if arquivo_id:
                                         training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
                                         training_id = employee_manager.add_training(training_data)
-                                                                                 if training_id:
+                                        if training_id:
                                             st.success("Treinamento salvo com sucesso!")
 
                                             # --- INÍCIO DA CORREÇÃO ---
