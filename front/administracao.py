@@ -77,23 +77,31 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     # --- 3. Cálculo de Pendências Corrigido (Apenas o mais recente) ---
     today = date.today()
     
-    expired_asos = pd.DataFrame()
+    # Tratamento seguro de datas
     if not asos_df.empty and 'vencimento' in asos_df.columns:
+        asos_df['vencimento_dt'] = pd.to_datetime(asos_df['vencimento'], errors='coerce').dt.date
+    if not trainings_df.empty and 'vencimento' in trainings_df.columns:
+        trainings_df['vencimento_dt'] = pd.to_datetime(trainings_df['vencimento'], errors='coerce').dt.date
+    if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
+        company_docs_df['vencimento_dt'] = pd.to_datetime(company_docs_df['vencimento'], errors='coerce').dt.date
+
+    expired_asos = pd.DataFrame()
+    if not asos_df.empty and 'vencimento_dt' in asos_df.columns:
         asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees['id'])].copy()
         latest_asos = asos_actives.sort_values('data_aso', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
-        expired_asos = latest_asos[latest_asos['vencimento'].dt.date < today]
+        expired_asos = latest_asos[latest_asos['vencimento_dt'] < today]
 
     expired_trainings = pd.DataFrame()
-    if not trainings_df.empty and 'vencimento' in trainings_df.columns:
+    if not trainings_df.empty and 'vencimento_dt' in trainings_df.columns:
         trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees['id'])].copy()
         latest_trainings = trainings_actives.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
-        expired_trainings = latest_trainings[latest_trainings['vencimento'].dt.date < today]
+        expired_trainings = latest_trainings[latest_trainings['vencimento_dt'] < today]
 
     expired_company_docs = pd.DataFrame()
-    if not company_docs_df.empty and 'vencimento' in company_docs_df.columns:
+    if not company_docs_df.empty and 'vencimento_dt' in company_docs_df.columns:
         docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies['id'])].copy()
         latest_docs = docs_actives.sort_values('data_emissao', ascending=False).groupby(['empresa_id', 'tipo_documento']).head(1)
-        expired_company_docs = latest_docs[latest_docs['vencimento'].dt.date < today]
+        expired_company_docs = latest_docs[latest_docs['vencimento_dt'] < today]
 
     total_pendencies = len(expired_asos) + len(expired_trainings) + len(expired_company_docs)
     if total_pendencies == 0:
