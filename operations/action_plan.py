@@ -91,12 +91,3 @@ class ActionPlanManager:
         if self.action_plan_df.empty:
             return pd.DataFrame()
         return self.action_plan_df[self.action_plan_df['id_empresa'] == str(company_id)]
-s})
-            self.load_data()
-            return True
-        return False
-        
-    def get_action_items_by_company(self, company_id):
-        if self.action_plan_df.empty:
-            return pd.DataFrame()
-        return self.action_plan_df[self.action_plan_df['id_empresa'] == str(company_id)]
