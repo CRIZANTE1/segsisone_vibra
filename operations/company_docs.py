@@ -23,7 +23,7 @@ class CompanyDocsManager:
         self.docs_df = pd.DataFrame()
         self.audit_df = pd.DataFrame()
         self.load_company_data()
-        self._pdf_analyzer = Non
+        self._pdf_analyzer = None
 
     def upload_documento_e_obter_link(self, arquivo, novo_nome: str):
         """
@@ -40,11 +40,6 @@ class CompanyDocsManager:
             self._pdf_analyzer = PDFQA()
         return self._pdf_analyzer
 
-    @property
-    def pdf_analyzer(self):
-        if self._pdf_analyzer is None:
-            self._pdf_analyzer = PDFQA()
-        return self._pdf_analyzer
 
     def load_company_data(self):
         logger.info("Iniciando o carregamento dos dados de documentos (via cache).")
