@@ -31,6 +31,7 @@ class EmployeeManager:
         self._pdf_analyzer = None
         self.data_loaded_successfully = False
         
+        
         self.nr20_config = {
             'Básico': {'reciclagem_anos': 3, 'reciclagem_horas': 4, 'inicial_horas': 8},
             'Intermediário': {'reciclagem_anos': 2, 'reciclagem_horas': 4, 'inicial_horas': 16},
@@ -75,57 +76,39 @@ class EmployeeManager:
 
     def load_data(self):
         """
-        Carrega todos os DataFrames da planilha da unidade e centraliza o tratamento
-        de tipos de dados, especialmente as colunas de data.
+        Carrega todos os DataFrames da planilha da unidade usando os loaders cacheados e robustos.
         """
-        logger.info(f"Carregando dados para spreadsheet_id: ...{self.sheet_ops.spreadsheet.id[-6:] if self.sheet_ops.spreadsheet else 'N/A'}")
-        
+        logger.info(f"Carregando dados via cached_loaders para spreadsheet_id: ...{self.spreadsheet_id[-6:]}")
         try:
-            # Define as colunas esperadas para cada aba, garantindo a criação de DFs vazios corretos
-            company_cols = ['id', 'nome', 'cnpj', 'status']
-            employee_cols = ['id', 'nome', 'empresa_id', 'cargo', 'data_admissao', 'status']
-            aso_cols = ['id', 'funcionario_id', 'data_aso', 'vencimento', 'arquivo_id', 'riscos', 'cargo', 'tipo_aso']
-            training_cols = ['id', 'funcionario_id', 'data', 'vencimento', 'norma', 'modulo', 'status', 'anexo', 'tipo_treinamento', 'carga_horaria']
-
-            # Carrega os dados brutos de cada aba
-            companies_data = self.sheet_ops.carregar_dados_aba("empresas")
-            self.companies_df = pd.DataFrame(companies_data[1:], columns=companies_data[0]) if companies_data and len(companies_data) > 1 else pd.DataFrame(columns=company_cols)
-
-            employees_data = self.sheet_ops.carregar_dados_aba("funcionarios")
-            self.employees_df = pd.DataFrame(employees_data[1:], columns=employees_data[0]) if employees_data and len(employees_data) > 1 else pd.DataFrame(columns=employee_cols)
-
-            aso_data = self.sheet_ops.carregar_dados_aba("asos")
-            self.aso_df = pd.DataFrame(aso_data[1:], columns=aso_data[0]) if aso_data and len(aso_data) > 1 else pd.DataFrame(columns=aso_cols)
-
-            training_data = self.sheet_ops.carregar_dados_aba("treinamentos")
-            self.training_df = pd.DataFrame(training_data[1:], columns=training_data[0]) if training_data and len(training_data) > 1 else pd.DataFrame(columns=training_cols)
+            # Usa as funções cacheadas, passando o ID da planilha
+            self.companies_df = load_companies_df(self.spreadsheet_id)
+            self.employees_df = load_employees_df(self.spreadsheet_id)
+            self.aso_df = load_asos_df(self.spreadsheet_id)
+            self.training_df = load_trainings_df(self.spreadsheet_id)
             
-            # --- TRATAMENTO CENTRALIZADO DE DATAS ---
-            # Converte as colunas de data para o tipo datetime do Pandas.
-            # 'errors=coerce' transforma qualquer valor que não possa ser convertido em NaT (Not a Time).
-            
-            if not self.aso_df.empty:
+            # --- TRATAMENTO CENTRALIZADO DE DATAS (continua o mesmo) ---
+            if not self.aso_df.empty and 'data_aso' in self.aso_df.columns:
                 self.aso_df['data_aso'] = pd.to_datetime(self.aso_df['data_aso'], format='%d/%m/%Y', errors='coerce')
                 self.aso_df['vencimento'] = pd.to_datetime(self.aso_df['vencimento'], format='%d/%m/%Y', errors='coerce')
 
-            if not self.training_df.empty:
+            if not self.training_df.empty and 'data' in self.training_df.columns:
                 self.training_df['data'] = pd.to_datetime(self.training_df['data'], format='%d/%m/%Y', errors='coerce')
                 self.training_df['vencimento'] = pd.to_datetime(self.training_df['vencimento'], format='%d/%m/%Y', errors='coerce')
             
-            if not self.employees_df.empty:
+            if not self.employees_df.empty and 'data_admissao' in self.employees_df.columns:
                 self.employees_df['data_admissao'] = pd.to_datetime(self.employees_df['data_admissao'], format='%d/%m/%Y', errors='coerce')
 
             self.data_loaded_successfully = True
-            logger.info("DataFrames da unidade carregados e datas tratadas com sucesso.")
+            logger.info("DataFrames da unidade carregados (via cache) e datas tratadas com sucesso.")
             
         except Exception as e:
-            logger.error(f"FALHA CRÍTICA ao carregar e tratar dados da unidade: {e}", exc_info=True)
+            logger.error(f"FALHA CRÍTICA ao carregar dados da unidade via cached_loaders: {e}", exc_info=True)
             st.error(f"Erro crítico ao carregar dados da unidade: {e}")
             # Garante que os DFs sejam zerados em caso de erro
-            self.companies_df = pd.DataFrame(columns=company_cols)
-            self.employees_df = pd.DataFrame(columns=employee_cols)
-            self.aso_df = pd.DataFrame(columns=aso_cols)
-            self.training_df = pd.DataFrame(columns=training_cols)
+            self.companies_df = pd.DataFrame()
+            self.employees_df = pd.DataFrame()
+            self.aso_df = pd.DataFrame()
+            self.training_df = pd.DataFrame()
             self.data_loaded_successfully = False
 
     def _parse_flexible_date(self, date_string: str) -> date | None:
