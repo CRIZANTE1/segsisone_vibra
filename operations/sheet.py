@@ -80,19 +80,25 @@ class SheetOperations:
         if not worksheet: return None
         try:
             logger.info(f"Tentando adicionar dados na aba '{aba_name}'...")
+            
+            # Gera um ID único
             existing_ids = worksheet.col_values(1)[1:]
             while True:
                 new_id = random.randint(10000, 99999)
                 if str(new_id) not in existing_ids:
                     break
+            
             full_row_to_add = [new_id] + new_data
             worksheet.append_row(full_row_to_add, value_input_option='USER_ENTERED')
+            
             st.cache_data.clear()
+            
             logger.info(f"Dados adicionados com sucesso na aba '{aba_name}'. ID gerado: {new_id}")
             return new_id
+            
         except Exception as e:
             logger.error(f"Erro ao adicionar dados na aba '{aba_name}': {e}", exc_info=True)
-            st.error(f"Erro ao adicionar dados: {e}")
+            st.error(f"Erro ao adicionar dados na planilha: {e}")
             return None
 
     def update_row_by_id(self, aba_name: str, row_id: str, new_values_dict: dict) -> bool:
