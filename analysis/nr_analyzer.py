@@ -329,15 +329,15 @@ class NRAnalyzer:
             
             if data.get("resumo_executivo"):
                 status_resumo = "Conforme" if "conforme" in summary.lower() else "Não Conforme"
-                details.append({"item_verificacao": "Resumo Executivo da Auditoria", "referencia": "N/A", "observacao": data["resumo_executivo"], "status": status_resumo})
+                details.append({"item_verificacao": "Resumo Executivo da Auditoria", "referencia_normativa": "N/A", "observacao": data["resumo_executivo"], "status": status_resumo})
             
             for item in data.get("pontos_de_nao_conformidade", []):
-                details.append({"item_verificacao": item.get("item", ""), "referencia": item.get("referencia_normativa", ""), "observacao": item.get("observacao", ""), "status": "Não Conforme"})
+                details.append({"item_verificacao": item.get("item", ""), "referencia_normativa": item.get("referencia_normativa", ""), "observacao": item.get("observacao", ""), "status": "Não Conforme"})
 
             for item in data.get("pontos_de_ressalva", []):
                 details.append({
                     "item_verificacao": f"Ressalva: {item.get('item', '')}",
-                    "referencia": item.get("referencia_normativa", ""),
+                    "referencia_normativa": item.get("referencia_normativa", ""),
                     "observacao": item.get("observacao", ""),
                     "status": "Ressalva"
                 })
