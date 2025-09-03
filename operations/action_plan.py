@@ -3,10 +3,13 @@ import pandas as pd
 from datetime import date
 from operations.sheet import SheetOperations
 from operations.audit_logger import log_action
+from operations.cached_loaders import load_action_plan_df
+
 
 class ActionPlanManager:
     def __init__(self, spreadsheet_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
+        self.spreadsheet_id = spreadsheet_id
         # Define a estrutura de colunas esperada (tudo em minúsculas)
         self.columns = [
             'id', 'audit_run_id', 'id_empresa', 'id_documento_original', 'id_funcionario',
@@ -18,14 +21,11 @@ class ActionPlanManager:
 
     def load_data(self):
         try:
-            data = self.sheet_ops.carregar_dados_aba("plano_acao")
-            if data and len(data) > 1:
-                # Garante que os nomes das colunas do DataFrame sejam sempre os esperados
-                header = [h.strip().lower() for h in data[0]]
-                df = pd.DataFrame(data[1:], columns=header)
-                self.action_plan_df = df
-            else:
-                self.action_plan_df = pd.DataFrame(columns=self.columns)
+            # Substitui a lógica antiga
+            self.action_plan_df = load_action_plan_df(self.spreadsheet_id)
+            # Garante que os nomes das colunas estejam em minúsculas para consistência
+            if not self.action_plan_df.empty:
+                self.action_plan_df.columns = [c.strip().lower() for c in self.action_plan_df.columns]
             
             self.data_loaded_successfully = True
         except Exception as e:
