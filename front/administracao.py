@@ -27,7 +27,7 @@ def load_aggregated_data():
         if not spreadsheet_id or not unit_name: continue
         try:
             temp_employee_manager = EmployeeManager(spreadsheet_id, folder_id)
-            temp_docs_manager = CompanyDocsManager(spreadsheet_id)
+            temp_docs_manager = CompanyDocsManager(spreadsheet_id, folder_id)
             data_to_collect = {
                 "companies": temp_employee_manager.companies_df, "employees": temp_employee_manager.employees_df,
                 "asos": temp_employee_manager.aso_df, "trainings": temp_employee_manager.training_df,
