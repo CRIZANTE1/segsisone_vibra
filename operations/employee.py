@@ -52,7 +52,7 @@ class EmployeeManager:
             'NR-33': {'reciclagem_anos': 1},
             'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1},
             'NR-11': {'reciclagem_anos': 3, 'reciclagem_horas': 16},
-            'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 1},
+            'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 2},
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
         
