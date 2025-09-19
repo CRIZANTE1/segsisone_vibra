@@ -1,5 +1,3 @@
-# email_notifier.py
-
 import os
 import sys
 import smtplib
@@ -52,19 +50,15 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
         latest_trainings['vencimento_dt'] = latest_trainings['vencimento'].dt.date
         latest_trainings.dropna(subset=['vencimento_dt'], inplace=True)
         
-    # --- Processamento de ASOs (LÓGICA CORRIGIDA) ---
+    # --- Processamento de ASOs ---
     asos_actives = employee_manager.aso_df[employee_manager.aso_df['funcionario_id'].isin(active_employees['id'])]
     latest_asos = pd.DataFrame()
     if not asos_actives.empty:
-        latest_aptitude_asos = asos_actives[~asos_actives['tipo_aso'].str.lower().isin(['demissional'])]
-        latest_aptitude_asos = latest_aptitude_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1).copy()
-        
-        latest_demissional_asos = asos_actives[asos_actives['tipo_aso'].str.lower().isin(['demissional'])]
-        latest_demissional_asos = latest_demissional_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1).copy()
-        
-        latest_asos = pd.concat([latest_aptitude_asos, latest_demissional_asos], ignore_index=True)
-        latest_asos['vencimento_dt'] = latest_asos['vencimento'].dt.date
-        latest_asos.dropna(subset=['vencimento_dt'], inplace=True)
+        aptitude_asos = asos_actives[~asos_actives['tipo_aso'].str.lower().isin(['demissional'])].copy()
+        if not aptitude_asos.empty:
+            latest_asos = aptitude_asos.sort_values('data_aso', ascending=False).groupby('funcionario_id').head(1).copy()
+            latest_asos['vencimento_dt'] = latest_asos['vencimento'].dt.date
+            latest_asos.dropna(subset=['vencimento_dt'], inplace=True)
 
     # --- Processamento de Documentos da Empresa ---
     docs_actives = docs_manager.docs_df[docs_manager.docs_df['empresa_id'].isin(active_companies['id'])]
@@ -86,7 +80,7 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
     vencidos_docs = latest_company_docs[latest_company_docs['vencimento_dt'] < today]
     vence_30_docs = latest_company_docs[(latest_company_docs['vencimento_dt'] >= today) & (latest_company_docs['vencimento_dt'] <= today + timedelta(days=30))]
 
-    # Adiciona informações de nome/empresa
+    # --- Adiciona informações de nome/empresa ---
     if not active_employees.empty:
         employee_id_to_name = active_employees.set_index('id')['nome']
         employee_id_to_company_name = active_employees.set_index('id')['empresa_id'].map(active_companies.set_index('id')['nome'])
