@@ -49,7 +49,7 @@ Função central para criar, destruir e gerenciar as instâncias dos managers.
 unit_id = st.session_state.get(‘spreadsheet_id’)
 folder_id = st.session_state.get(‘folder_id’)
 
-
+```
 if unit_id and st.session_state.get('managers_unit_id') != unit_id:
     logger.info(f"Trocando de unidade. Inicializando managers para a unidade: ...{unit_id[-6:]}")
     
@@ -294,7 +294,7 @@ if page_to_run:
 else:
     logger.error(f"Página '{selected_page}' não encontrada no menu.")
     st.error("Página não encontrada.")
-
+```
 
 if **name** == “**main**”:
 try:
