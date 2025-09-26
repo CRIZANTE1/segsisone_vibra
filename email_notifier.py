@@ -111,6 +111,7 @@ def format_email_body(categorized_data: dict) -> str:
         table { border-collapse: collapse; width: 100%; margin-bottom: 25px; font-size: 13px; }
         th, td { border: 1px solid #dddddd; padding: 8px 12px; text-align: left; }
         th { background-color: #f2f2f2; }
+        .footer { margin-top: 30px; font-size: 12px; color: #666; text-align: center; }
     </style>
     """
     html_body = f"""
@@ -155,14 +156,26 @@ def format_email_body(categorized_data: dict) -> str:
     if not has_content:
         html_body += "<h2>Nenhuma pendência encontrada!</h2><p>Todos os documentos de todas as unidades estão em dia.</p>"
     
+    # Adiciona rodapé sem identificar o remetente
+    html_body += """
+    <div class="footer">
+        <hr>
+        <p>Este é um e-mail automático do sistema SEGMA-SIS. Por favor, não responda.</p>
+        <p>Para dúvidas sobre este relatório, entre em contato com o administrador do sistema.</p>
+    </div>
+    """
+    
     html_body += "</div></body></html>"
     return html_body
 
 def send_smtp_email(html_body: str, config: dict):
     message = MIMEMultipart("alternative")
-    message["Subject"] = f"Alerta de Vencimentos - SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
-    message["From"] = config["sender_email"]
+    # Configurar o e-mail como "noreply" sem identificar o remetente
+    message["Subject"] = f"Relatório de Vencimentos SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
+    message["From"] = f"SEGMA-SIS Sistema <{config['sender_email']}>"
     message["To"] = config["receiver_email"]
+    message["Reply-To"] = "noreply@exemplo.com"  # E-mail fictício para noreply
+    
     message.attach(MIMEText(html_body, "html", "utf-8"))
 
     context = ssl.create_default_context()
@@ -197,8 +210,9 @@ def main():
             
             print(f"\n--- Processando unidade: {unit_name} ---")
             
-            employee_manager = EmployeeManager(spreadsheet_id, folder_id)
-            docs_manager = CompanyDocsManager(spreadsheet_id)
+            # CORREÇÃO: Adicionar o folder_id ou usar uma string vazia como fallback
+            employee_manager = EmployeeManager(spreadsheet_id, folder_id or "")
+            docs_manager = CompanyDocsManager(spreadsheet_id, folder_id or "")
             
             categorized_data = categorize_expirations_for_unit(employee_manager, docs_manager)
             
