@@ -2,11 +2,15 @@ import streamlit as st
 import os
 import tempfile
 import yaml
-import gspread  
+import gspread
+import logging 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from .config import get_credentials_dict
+
+logger = logging.getLogger('segsisone_app.google_api_manager')
+
 
 class GoogleApiManager:
     """
