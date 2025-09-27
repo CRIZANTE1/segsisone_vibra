@@ -217,8 +217,13 @@ class MatrixManager:
         
         try:
             sheet_ops = SheetOperations(MATRIX_SPREADSHEET_ID)
-            # gspread update_cells precisa de uma lista de células para atualizar
-            header = sheet_ops._get_worksheet("usuarios").row_values(1)
+            worksheet = sheet_ops._get_worksheet("usuarios")
+            if not worksheet:
+                return False
+                
+            import gspread
+            
+            header = worksheet.row_values(1)
             cells_to_update = []
             for col_name, new_value in updates.items():
                 if col_name in header:
@@ -226,7 +231,7 @@ class MatrixManager:
                     cells_to_update.append(gspread.Cell(row_to_update_in_sheet, col_index, new_value))
             
             if cells_to_update:
-                sheet_ops._get_worksheet("usuarios").update_cells(cells_to_update)
+                worksheet.update_cells(cells_to_update)
                 log_action("UPDATE_USER", {"email": original_email, "updates": updates})
                 load_matrix_sheets_data.clear()
                 return True
