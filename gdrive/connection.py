@@ -1,6 +1,6 @@
 import gspread
 import streamlit as st
-from gdrive.config import get_credentials_dict, GDRIVE_SHEETS_ID
+from gdrive.config import get_credentials_dict, MATRIX_SPREADSHEET_ID  
 import logging
 
 def connect_sheet():
@@ -15,7 +15,7 @@ def connect_sheet():
         
         gc = gspread.service_account_from_dict(credentials_dict)
         
-        sheet_url = f"https://docs.google.com/spreadsheets/d/{GDRIVE_SHEETS_ID}"
+        sheet_url = f"https://docs.google.com/spreadsheets/d/{MATRIX_SPREADSHEET_ID}"
         
         logging.info("Conexão com Google Sheets (gspread) estabelecida com sucesso.")
         return gc, sheet_url
@@ -24,3 +24,4 @@ def connect_sheet():
         logging.error(f"Erro ao conectar com Google Sheets via gspread: {e}")
         st.error(f"Erro ao conectar com Google Sheets: {e}")
         return None, None
+
