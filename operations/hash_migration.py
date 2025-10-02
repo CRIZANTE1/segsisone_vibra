@@ -64,10 +64,10 @@ class HashMigration:
         Executa a migração completa para todas as abas necessárias.
         """
         migracoes = {
-            'asos': 6,  # Após 'arquivo_id' (coluna 5)
-            'treinamentos': 9,  # Após 'anexo' (coluna 8)
-            'documentos_empresa': 7,  # Após 'arquivo_id' (coluna 6)
-            'fichas_epi': 8  # Após 'arquivo_id' (coluna 7)
+            'asos': 6,
+            'treinamentos': 9,
+            'documentos_empresa': 7,
+            'fichas_epi': 8
         }
         
         resultados = {}
@@ -81,4 +81,37 @@ class HashMigration:
                 resultados[aba_name] = "✅ Migrado" if sucesso else "❌ Erro"
             else:
                 resultados[aba_name] = "✅ Já atualizado"
-                logger.info(f
+                logger.info(f"Aba '{aba_name}' já possui a coluna 'arquivo_hash'.")
+        
+        return resultados
+
+
+def executar_migracao_em_todas_unidades():
+    """
+    Função auxiliar para executar a migração em todas as unidades do sistema.
+    Chamada pelo painel de administração.
+    """
+    from gdrive.matrix_manager import MatrixManager
+    
+    matrix_manager = MatrixManager()
+    all_units = matrix_manager.get_all_units()
+    
+    resultados_globais = {}
+    
+    for unit in all_units:
+        unit_name = unit.get('nome_unidade')
+        spreadsheet_id = unit.get('spreadsheet_id')
+        
+        if not spreadsheet_id:
+            resultados_globais[unit_name] = {"status": "❌ Erro", "detalhes": "ID da planilha não encontrado"}
+            continue
+        
+        try:
+            migrator = HashMigration(spreadsheet_id)
+            resultados = migrator.executar_migracao_completa()
+            resultados_globais[unit_name] = {"status": "✅ Completo", "detalhes": resultados}
+        except Exception as e:
+            resultados_globais[unit_name] = {"status": "❌ Erro", "detalhes": str(e)}
+            logger.error(f"Erro ao migrar unidade '{unit_name}': {e}")
+    
+    return resultados_globais
