@@ -1,8 +1,9 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import date
 from operations.sheet import SheetOperations
-from operations.audit_logger import log_action
+from operations.audit_logger import log_action, logger
 from operations.cached_loaders import load_action_plan_df
 
 
@@ -21,6 +22,23 @@ class ActionPlanManager:
         
         self.data_loaded_successfully = False
         self.load_data()
+
+    def load_data(self):
+        """Carrega os dados do plano de ação da planilha."""
+        try:
+            self.action_plan_df = load_action_plan_df(self.spreadsheet_id)
+            
+            if not self.action_plan_df.empty:
+                self.data_loaded_successfully = True
+                logger.info(f"Plano de ação carregado: {len(self.action_plan_df)} itens.")
+            else:
+                self.data_loaded_successfully = False
+                logger.warning("Aba 'plano_acao' está vazia.")
+        
+        except Exception as e:
+            logger.error(f"Erro ao carregar plano de ação: {e}")
+            self.action_plan_df = pd.DataFrame(columns=self.columns)
+            self.data_loaded_successfully = False
 
     def add_action_item(self, audit_run_id, company_id, doc_id, item_details, employee_id=None):
         """
@@ -79,3 +97,30 @@ class ActionPlanManager:
         return self.action_plan_df[
             self.action_plan_df['id_funcionario'] == str(employee_id)
         ]
+
+    def get_action_items_by_company(self, company_id: str):
+        """Retorna todos os itens do plano de ação para uma empresa."""
+        if self.action_plan_df.empty:
+            return pd.DataFrame()
+        
+        return self.action_plan_df[
+            self.action_plan_df['id_empresa'] == str(company_id)
+        ].copy()
+
+    def update_action_item(self, item_id: str, updates: dict):
+        """Atualiza um item do plano de ação (ex: status, responsável, prazo)."""
+        if not self.data_loaded_successfully:
+            st.error("Plano de ação não foi carregado corretamente.")
+            return False
+        
+        success = self.sheet_ops.update_row_by_id("plano_acao", item_id, updates)
+        
+        if success:
+            log_action("UPDATE_ACTION_ITEM", {
+                "item_id": item_id,
+                "updated_fields": list(updates.keys())
+            })
+            self.load_data()
+            return True
+        
+        return False

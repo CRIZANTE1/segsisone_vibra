@@ -1,123 +1,121 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-from gdrive.matrix_manager import MatrixManager as GlobalMatrixManager
-from operations.action_plan import ActionPlanManager
-from operations.employee import EmployeeManager
-from operations.company_docs import CompanyDocsManager
-from auth.auth_utils import check_permission, is_user_logged_in, authenticate_user
+from datetime import date
+from auth.auth_utils import is_user_logged_in, authenticate_user
 
-# --- FUNÇÃO DE AGREGAÇÃO DE DADOS PARA A VISÃO GLOBAL ---
-@st.cache_data(ttl=300)
-def load_aggregated_action_plan_data():
-    """
-    Carrega e agrega dados do Plano de Ação de TODAS as unidades.
-    """
-    progress_bar = st.progress(0, text="Carregando Planos de Ação de todas as unidades...")
+def format_company_display(cid, companies_df):
+    if cid is None:
+        return "Selecione uma empresa..."
+    if companies_df.empty:
+        return f"ID: {cid}"
     
-    matrix_manager_global = GlobalMatrixManager()
-    all_units = matrix_manager_global.get_all_units()
+    company_name = companies_df[companies_df['id'] == cid]['nome'].iloc[0]
+    return company_name
 
-    aggregated_actions = []
-    company_id_to_name_map = {}
-
-    total_units = len(all_units)
-    for i, unit in enumerate(all_units):
-        unit_name = unit.get('nome_unidade')
-        spreadsheet_id = unit.get('spreadsheet_id')
-        folder_id = unit.get('folder_id', '') # Folder ID pode não ser necessário
-        
-        progress_bar.progress((i + 1) / total_units, text=f"Lendo Plano de Ação da unidade: {unit_name}...")
-        
-        if not spreadsheet_id or not unit_name:
-            continue
-
-        try:
-            temp_action_manager = ActionPlanManager(spreadsheet_id)
-            temp_employee_manager = EmployeeManager(spreadsheet_id, folder_id)
-            
-            actions_df = temp_action_manager.action_plan_df
-            if not actions_df.empty:
-                actions_df['unidade'] = unit_name
-                aggregated_actions.append(actions_df)
-                
-            if not temp_employee_manager.companies_df.empty:
-                for _, row in temp_employee_manager.companies_df.iterrows():
-                    company_id_to_name_map[row['id']] = row['nome']
-
-        except Exception as e:
-            st.warning(f"Não foi possível carregar o Plano de Ação da unidade '{unit_name}': {e}")
-
-    progress_bar.empty()
-    final_actions = pd.concat(aggregated_actions, ignore_index=True) if aggregated_actions else pd.DataFrame()
-    
-    return final_actions, company_id_to_name_map
-
-# --- FUNÇÃO PRINCIPAL DA PÁGINA ---
 def show_plano_acao_page():
-    # ... código existente ...
+    st.title("📋 Plano de Ação")
     
-    if selected_company_id:
-        company_name = employee_manager.get_company_name(selected_company_id)
-        st.header(f"Itens Pendentes para: {company_name}")
+    # Verifica autenticação
+    if not is_user_logged_in():
+        st.warning("Faça login para acessar esta página.")
+        return
+    
+    if not authenticate_user():
+        return
+    
+    # Verifica se está em modo global ou unidade
+    is_global_view = st.session_state.get('unit_name') == 'Global'
+    
+    if is_global_view:
+        st.info("📊 Visão Global do Plano de Ação")
+        # Implementar agregação de todas as unidades
+        # (similar ao código em front/administracao.py)
+    else:
+        # Visão por unidade
+        if not st.session_state.get('managers_initialized'):
+            st.warning("Aguardando inicialização dos dados da unidade...")
+            return
         
-        action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
+        action_plan_manager = st.session_state.action_plan_manager
+        employee_manager = st.session_state.employee_manager
+        docs_manager = st.session_state.docs_manager
         
-        pending_items = pd.DataFrame()
-        if not action_items_df.empty and 'status' in action_items_df.columns:
-            pending_items = action_items_df[~action_items_df['status'].str.lower().isin(['concluído', 'cancelado'])]
+        # Seletor de empresa
+        company_options = [None] + employee_manager.companies_df['id'].tolist()
+        selected_company_id = st.selectbox(
+            "Selecione uma empresa:",
+            options=company_options,
+            format_func=lambda cid: format_company_display(cid, employee_manager.companies_df),
+            key="company_selector_plano"
+        )
+        
+        if selected_company_id:
+            company_name = employee_manager.get_company_name(selected_company_id)
+            st.header(f"Itens Pendentes para: {company_name}")
+            
+            action_items_df = action_plan_manager.get_action_items_by_company(selected_company_id)
+            
+            pending_items = pd.DataFrame()
+            if not action_items_df.empty and 'status' in action_items_df.columns:
+                pending_items = action_items_df[
+                    ~action_items_df['status'].str.lower().isin(['concluído', 'cancelado'])
+                ]
+            
+            if pending_items.empty:
+                st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
+            else:
+                for _, row in pending_items.iterrows():
+                    with st.container(border=True):
+                        st.markdown(f"**Item:** {row['item_nao_conforme']}")
+                        
+                        # Informações do funcionário (se houver)
+                        employee_id = row.get('id_funcionario')
+                        if employee_id and str(employee_id).strip():
+                            employee_name = employee_manager.get_employee_name(employee_id)
+                            st.caption(f"👤 Funcionário: {employee_name}")
+                        
+                        # Referência normativa
+                        st.caption(f"**Referência:** {row.get('referencia_normativa', 'N/A')}")
+                        
+                        col1, col2 = st.columns([4, 1])
+                        col1.info(f"**Status Atual:** {row['status']}")
+                        
+                        if col2.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
+                            st.session_state.current_item_to_treat = row.to_dict()
+                            st.rerun()
+        
+        # Diálogo de tratamento de item
+        if 'current_item_to_treat' in st.session_state:
+            show_treatment_dialog(action_plan_manager)
 
-        if pending_items.empty:
-            st.success("🎉 Nenhuma não conformidade pendente para esta empresa!")
-        else:
-            for _, row in pending_items.iterrows():
-                with st.container(border=True):
-                    st.markdown(f"**Item:** {row['item_nao_conforme']}")
-                    
-                    # ✅ MELHORADO: Usa id_funcionario diretamente da planilha
-                    employee_id = row.get('id_funcionario')
-                    
-                    # Informações do contexto
-                    original_doc_id = row.get('id_documento_original')
-                    doc_type_context = "Documento da Empresa"
-                    pdf_url = ""
-                    
-                    # Se tem employee_id, mostra o nome do funcionário
-                    if employee_id and str(employee_id) != 'nan' and str(employee_id).strip():
-                        employee_name = employee_manager.get_employee_name(employee_id)
-                        employee_info = f"👤 **Funcionário:** {employee_name or f'ID: {employee_id}'} | "
-                        
-                        # Tenta identificar o tipo de documento
-                        asos_df = employee_manager.aso_df
-                        trainings_df = employee_manager.training_df
-                        
-                        aso_entry = asos_df[asos_df['id'] == original_doc_id]
-                        if not aso_entry.empty:
-                            entry = aso_entry.iloc[0]
-                            doc_type_context = f"ASO ({entry.get('tipo_aso', '')})"
-                            pdf_url = entry.get('arquivo_id', '')
-                        else:
-                            training_entry = trainings_df[trainings_df['id'] == original_doc_id]
-                            if not training_entry.empty:
-                                entry = training_entry.iloc[0]
-                                doc_type_context = f"Treinamento ({entry.get('norma', '')})"
-                                pdf_url = entry.get('anexo', '')
-                    else:
-                        employee_info = "🏢 **Empresa** | "
-                        
-                        # Busca em documentos da empresa
-                        company_docs_df = docs_manager.docs_df
-                        company_doc_entry = company_docs_df[company_docs_df['id'] == original_doc_id]
-                        if not company_doc_entry.empty:
-                            entry = company_doc_entry.iloc[0]
-                            doc_type_context = f"Doc. Empresa ({entry.get('tipo_documento', '')})"
-                            pdf_url = entry.get('arquivo_id', '')
-                    
-                    pdf_link = f"[[PDF]({pdf_url})]" if pdf_url else ""
-                    st.caption(f"{employee_info}**Tipo:** {doc_type_context} | **Doc ID:** {original_doc_id} {pdf_link} | **Referência:** {row.get('referencia_normativa', 'N/A')}")
-                    
-                    col1, col2 = st.columns([4, 1])
-                    col1.info(f"**Status Atual:** {row['status']}")
-                    if col2.button("Tratar Item", key=f"treat_{row['id']}", use_container_width=True):
-                        st.session_state.current_item_to_treat = row.to_dict()
-                        st.rerun()
+def show_treatment_dialog(action_plan_manager):
+    """Diálogo para tratar um item do plano de ação."""
+    @st.dialog("Tratar Item de Não Conformidade")
+    def treatment_form():
+        item = st.session_state.current_item_to_treat
+        
+        st.markdown(f"**Item:** {item['item_nao_conforme']}")
+        
+        with st.form("treatment_form"):
+            plano_acao = st.text_area("Plano de Ação", value=item.get('plano_de_acao', ''))
+            responsavel = st.text_input("Responsável", value=item.get('responsavel', ''))
+            prazo = st.date_input("Prazo")
+            novo_status = st.selectbox("Status", ["Aberto", "Em Tratamento", "Concluído", "Cancelado"])
+            
+            if st.form_submit_button("Salvar Tratamento", type="primary"):
+                updates = {
+                    'plano_de_acao': plano_acao,
+                    'responsavel': responsavel,
+                    'prazo': prazo.strftime("%d/%m/%Y"),
+                    'status': novo_status
+                }
+                
+                if novo_status == "Concluído":
+                    updates['data_conclusao'] = date.today().strftime("%d/%m/%Y")
+                
+                if action_plan_manager.update_action_item(item['id'], updates):
+                    st.success("Item atualizado com sucesso!")
+                    del st.session_state.current_item_to_treat
+                    st.rerun()
+    
+    treatment_form()
