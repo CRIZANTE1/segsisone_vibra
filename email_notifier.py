@@ -248,7 +248,7 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
 
 def format_email_body(categorized_data: dict, unit_name: str = None, is_global: bool = False) -> str:
     """
-    ✅ REDESENHADO: Template moderno inspirado no ISF IA
+    Template com identidade visual ISF IA
     """
     
     html_style = """
@@ -261,7 +261,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             background-color: #f4f4f4; 
         }
         .container { 
-            max-width: 900px; 
+            max-width: 800px; 
             margin: 0 auto; 
             background-color: white; 
             border-radius: 10px; 
@@ -269,32 +269,21 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
         }
         .header { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            background: linear-gradient(135deg, #667eea, #764ba2); 
             color: white; 
-            padding: 30px; 
+            padding: 20px; 
             text-align: center; 
         }
         .header.global {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: linear-gradient(135deg, #dc3545, #c82333);
         }
         .header h1 { 
-            font-size: 32px; 
-            font-weight: bold; 
-            margin: 0 0 10px 0; 
+            margin: 0; 
+            font-size: 24px; 
         }
         .header p { 
-            font-size: 16px; 
-            margin: 0; 
-            opacity: 0.95; 
-        }
-        .header .unit-badge {
-            display: inline-block;
-            background: rgba(255,255,255,0.25);
-            padding: 8px 20px;
-            border-radius: 20px;
-            margin-top: 15px;
-            font-weight: bold;
-            font-size: 14px;
+            margin: 5px 0 0 0; 
+            font-size: 14px; 
         }
         .content { 
             padding: 30px; 
@@ -302,102 +291,40 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         .alert-box { 
             background-color: #fff3cd; 
             border: 1px solid #ffeaa7; 
-            border-radius: 8px; 
-            padding: 20px; 
-            margin: 25px 0; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin: 20px 0; 
         }
         .alert-box h3 {
             margin: 0 0 10px 0;
-            color: #856404;
-            font-size: 18px;
+            font-size: 16px;
         }
         .alert-box p {
             margin: 0;
-            color: #856404;
         }
-        .summary-cards { 
-            display: flex; 
-            gap: 15px; 
-            margin: 25px 0; 
-            flex-wrap: wrap;
+        .summary-box { 
+            background-color: #d1ecf1; 
+            border: 1px solid #bee5eb; 
+            border-radius: 5px; 
+            padding: 15px; 
+            margin: 20px 0; 
         }
-        .summary-card { 
-            flex: 1; 
-            min-width: 180px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-left: 4px solid #667eea;
-            border-radius: 8px; 
-            padding: 20px; 
-            text-align: center; 
-        }
-        .summary-card.critical { 
-            border-left-color: #dc3545; 
-            background: linear-gradient(135deg, #fee 0%, #fdd 100%);
-        }
-        .summary-card.warning { 
-            border-left-color: #ffc107; 
-            background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
-        }
-        .summary-card .number { 
-            font-size: 36px; 
-            font-weight: bold; 
-            color: #dc3545; 
-            margin-bottom: 5px; 
-        }
-        .summary-card.warning .number { 
-            color: #fd7e14; 
-        }
-        .summary-card .label { 
-            font-size: 13px; 
-            color: #495057; 
-            font-weight: 600;
-            text-transform: uppercase; 
-        }
-        .category-section {
-            margin: 30px 0;
-        }
-        .category-header { 
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white; 
-            padding: 15px 20px; 
-            border-radius: 8px 8px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .category-header.warning {
-            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-        }
-        .category-header.info {
-            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-        }
-        .category-header .badge {
-            background: rgba(255,255,255,0.3);
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 14px;
+        .summary-box h4 {
+            margin: 0 0 10px 0;
         }
         table { 
             width: 100%; 
             border-collapse: collapse; 
-            margin: 0;
-            background: white;
+            margin: 20px 0; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 12px; 
+            text-align: left; 
         }
         th { 
             background-color: #f8f9fa; 
-            color: #495057; 
             font-weight: bold; 
-            text-align: left; 
-            padding: 14px 16px; 
-            border: 1px solid #dee2e6;
-            font-size: 12px;
-            text-transform: uppercase;
-        }
-        td { 
-            padding: 14px 16px; 
-            border: 1px solid #dee2e6; 
             color: #495057; 
         }
         tbody tr:nth-child(even) { 
@@ -406,75 +333,42 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         tbody tr:hover { 
             background-color: #e9ecef; 
         }
-        .table-wrapper {
-            border-radius: 0 0 8px 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .priority-critical { 
+            color: #dc3545; 
+            font-weight: bold; 
         }
-        .action-box { 
-            background-color: #d1ecf1; 
-            border: 1px solid #bee5eb; 
-            border-radius: 8px; 
-            padding: 20px; 
-            margin: 25px 0; 
-            text-align: center;
+        .priority-high { 
+            color: #fd7e14; 
+            font-weight: bold; 
         }
-        .action-box h4 {
-            margin: 0 0 15px 0;
-            color: #0c5460;
-            font-size: 18px;
+        .priority-medium { 
+            color: #ffc107; 
+            font-weight: bold; 
         }
         .action-button { 
             display: inline-block; 
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            background-color: #007bff; 
             color: white; 
-            padding: 14px 30px; 
+            padding: 12px 25px; 
             text-decoration: none; 
-            border-radius: 25px; 
-            margin: 15px 0; 
+            border-radius: 5px; 
+            margin: 20px 0; 
             font-weight: bold; 
-            font-size: 16px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
         }
         .action-button:hover { 
-            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
-        }
-        .empty-state {
-            text-align: center;
-            padding: 60px 30px;
-        }
-        .empty-state-icon {
-            font-size: 72px;
-            margin-bottom: 20px;
-        }
-        .empty-state h2 {
-            color: #28a745;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-        .empty-state p {
-            color: #6c757d;
-            font-size: 16px;
+            background-color: #0056b3; 
         }
         .footer { 
             background-color: #f8f9fa; 
-            padding: 25px; 
+            padding: 20px; 
             text-align: center; 
-            font-size: 13px; 
+            font-size: 12px; 
             color: #6c757d; 
             border-top: 1px solid #dee2e6; 
         }
-        .footer-logo {
-            font-weight: bold;
-            color: #667eea;
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-        @media only screen and (max-width: 600px) {
-            .summary-cards { flex-direction: column; }
-            .summary-card { min-width: 100%; }
-            table { font-size: 12px; }
-            th, td { padding: 10px; }
+        .icon { 
+            font-size: 18px; 
+            margin-right: 8px; 
         }
     </style>
     """
@@ -495,22 +389,23 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
                 total_info += count
     
     has_content = (total_critical + total_warning + total_info) > 0
+    total_items = total_critical + total_warning + total_info
     
-    # Define título baseado no tipo
+    # Define título
     if is_global:
-        title = "📊 Relatório Global Consolidado"
-        subtitle = f"Visão de Todas as Unidades • {date.today().strftime('%d/%m/%Y')}"
+        title = "Relatório Global Consolidado - SEGMA-SIS"
+        subtitle = f"Visão de todas as unidades - {date.today().strftime('%d/%m/%Y')}"
         header_class = "header global"
     elif unit_name:
-        title = f"⏰ Alerta de Vencimentos - {unit_name}"
-        subtitle = f"Ações necessárias nos próximos dias"
+        title = f"Alerta de Vencimentos - {unit_name}"
+        subtitle = f"Documentos necessitando atenção - {date.today().strftime('%d/%m/%Y')}"
         header_class = "header"
     else:
-        title = "📋 Relatório de Conformidade"
-        subtitle = f"Relatório do Sistema • {date.today().strftime('%d/%m/%Y')}"
+        title = "Relatório de Conformidade - SEGMA-SIS"
+        subtitle = f"Sistema de Gestão - {date.today().strftime('%d/%m/%Y')}"
         header_class = "header"
     
-    # Monta HTML
+    # Inicia HTML
     html_body = f"""
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -525,192 +420,171 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         <div class="{header_class}">
             <h1>{title}</h1>
             <p>{subtitle}</p>
-    """
-    
-    if not is_global and unit_name:
-        html_body += f'<div class="unit-badge">📍 {unit_name}</div>'
-    
-    html_body += """
         </div>
         
         <div class="content">
+            <p>Olá,</p>
     """
     
     if has_content:
         html_body += f"""
             <div class="alert-box">
-                <h3>📋 Resumo do Alerta</h3>
-                <p><strong>{total_critical + total_warning + total_info} item(ns)</strong> necessitam de atenção.</p>
-            </div>
-
-            <div class="summary-cards">
-                <div class="summary-card critical">
-                    <div class="number">{total_critical}</div>
-                    <div class="label">🔴 Vencidos</div>
-                </div>
-                <div class="summary-card warning">
-                    <div class="number">{total_warning}</div>
-                    <div class="label">⚠️ Vencendo em Breve</div>
-                </div>
-                <div class="summary-card">
-                    <div class="number">{total_info}</div>
-                    <div class="label">📋 Para Monitorar</div>
-                </div>
+                <h3>Resumo do Alerta</h3>
+                <p><strong>{total_items} documento(s)</strong> necessitam de atenção.</p>
             </div>
         """
-    
-    # Configuração de colunas
-    base_cols_docs_empresa = ['empresa', 'tipo_documento', 'vencimento']
-    base_cols_aso = ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']
-    base_cols_treinamento = ['empresa', 'nome_funcionario', 'norma', 'vencimento']
-    
-    if is_global:
-        base_cols_docs_empresa = ['unidade'] + base_cols_docs_empresa
-        base_cols_aso = ['unidade'] + base_cols_aso
-        base_cols_treinamento = ['unidade'] + base_cols_treinamento
-    
-    report_configs = {
-        "Documentos da Empresa Vencidos": {
-            "cols": base_cols_docs_empresa,
-            "priority": "critical",
-            "icon": "🔴",
-            "title": "Documentos da Empresa Vencidos"
-        },
-        "ASOs Vencidos": {
-            "cols": base_cols_aso,
-            "priority": "critical",
-            "icon": "🔴",
-            "title": "ASOs Vencidos"
-        },
-        "Treinamentos Vencidos": {
-            "cols": base_cols_treinamento,
-            "priority": "critical",
-            "icon": "🔴",
-            "title": "Treinamentos Vencidos"
-        },
-        "Documentos da Empresa que vencem nos próximos 30 dias": {
-            "cols": base_cols_docs_empresa,
-            "priority": "warning",
-            "icon": "⚠️",
-            "title": "Docs. Empresa - Próximos 30 dias"
-        },
-        "ASOs que vencem em até 15 dias": {
-            "cols": base_cols_aso,
-            "priority": "warning",
-            "icon": "⚠️",
-            "title": "ASOs - Próximos 15 dias"
-        },
-        "Treinamentos que vencem em até 15 dias": {
-            "cols": base_cols_treinamento,
-            "priority": "warning",
-            "icon": "⚠️",
-            "title": "Treinamentos - Próximos 15 dias"
-        },
-        "ASOs que vencem entre 16 e 45 dias": {
-            "cols": base_cols_aso,
-            "priority": "info",
-            "icon": "📋",
-            "title": "ASOs - 16 a 45 dias"
-        },
-        "Treinamentos que vencem entre 16 e 45 dias": {
-            "cols": base_cols_treinamento,
-            "priority": "info",
-            "icon": "📋",
-            "title": "Treinamentos - 16 a 45 dias"
-        },
-    }
-    
-    # Renderiza categorias
-    for category_name, config in report_configs.items():
-        if category_name in categorized_data and not categorized_data[category_name].empty:
-            data_df = categorized_data[category_name]
-            count = len(data_df)
-            priority = config['priority']
-            icon = config['icon']
-            display_title = config['title']
-            
-            html_body += f"""
-            <div class="category-section">
-                <div class="category-header {priority}">
-                    <span>{icon} {display_title}</span>
-                    <span class="badge">{count} item{'ns' if count != 1 else ''}</span>
-                </div>
-                <div class="table-wrapper">
-            """
-            
-            try:
-                df_display = data_df.copy()
+        
+        # Configuração de colunas
+        base_cols_docs = ['empresa', 'tipo_documento', 'vencimento']
+        base_cols_aso = ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']
+        base_cols_treinamento = ['empresa', 'nome_funcionario', 'norma', 'vencimento']
+        
+        if is_global:
+            base_cols_docs = ['unidade'] + base_cols_docs
+            base_cols_aso = ['unidade'] + base_cols_aso
+            base_cols_treinamento = ['unidade'] + base_cols_treinamento
+        
+        configs = {
+            "Documentos da Empresa Vencidos": {
+                "cols": base_cols_docs,
+                "title": "Documentos da Empresa Vencidos",
+                "icon": "🔴"
+            },
+            "ASOs Vencidos": {
+                "cols": base_cols_aso,
+                "title": "ASOs Vencidos",
+                "icon": "🔴"
+            },
+            "Treinamentos Vencidos": {
+                "cols": base_cols_treinamento,
+                "title": "Treinamentos Vencidos",
+                "icon": "🔴"
+            },
+            "Documentos da Empresa que vencem nos próximos 30 dias": {
+                "cols": base_cols_docs,
+                "title": "Documentos da Empresa - Próximos 30 dias",
+                "icon": "🟡"
+            },
+            "ASOs que vencem em até 15 dias": {
+                "cols": base_cols_aso,
+                "title": "ASOs - Próximos 15 dias",
+                "icon": "🟡"
+            },
+            "Treinamentos que vencem em até 15 dias": {
+                "cols": base_cols_treinamento,
+                "title": "Treinamentos - Próximos 15 dias",
+                "icon": "🟡"
+            },
+            "ASOs que vencem entre 16 e 45 dias": {
+                "cols": base_cols_aso,
+                "title": "ASOs - 16 a 45 dias",
+                "icon": "🟢"
+            },
+            "Treinamentos que vencem entre 16 e 45 dias": {
+                "cols": base_cols_treinamento,
+                "title": "Treinamentos - 16 a 45 dias",
+                "icon": "🟢"
+            },
+        }
+        
+        # Renderiza tabelas
+        for category_name, config in configs.items():
+            if category_name in categorized_data and not categorized_data[category_name].empty:
+                df = categorized_data[category_name]
                 
-                if 'vencimento' in df_display.columns:
-                    df_display['vencimento'] = pd.to_datetime(
-                        df_display['vencimento'], errors='coerce', dayfirst=True
-                    ).dt.strftime('%d/%m/%Y')
-                    df_display = df_display.dropna(subset=['vencimento'])
+                html_body += f"""
+            <h3>{config['icon']} {config['title']}</h3>
+            <table>
+                <thead>
+                    <tr>
+                """
                 
-                cols_to_show = [col for col in config['cols'] if col in df_display.columns]
+                # Cabeçalhos
+                column_names = {
+                    'unidade': 'Unidade',
+                    'empresa': 'Empresa',
+                    'tipo_documento': 'Documento',
+                    'nome_funcionario': 'Funcionário',
+                    'tipo_aso': 'Tipo',
+                    'norma': 'Norma',
+                    'vencimento': 'Vencimento'
+                }
                 
-                if cols_to_show:
-                    column_names = {
-                        'unidade': 'Unidade',
-                        'empresa': 'Empresa',
-                        'tipo_documento': 'Documento',
-                        'nome_funcionario': 'Funcionário',
-                        'tipo_aso': 'Tipo',
-                        'norma': 'Norma',
-                        'vencimento': 'Vencimento'
-                    }
+                try:
+                    df_display = df.copy()
                     
-                    df_display = df_display[cols_to_show].rename(columns=column_names)
+                    if 'vencimento' in df_display.columns:
+                        df_display['vencimento'] = pd.to_datetime(
+                            df_display['vencimento'], errors='coerce', dayfirst=True
+                        ).dt.strftime('%d/%m/%Y')
+                        df_display = df_display.dropna(subset=['vencimento'])
                     
-                    html_table = df_display.to_html(
-                        index=False, 
-                        border=0, 
-                        na_rep='N/A',
-                        escape=True,
-                        classes='data-table'
-                    )
+                    cols_to_show = [col for col in config['cols'] if col in df_display.columns]
                     
-                    html_body += html_table
-                else:
-                    html_body += "<p style='padding: 20px; text-align: center; color: #6c757d;'>Dados incompatíveis</p>"
+                    if cols_to_show:
+                        df_display = df_display[cols_to_show]
+                        
+                        # Headers
+                        for col in cols_to_show:
+                            html_body += f"<th>{column_names.get(col, col)}</th>"
+                        
+                        html_body += """
+                    </tr>
+                </thead>
+                <tbody>
+                        """
+                        
+                        # Linhas
+                        for _, row in df_display.iterrows():
+                            html_body += "<tr>"
+                            for col in cols_to_show:
+                                value = row[col] if pd.notna(row[col]) else 'N/A'
+                                html_body += f"<td>{value}</td>"
+                            html_body += "</tr>"
+                        
+                        html_body += """
+                </tbody>
+            </table>
+                        """
                     
-            except Exception as e:
-                logger.error(f"Erro ao processar '{category_name}': {e}")
-                html_body += f"<p style='padding: 20px; text-align: center; color: #dc3545;'>Erro: {str(e)}</p>"
-            
-            html_body += """
-                </div>
-            </div>
-            """
-    
-    # Empty state ou action box
-    if not has_content:
+                except Exception as e:
+                    logger.error(f"Erro ao renderizar '{category_name}': {e}")
+                    html_body += f"<p>Erro ao processar dados: {str(e)}</p></table>"
+        
+        # Action box
         html_body += """
-            <div class="empty-state">
-                <div class="empty-state-icon">✅</div>
-                <h2>Tudo em Ordem!</h2>
-                <p>Não há pendências de vencimentos.</p>
-                <p style="margin-top: 10px;">Continue o excelente trabalho mantendo a conformidade! 🎉</p>
+            <div class="summary-box">
+                <h4>Ação Necessária</h4>
+                <p>Acesse o sistema para regularizar as pendências e manter a conformidade:</p>
+                <a href="https://segma-sis.streamlit.app" class="action-button">Acessar Sistema SEGMA-SIS</a>
+            </div>
+
+            <div class="alert-box">
+                <h4>Importante</h4>
+                <ul>
+                    <li>Documentos vencidos comprometem a conformidade</li>
+                    <li>Não conformidades podem gerar multas em auditorias</li>
+                    <li>Regularize as pendências com antecedência</li>
+                </ul>
             </div>
         """
     else:
         html_body += """
-            <div class="action-box">
-                <h4>🎯 Ação Necessária</h4>
-                <p>Acesse o sistema para regularizar as pendências e manter a conformidade:</p>
-                <a href="https://segma-sis.streamlit.app" class="action-button">🚀 Acessar SEGMA-SIS</a>
+            <div class="summary-box">
+                <h4>Tudo em Ordem!</h4>
+                <p>Não há pendências de vencimentos nesta unidade.</p>
+                <p>Continue o excelente trabalho mantendo a conformidade!</p>
             </div>
         """
     
     html_body += """
-            <p style="margin-top: 30px;">Atenciosamente,<br>
-            <strong>Sistema SEGMA-SIS</strong></p>
+            <p>Atenciosamente,<br>
+            <strong>Equipe SEGMA-SIS</strong></p>
         </div>
         
         <div class="footer">
-            <div class="footer-logo">SEGMA-SIS</div>
-            <p>Esta é uma notificação automática do sistema de gestão.<br>
-            Para alterar a frequência dos alertas, acesse as configurações do sistema.</p>
+            <p>Esta é uma notificação automática do sistema de gestão SEGMA-SIS.<br>
+            Para alterar a frequência dos alertas, acesse seu perfil no sistema.</p>
         </div>
     </div>
 </body>
