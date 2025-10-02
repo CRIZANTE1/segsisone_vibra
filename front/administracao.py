@@ -104,13 +104,19 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     
     active_employees = pd.DataFrame()
     if not employees_df.empty:
-        active_employees = employees_df[employees_df['status'].str.lower() == 'ativo'].copy()
+        active_employees = employees_df[
+            (employees_df['status'].str.lower() == 'ativo') &
+            (employees_df['empresa_id'].isin(active_companies['id']))
+        ].copy()
     
     if active_employees.empty:
         st.warning("Nenhum funcionário ativo encontrado. Pendências de ASOs e Treinamentos não serão calculadas.")
 
     # --- 2. Métricas Gerais ---
-    total_units = companies_df['unidade'].nunique()
+    # ✅ CORREÇÃO: Conta apenas unidades que TÊM dados
+    units_with_data = companies_df[companies_df['unidade'].notna()]['unidade'].unique()
+    total_units = len(units_with_data)
+    
     total_active_companies = len(active_companies)
     total_active_employees = len(active_employees)
 
@@ -124,28 +130,86 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     today = date.today()
     expired_asos, expired_trainings, expired_company_docs = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
+    # ✅ CORREÇÃO: Processa ASOs apenas se houver funcionários ativos
     if not asos_df.empty and not active_employees.empty:
-        asos_actives = asos_df[asos_df['funcionario_id'].isin(active_employees['id'])].copy()
-        asos_actives.dropna(subset=['vencimento'], inplace=True)
-        if not asos_actives.empty:
-            latest_asos = asos_actives.sort_values('data_aso', ascending=False).groupby(['funcionario_id', 'tipo_aso']).head(1)
-            expired_asos = latest_asos[latest_asos['vencimento'].dt.date < today]
+        asos_actives = asos_df[
+            asos_df['funcionario_id'].isin(active_employees['id'])
+        ].copy()
+        
+        if not asos_actives.empty and 'vencimento' in asos_actives.columns:
+            asos_actives.dropna(subset=['vencimento'], inplace=True)
+            
+            if not asos_actives.empty:
+                # ✅ CORREÇÃO: Filtra demissionais ANTES de calcular vencimento
+                asos_aptitude = asos_actives[
+                    ~asos_actives['tipo_aso'].str.lower().isin(['demissional'])
+                ].copy()
+                
+                if not asos_aptitude.empty:
+                    latest_asos = asos_aptitude.sort_values(
+                        'data_aso', ascending=False
+                    ).groupby('funcionario_id').head(1).copy()
+                    
+                    # ✅ CORREÇÃO: Verifica se há datas válidas
+                    latest_asos_valid = latest_asos[
+                        latest_asos['vencimento'].notna()
+                    ].copy()
+                    
+                    if not latest_asos_valid.empty:
+                        expired_asos = latest_asos_valid[
+                            latest_asos_valid['vencimento'].dt.date < today
+                        ].copy()
 
+    # ✅ CORREÇÃO: Processa Treinamentos apenas se houver funcionários ativos
     if not trainings_df.empty and not active_employees.empty:
-        trainings_actives = trainings_df[trainings_df['funcionario_id'].isin(active_employees['id'])].copy()
-        trainings_actives.dropna(subset=['vencimento'], inplace=True)
-        if not trainings_actives.empty:
-            latest_trainings = trainings_actives.sort_values('data', ascending=False).groupby(['funcionario_id', 'norma']).head(1)
-            expired_trainings = latest_trainings[latest_trainings['vencimento'].dt.date < today]
+        trainings_actives = trainings_df[
+            trainings_df['funcionario_id'].isin(active_employees['id'])
+        ].copy()
+        
+        if not trainings_actives.empty and 'vencimento' in trainings_actives.columns:
+            trainings_actives.dropna(subset=['vencimento'], inplace=True)
+            
+            if not trainings_actives.empty:
+                latest_trainings = trainings_actives.sort_values(
+                    'data', ascending=False
+                ).groupby(['funcionario_id', 'norma']).head(1).copy()
+                
+                # ✅ CORREÇÃO: Verifica se há datas válidas
+                latest_trainings_valid = latest_trainings[
+                    latest_trainings['vencimento'].notna()
+                ].copy()
+                
+                if not latest_trainings_valid.empty:
+                    expired_trainings = latest_trainings_valid[
+                        latest_trainings_valid['vencimento'].dt.date < today
+                    ].copy()
 
-    if not company_docs_df.empty:
-        docs_actives = company_docs_df[company_docs_df['empresa_id'].isin(active_companies['id'])].copy()
-        docs_actives.dropna(subset=['vencimento'], inplace=True)
-        if not docs_actives.empty:
-            latest_docs = docs_actives.sort_values('data_emissao', ascending=False).groupby(['empresa_id', 'tipo_documento']).head(1)
-            expired_company_docs = latest_docs[latest_docs['vencimento'].dt.date < today]
+    # ✅ CORREÇÃO: Processa Documentos apenas se houver empresas ativas
+    if not company_docs_df.empty and not active_companies.empty:
+        docs_actives = company_docs_df[
+            company_docs_df['empresa_id'].isin(active_companies['id'])
+        ].copy()
+        
+        if not docs_actives.empty and 'vencimento' in docs_actives.columns:
+            docs_actives.dropna(subset=['vencimento'], inplace=True)
+            
+            if not docs_actives.empty:
+                latest_docs = docs_actives.sort_values(
+                    'data_emissao', ascending=False
+                ).groupby(['empresa_id', 'tipo_documento']).head(1).copy()
+                
+                # ✅ CORREÇÃO: Verifica se há datas válidas
+                latest_docs_valid = latest_docs[
+                    latest_docs['vencimento'].notna()
+                ].copy()
+                
+                if not latest_docs_valid.empty:
+                    expired_company_docs = latest_docs_valid[
+                        latest_docs_valid['vencimento'].dt.date < today
+                    ].copy()
 
     total_pendencies = len(expired_asos) + len(expired_trainings) + len(expired_company_docs)
+    
     if total_pendencies == 0:
         st.success("🎉 Parabéns! Nenhuma pendência de vencimento encontrada em todas as unidades ativas.")
         return
@@ -158,90 +222,136 @@ def display_global_summary_dashboard(companies_df, employees_df, asos_df, traini
     col3.metric("📄 Docs. Empresa Vencidos", len(expired_company_docs))
     st.divider()
 
-    # --- 5. Consolidação e Gráfico de Barras (LÓGICA FINAL E CORRIGIDA) ---
+    # --- 5. Consolidação e Gráfico de Barras ---
     st.subheader("Gráfico de Pendências por Unidade Operacional")
 
-    # Coleta todas as contagens em uma lista
+    # ✅ CORREÇÃO: Garante que 'unidade' exista nos DataFrames antes de agrupar
     counts_list = []
-    if not expired_asos.empty:
-        counts_list.append(expired_asos.groupby('unidade').size().rename("ASOs Vencidos"))
-    if not expired_trainings.empty:
-        counts_list.append(expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos"))
-    if not expired_company_docs.empty:
-        counts_list.append(expired_company_docs.groupby('unidade').size().rename("Docs. Empresa Vencidos"))
     
-    # Concatena apenas se houver o que contar
+    if not expired_asos.empty and 'unidade' in expired_asos.columns:
+        aso_counts = expired_asos.groupby('unidade').size().rename("ASOs Vencidos")
+        counts_list.append(aso_counts)
+    
+    if not expired_trainings.empty and 'unidade' in expired_trainings.columns:
+        training_counts = expired_trainings.groupby('unidade').size().rename("Treinamentos Vencidos")
+        counts_list.append(training_counts)
+    
+    if not expired_company_docs.empty and 'unidade' in expired_company_docs.columns:
+        docs_counts = expired_company_docs.groupby('unidade').size().rename("Docs. Empresa Vencidos")
+        counts_list.append(docs_counts)
+    
     if not counts_list:
         st.info("Nenhuma pendência encontrada para gerar o gráfico.")
         return
 
     df_consolidated = pd.concat(counts_list, axis=1).fillna(0).astype(int)
     
-    # **A CORREÇÃO CRÍTICA ESTÁ AQUI**
-    # Garante que qualquer linha com soma zero seja removida ANTES de qualquer outra operação
+    # ✅ CORREÇÃO CRÍTICA: Remove linhas com soma zero ANTES de qualquer operação
     df_consolidated = df_consolidated[df_consolidated.sum(axis=1) > 0]
 
-    # Agora, verifica se o DataFrame ainda tem dados APÓS a remoção dos zeros
     if df_consolidated.empty:
-        # Este caso ocorre se havia pendências, mas elas foram filtradas (caso raro)
-        # A mensagem de sucesso no início já deve ter capturado isso, mas é uma segurança extra.
-        st.success("Todas as pendências foram resolvidas ou filtradas. Gráfico não será exibido.")
+        st.success("Todas as pendências foram resolvidas. Gráfico não será exibido.")
         return
 
     st.bar_chart(df_consolidated)
+    
     with st.expander("Ver tabela de dados de pendências consolidada"):
         df_with_total = df_consolidated.copy()
         df_with_total['Total'] = df_with_total.sum(axis=1)
-        st.dataframe(df_with_total.sort_values(by='Total', ascending=False), use_container_width=True)
+        st.dataframe(
+            df_with_total.sort_values(by='Total', ascending=False), 
+            use_container_width=True
+        )
 
-    # --- 6. Detalhamento da Unidade Mais Crítica (Lógica já corrigida anteriormente) ---
+    # --- 6. Detalhamento da Unidade Mais Crítica ---
     most_critical_unit = df_consolidated.sum(axis=1).idxmax()
     st.subheader(f"🔍 Detalhes da Unidade Mais Crítica: {most_critical_unit}")
 
-    # A lógica abaixo já foi corrigida e está correta, dependendo de um df_consolidated limpo.
-    unit_active_companies = active_companies[active_companies['unidade'] == most_critical_unit]
-    unit_active_employees = active_employees[active_employees['unidade'] == most_critical_unit]
+    # ✅ CORREÇÃO: Verifica se a unidade existe nos DataFrames ANTES de filtrar
+    unit_active_companies = active_companies[
+        active_companies['unidade'] == most_critical_unit
+    ].copy()
+    
+    unit_active_employees = active_employees[
+        active_employees['unidade'] == most_critical_unit
+    ].copy()
+
+    if unit_active_companies.empty:
+        st.warning(f"Nenhuma empresa ativa encontrada na unidade '{most_critical_unit}'.")
+        return
 
     employee_to_company_id = unit_active_employees.set_index('id')['empresa_id']
     company_id_to_name = unit_active_companies.set_index('id')['nome']
     
     pendencies_by_company = {}
 
-    # Detalhamento de ASOs
-    if not expired_asos.empty:
-        expired_asos_unit = expired_asos[expired_asos['unidade'] == most_critical_unit].copy()
-        if not expired_asos_unit.empty:
-            expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(employee_to_company_id)
-            expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(company_id_to_name)
+    # ✅ CORREÇÃO: Detalhamento de ASOs com verificação robusta
+    if not expired_asos.empty and 'unidade' in expired_asos.columns:
+        expired_asos_unit = expired_asos[
+            expired_asos['unidade'] == most_critical_unit
+        ].copy()
+        
+        if not expired_asos_unit.empty and not employee_to_company_id.empty:
+            expired_asos_unit['empresa_id'] = expired_asos_unit['funcionario_id'].map(
+                employee_to_company_id
+            )
+            expired_asos_unit['nome_empresa'] = expired_asos_unit['empresa_id'].map(
+                company_id_to_name
+            )
             expired_asos_unit.dropna(subset=['nome_empresa'], inplace=True)
-            aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
-            for comp, count in aso_counts.items():
-                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+            
+            if not expired_asos_unit.empty:
+                aso_counts = expired_asos_unit.groupby('nome_empresa').size().to_dict()
+                for comp, count in aso_counts.items():
+                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
-    # Detalhamento de Treinamentos
-    if not expired_trainings.empty:
-        expired_trainings_unit = expired_trainings[expired_trainings['unidade'] == most_critical_unit].copy()
-        if not expired_trainings_unit.empty:
-            expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(employee_to_company_id)
-            expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(company_id_to_name)
+    # ✅ CORREÇÃO: Detalhamento de Treinamentos com verificação robusta
+    if not expired_trainings.empty and 'unidade' in expired_trainings.columns:
+        expired_trainings_unit = expired_trainings[
+            expired_trainings['unidade'] == most_critical_unit
+        ].copy()
+        
+        if not expired_trainings_unit.empty and not employee_to_company_id.empty:
+            expired_trainings_unit['empresa_id'] = expired_trainings_unit['funcionario_id'].map(
+                employee_to_company_id
+            )
+            expired_trainings_unit['nome_empresa'] = expired_trainings_unit['empresa_id'].map(
+                company_id_to_name
+            )
             expired_trainings_unit.dropna(subset=['nome_empresa'], inplace=True)
-            training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
-            for comp, count in training_counts.items():
-                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+            
+            if not expired_trainings_unit.empty:
+                training_counts = expired_trainings_unit.groupby('nome_empresa').size().to_dict()
+                for comp, count in training_counts.items():
+                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
-    # Detalhamento de Documentos da Empresa
-    if not expired_company_docs.empty:
-        expired_docs_unit = expired_company_docs[expired_company_docs['unidade'] == most_critical_unit].copy()
+    # ✅ CORREÇÃO: Detalhamento de Documentos com verificação robusta
+    if not expired_company_docs.empty and 'unidade' in expired_company_docs.columns:
+        expired_docs_unit = expired_company_docs[
+            expired_company_docs['unidade'] == most_critical_unit
+        ].copy()
+        
         if not expired_docs_unit.empty:
-            expired_docs_unit['nome_empresa'] = expired_docs_unit['empresa_id'].map(company_id_to_name)
+            expired_docs_unit['nome_empresa'] = expired_docs_unit['empresa_id'].map(
+                company_id_to_name
+            )
             expired_docs_unit.dropna(subset=['nome_empresa'], inplace=True)
-            doc_counts = expired_docs_unit.groupby('nome_empresa').size().to_dict()
-            for comp, count in doc_counts.items():
-                pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
+            
+            if not expired_docs_unit.empty:
+                doc_counts = expired_docs_unit.groupby('nome_empresa').size().to_dict()
+                for comp, count in doc_counts.items():
+                    pendencies_by_company[comp] = pendencies_by_company.get(comp, 0) + count
 
     if pendencies_by_company:
-        company_pendencies_df = pd.DataFrame(list(pendencies_by_company.items()), columns=['Empresa', 'Nº de Pendências'])
-        st.dataframe(company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), use_container_width=True, hide_index=True)
+        company_pendencies_df = pd.DataFrame(
+            list(pendencies_by_company.items()), 
+            columns=['Empresa', 'Nº de Pendências']
+        )
+        st.dataframe(
+            company_pendencies_df.sort_values(by='Nº de Pendências', ascending=False), 
+            use_container_width=True, 
+            hide_index=True
+        )
     else:
         st.info(f"Nenhuma pendência encontrada na unidade '{most_critical_unit}'.")
         
