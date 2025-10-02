@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
+from operations.file_hash import calcular_hash_arquivo
 
 def mostrar_info_normas():
     with st.expander("Informações sobre Normas Regulamentadoras"):
@@ -64,14 +65,21 @@ def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_typ
     if not st.session_state.get(uploader_key):
         return
 
-    # Garante que os managers necessários estão na sessão
     if 'nr_analyzer' not in st.session_state:
         st.error("O analisador de NR não foi inicializado. A análise não pode continuar.")
         return
 
     nr_analyzer = st.session_state.nr_analyzer
     anexo = st.session_state[uploader_key]
+    
+    # Calcula o hash do arquivo
+    arquivo_hash = calcular_hash_arquivo(anexo)
+    if not arquivo_hash:
+        st.error("Não foi possível calcular o hash do arquivo.")
+        return
+    
     st.session_state[f"{doc_type_str}_anexo_para_salvar"] = anexo
+    st.session_state[f"{doc_type_str}_hash_para_salvar"] = arquivo_hash
     
     employee_id = st.session_state.get(employee_id_key) if employee_id_key else None
     if employee_id:
@@ -87,6 +95,7 @@ def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_typ
         return
 
     info['type'] = doc_type_str
+    info['arquivo_hash'] = arquivo_hash
     if employee_id:
         info['employee_id'] = employee_id
 
@@ -133,7 +142,16 @@ def process_epi_pdf():
     """Função de callback para o uploader de Ficha de EPI."""
     if st.session_state.get('epi_uploader_tab') and 'epi_manager' in st.session_state:
         epi_manager = st.session_state.epi_manager
+        anexo = st.session_state.epi_uploader_tab
+        
+        # Calcula o hash do arquivo
+        arquivo_hash = calcular_hash_arquivo(anexo)
+        if not arquivo_hash:
+            st.error("Não foi possível calcular o hash do arquivo.")
+            return
+        
         with st.spinner("Analisando PDF da Ficha de EPI..."):
-            st.session_state.epi_anexo_para_salvar = st.session_state.epi_uploader_tab
+            st.session_state.epi_anexo_para_salvar = anexo
+            st.session_state.epi_hash_para_salvar = arquivo_hash
             st.session_state.epi_funcionario_para_salvar = st.session_state.epi_employee_add
-            st.session_state.epi_info_para_salvar = epi_manager.analyze_epi_pdf(st.session_state.epi_uploader_tab)
+            st.session_state.epi_info_para_salvar = epi_manager.analyze_epi_pdf(anexo)

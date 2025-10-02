@@ -7,6 +7,7 @@ import re
 from operations.sheet import SheetOperations
 from AI.api_Operation import PDFQA
 from operations.cached_loaders import load_epis_df
+from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 
 class EPIManager:
     def __init__(self, spreadsheet_id: str):
@@ -124,30 +125,44 @@ class EPIManager:
             st.code(f"Resposta recebida da IA:\n{answer}")
             return None
             
-    def add_epi_records(self, funcionario_id, arquivo_id, itens_epi):
-        """Adiciona múltiplos registros de EPI a partir de uma única ficha."""
+    def add_epi_records(self, funcionario_id, arquivo_id, itens_epi, arquivo_hash=None):
+        """Adiciona múltiplos registros de EPI a partir de uma única ficha, evitando duplicatas por hash."""
+        funcionario_id_str = str(funcionario_id)
+        
+        # Verifica se o arquivo já foi cadastrado para este funcionário
+        
+        if arquivo_hash and verificar_hash_seguro(self.epi_df, 'arquivo_hash'):
+            duplicata = self.epi_df[
+                (self.epi_df['funcionario_id'] == funcionario_id_str) &
+                (self.epi_df['arquivo_hash'] == arquivo_hash)
+            ]
+            
+            if not duplicata.empty:
+                st.warning(f"⚠️ Esta ficha de EPI já foi cadastrada anteriormente para este funcionário.")
+                return None
+        
         saved_ids = []
         for item in itens_epi:
             new_data = [
-                str(funcionario_id),
+                funcionario_id_str,
                 str(item.get('item_numero', '')),
                 str(item.get('descricao', '')),
                 str(item.get('ca', '')),
                 str(item.get('data_entrega', '')),
-                str(arquivo_id)
+                str(arquivo_id),
+                arquivo_hash or ''
             ]
             try:
-                # Note que a função adc_dados_aba adiciona o ID principal automaticamente
                 new_id = self.sheet_ops.adc_dados_aba("fichas_epi", new_data)
                 if new_id:
                     saved_ids.append(new_id)
             except Exception as e:
                 st.error(f"Erro ao adicionar o item '{item.get('descricao')}': {e}")
-                continue # Continua para o próximo item
+                continue
         
-        if len(saved_ids) == len(itens_epi):
+        if saved_ids:
             st.cache_data.clear()
             self.load_epi_data()
             return saved_ids
         
-        return None # Indica que houve falha em salvar alguns itens
+        return None

@@ -287,6 +287,7 @@ def show_dashboard_page():
                         if st.button("Confirmar e Salvar Documento", type="primary", key="save_company_doc"):
                             with st.spinner("Salvando..."):
                                 anexo = st.session_state['Doc. Empresa_anexo_para_salvar']
+                                arquivo_hash = st.session_state.get('Doc. Empresa_hash_para_salvar')
                                 nome_arquivo = f"{doc_info['tipo_documento']}_{company_name}_{doc_info['data_emissao'].strftime('%Y%m%d')}.pdf"
                                 
                                 arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, nome_arquivo)
@@ -294,7 +295,7 @@ def show_dashboard_page():
                                 if arquivo_id:
                                     doc_id = docs_manager.add_company_document(
                                         selected_company, doc_info['tipo_documento'], 
-                                        doc_info['data_emissao'], doc_info['vencimento'], arquivo_id
+                                        doc_info['data_emissao'], doc_info['vencimento'], arquivo_id, arquivo_hash
                                     )
                                     if doc_id:
                                         st.success("Documento da empresa salvo com sucesso!")
@@ -363,6 +364,7 @@ def show_dashboard_page():
                             if st.button("Confirmar e Salvar ASO", type="primary", key="save_aso"):
                                 with st.spinner("Salvando..."):
                                     anexo = st.session_state.ASO_anexo_para_salvar
+                                    arquivo_hash = st.session_state.get('ASO_hash_para_salvar')
                                     emp_id = st.session_state.ASO_funcionario_para_salvar
                                     emp_name = employee_manager.get_employee_name(emp_id)
                                     nome_arquivo = f"ASO_{emp_name}_{aso_info['data_aso'].strftime('%Y%m%d')}.pdf"
@@ -370,7 +372,7 @@ def show_dashboard_page():
                                     arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, nome_arquivo)
                                     
                                     if arquivo_id:
-                                        aso_data = {**aso_info, 'funcionario_id': emp_id, 'arquivo_id': arquivo_id}
+                                        aso_data = {**aso_info, 'funcionario_id': emp_id, 'arquivo_id': arquivo_id, 'arquivo_hash': arquivo_hash}
                                         aso_id = employee_manager.add_aso(aso_data)
                                         if aso_id:
                                             st.success("ASO salvo com sucesso!")
@@ -439,6 +441,7 @@ def show_dashboard_page():
                             if st.button("Confirmar e Salvar Treinamento", type="primary", key="save_training", disabled=(vencimento is None)):
                                 with st.spinner("Salvando..."):
                                     anexo = st.session_state.Treinamento_anexo_para_salvar
+                                    arquivo_hash = st.session_state.get('Treinamento_hash_para_salvar')
                                     emp_id = st.session_state.Treinamento_funcionario_para_salvar
                                     emp_name = employee_manager.get_employee_name(emp_id)
                                     nome_arquivo = f"TRAINING_{emp_name}_{norma}_{data.strftime('%Y%m%d')}.pdf"
@@ -446,7 +449,7 @@ def show_dashboard_page():
                                     arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, nome_arquivo)
                                     
                                     if arquivo_id:
-                                        training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id}
+                                        training_data = {**training_info, 'funcionario_id': emp_id, 'vencimento': vencimento, 'anexo': arquivo_id, 'arquivo_hash': arquivo_hash}
                                         training_id = employee_manager.add_training(training_data)
                                         if training_id:
                                             st.success("Treinamento salvo com sucesso!")
@@ -514,12 +517,13 @@ def show_dashboard_page():
                             if st.button("Confirmar e Salvar Itens da Ficha de EPI", type="primary", key="save_epi"):
                                 with st.spinner("Salvando..."):
                                     anexo = st.session_state.epi_anexo_para_salvar
+                                    arquivo_hash = st.session_state.get('epi_hash_para_salvar')
                                     nome_arquivo = f"EPI_{nome_selecionado}_{date.today().strftime('%Y-%m-%d')}.pdf"
                                     
                                     arquivo_id = employee_manager.upload_documento_e_obter_link(anexo, nome_arquivo)
                                     
                                     if arquivo_id:
-                                        saved_ids = epi_manager.add_epi_records(emp_id, arquivo_id, epi_info['itens_epi'])
+                                        saved_ids = epi_manager.add_epi_records(emp_id, arquivo_id, epi_info['itens_epi'], arquivo_hash)
                                         if saved_ids:
                                             st.success(f"{len(saved_ids)} item(ns) de EPI salvos com sucesso!")
                                             for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar']:

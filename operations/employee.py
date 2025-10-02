@@ -1,4 +1,5 @@
 import pandas as pd
+from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 import streamlit as st
 from datetime import datetime, date, timedelta
 from gdrive.google_api_manager import GoogleApiManager
@@ -249,33 +250,70 @@ class EmployeeManager:
         return None, "Erro ao adicionar funcionário."
 
     def add_aso(self, aso_data: dict):
+        funcionario_id = str(aso_data.get('funcionario_id'))
+        arquivo_hash = aso_data.get('arquivo_hash')
+        
+        # Verifica duplicata por hash APENAS se a coluna existir e tiver dados
+        
+        if arquivo_hash and verificar_hash_seguro(self.aso_df, 'arquivo_hash'):
+            duplicata = self.aso_df[
+                (self.aso_df['funcionario_id'] == funcionario_id) &
+                (self.aso_df['arquivo_hash'] == arquivo_hash)
+            ]
+            
+            if not duplicata.empty:
+                st.warning(f"⚠️ Este arquivo PDF já foi cadastrado anteriormente para este funcionário (ASO do tipo '{duplicata.iloc[0]['tipo_aso']}').")
+                return None
+        
         new_data = [
-            str(aso_data.get('funcionario_id')),
+            funcionario_id,
             aso_data.get('data_aso').strftime("%d/%m/%Y"),
             aso_data.get('vencimento').strftime("%d/%m/%Y") if aso_data.get('vencimento') else "N/A",
             str(aso_data.get('arquivo_id')),
+            arquivo_hash or '',
             aso_data.get('riscos', 'N/A'),
             aso_data.get('cargo', 'N/A'),
             aso_data.get('tipo_aso', 'N/A')
         ]
         aso_id = self.sheet_ops.adc_dados_aba("asos", new_data)
-        if aso_id: self.load_data()
+        if aso_id:
+            st.cache_data.clear()
+            self.load_data()
         return aso_id
 
     def add_training(self, training_data: dict):
+        funcionario_id = str(training_data.get('funcionario_id'))
+        arquivo_hash = training_data.get('arquivo_hash')
+        norma = self._padronizar_norma(training_data.get('norma'))
+        
+        # Verifica duplicata por hash APENAS se a coluna existir e tiver dados
+        
+        if arquivo_hash and verificar_hash_seguro(self.training_df, 'arquivo_hash'):
+            duplicata = self.training_df[
+                (self.training_df['funcionario_id'] == funcionario_id) &
+                (self.training_df['arquivo_hash'] == arquivo_hash)
+            ]
+            
+            if not duplicata.empty:
+                st.warning(f"⚠️ Este arquivo PDF já foi cadastrado anteriormente para este funcionário (Treinamento de '{duplicata.iloc[0]['norma']}').")
+                return None
+        
         new_data = [
-            str(training_data.get('funcionario_id')),
+            funcionario_id,
             training_data.get('data').strftime("%d/%m/%Y"),
             training_data.get('vencimento').strftime("%d/%m/%Y"),
-            self._padronizar_norma(training_data.get('norma')),
+            norma,
             str(training_data.get('modulo', 'N/A')),
             "Válido",
             str(training_data.get('anexo')),
+            arquivo_hash or '',
             str(training_data.get('tipo_treinamento', 'N/A')),
             str(training_data.get('carga_horaria', '0'))
         ]
         training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
-        if training_id: self.load_data()
+        if training_id:
+            st.cache_data.clear()
+            self.load_data()
         return training_id
 
     def _set_status(self, sheet_name: str, item_id: str, status: str):

@@ -10,6 +10,7 @@ import os
 from operations.audit_logger import log_action
 from gdrive.google_api_manager import GoogleApiManager
 from operations.cached_loaders import load_company_docs_df, load_audits_df
+from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 
 logger = logging.getLogger('segsisone_app.company_docs_manager')
 
@@ -141,12 +142,28 @@ class CompanyDocsManager:
             st.error(f"Erro ao analisar o PDF do documento: {e}")
             return None
 
-    def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id):
+    def add_company_document(self, empresa_id, tipo_documento, data_emissao, vencimento, arquivo_id, arquivo_hash=None):
+        empresa_id_str = str(empresa_id)
+        
+        # Verifica duplicata por hash APENAS se a coluna existir e tiver dados
+        
+        if arquivo_hash and verificar_hash_seguro(self.docs_df, 'arquivo_hash'):
+            duplicata = self.docs_df[
+                (self.docs_df['empresa_id'] == empresa_id_str) &
+                (self.docs_df['arquivo_hash'] == arquivo_hash)
+            ]
+            
+            if not duplicata.empty:
+                st.warning(f"⚠️ Este arquivo PDF já foi cadastrado anteriormente para esta empresa (Documento do tipo '{duplicata.iloc[0]['tipo_documento']}').")
+                return None
+        
         new_data = [
-            str(empresa_id), str(tipo_documento), 
+            empresa_id_str, 
+            str(tipo_documento), 
             data_emissao.strftime("%d/%m/%Y"), 
             vencimento.strftime("%d/%m/%Y"), 
-            str(arquivo_id)
+            str(arquivo_id),
+            arquivo_hash or ''
         ]
         try:
             doc_id = self.sheet_ops.adc_dados_aba("documentos_empresa", new_data)

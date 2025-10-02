@@ -335,6 +335,29 @@ def show_admin_page():
             st.header("Gerenciamento Global do Sistema")
             matrix_manager_global = GlobalMatrixManager()
 
+            with st.expander("🔧 Migração: Adicionar Sistema de Hash Anti-Duplicatas"):
+                st.markdown("""
+                ### Sistema de Detecção de Arquivos Duplicados
+                
+                Esta ferramenta adiciona a coluna `arquivo_hash` nas planilhas de todas as unidades,
+                permitindo a detecção automática de arquivos PDF duplicados.
+                
+                **O que faz:**
+                - Adiciona coluna `arquivo_hash` nas abas: ASOs, Treinamentos, Documentos da Empresa e Fichas de EPI
+                - Mantém compatibilidade com registros antigos
+                - Não altera dados existentes
+                
+                **Seguro:** Esta operação apenas adiciona colunas vazias, não modifica dados.
+                """)
+                
+                if st.button("🚀 Executar Migração em Todas as Unidades", type="primary"):
+                    from operations.hash_migration import executar_migracao_em_todas_unidades
+                    
+                    with st.spinner("Executando migração..."):
+                        resultados = executar_migracao_em_todas_unidades()
+                    
+                    st.balloons()
+
             with st.expander("Provisionar Nova Unidade Operacional"):
                 with st.form("provision_form"):
                     new_unit_name = st.text_input("Nome da Nova Unidade")
