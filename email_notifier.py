@@ -248,272 +248,238 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
 
 def format_email_body(categorized_data: dict, unit_name: str = None, is_global: bool = False) -> str:
     """
-    ✅ MODIFICADO: Formata o corpo do e-mail com indicador de unidade ou global
-    
-    Args:
-        categorized_data: Dicionário com as pendências categorizadas
-        unit_name: Nome da unidade (None para global)
-        is_global: Se True, indica que é o relatório consolidado
+    ✅ REDESENHADO: Template moderno inspirado no ISF IA
     """
     
     html_style = """
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #333333;
-            background-color: #f5f5f5;
+            font-family: Arial, sans-serif; 
+            line-height: 1.6; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f4f4f4; 
         }
-        
-        .email-container {
-            max-width: 900px;
-            margin: 0 auto;
-            background-color: #ffffff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        .container { 
+            max-width: 900px; 
+            margin: 0 auto; 
+            background-color: white; 
+            border-radius: 10px; 
+            overflow: hidden; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
         }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
         }
-        
         .header.global {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
-        
-        .header h1 {
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        .header h1 { 
+            font-size: 32px; 
+            font-weight: bold; 
+            margin: 0 0 10px 0; 
         }
-        
-        .header .subtitle {
-            font-size: 14px;
-            opacity: 0.95;
-            font-weight: 300;
+        .header p { 
+            font-size: 16px; 
+            margin: 0; 
+            opacity: 0.95; 
         }
-        
         .header .unit-badge {
             display: inline-block;
-            background: rgba(255,255,255,0.2);
-            padding: 8px 16px;
+            background: rgba(255,255,255,0.25);
+            padding: 8px 20px;
             border-radius: 20px;
-            margin-top: 10px;
-            font-weight: 500;
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 14px;
         }
-        
-        .summary-section {
-            padding: 30px;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
+        .content { 
+            padding: 30px; 
         }
-        
-        .summary-cards {
-            display: flex;
-            gap: 15px;
+        .alert-box { 
+            background-color: #fff3cd; 
+            border: 1px solid #ffeaa7; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 25px 0; 
+        }
+        .alert-box h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+            font-size: 18px;
+        }
+        .alert-box p {
+            margin: 0;
+            color: #856404;
+        }
+        .summary-cards { 
+            display: flex; 
+            gap: 15px; 
+            margin: 25px 0; 
             flex-wrap: wrap;
-            justify-content: center;
         }
-        
-        .summary-card {
-            flex: 1;
-            min-width: 200px;
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        .summary-card { 
+            flex: 1; 
+            min-width: 180px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border-left: 4px solid #667eea;
+            border-radius: 8px; 
+            padding: 20px; 
+            text-align: center; 
         }
-        
-        .summary-card.critical {
-            border-left-color: #dc3545;
+        .summary-card.critical { 
+            border-left-color: #dc3545; 
+            background: linear-gradient(135deg, #fee 0%, #fdd 100%);
         }
-        
-        .summary-card.warning {
-            border-left-color: #ffc107;
+        .summary-card.warning { 
+            border-left-color: #ffc107; 
+            background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
         }
-        
-        .summary-card.info {
-            border-left-color: #17a2b8;
+        .summary-card .number { 
+            font-size: 36px; 
+            font-weight: bold; 
+            color: #dc3545; 
+            margin-bottom: 5px; 
         }
-        
-        .summary-card .number {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-            margin-bottom: 5px;
+        .summary-card.warning .number { 
+            color: #fd7e14; 
         }
-        
-        .summary-card.critical .number {
-            color: #dc3545;
-        }
-        
-        .summary-card.warning .number {
-            color: #ffc107;
-        }
-        
-        .summary-card .label {
-            font-size: 13px;
-            color: #6c757d;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .content-section {
-            padding: 30px;
-        }
-        
-        .category-block {
-            margin-bottom: 35px;
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-        }
-        
-        .category-header {
-            padding: 15px 20px;
-            font-size: 16px;
+        .summary-card .label { 
+            font-size: 13px; 
+            color: #495057; 
             font-weight: 600;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            text-transform: uppercase; 
         }
-        
-        .category-header.critical {
+        .category-section {
+            margin: 30px 0;
+        }
+        .category-header { 
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white; 
+            padding: 15px 20px; 
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
         }
-        
         .category-header.warning {
             background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
         }
-        
         .category-header.info {
             background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
         }
-        
         .category-header .badge {
-            background: rgba(255,255,255,0.25);
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 13px;
-            font-weight: 600;
+            background: rgba(255,255,255,0.3);
+            padding: 5px 15px;
+            border-radius: 15px;
+            font-size: 14px;
         }
-        
         table { 
-            border-collapse: collapse;
-            width: 100%;
-            font-size: 13px;
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 0;
+            background: white;
         }
-        
-        th {
-            background-color: #f8f9fa;
-            color: #495057;
-            font-weight: 600;
-            text-align: left;
-            padding: 12px 15px;
-            border-bottom: 2px solid #dee2e6;
+        th { 
+            background-color: #f8f9fa; 
+            color: #495057; 
+            font-weight: bold; 
+            text-align: left; 
+            padding: 14px 16px; 
+            border: 1px solid #dee2e6;
+            font-size: 12px;
             text-transform: uppercase;
-            font-size: 11px;
-            letter-spacing: 0.5px;
         }
-        
         td { 
-            padding: 12px 15px;
-            border-bottom: 1px solid #f1f3f5;
-            color: #495057;
+            padding: 14px 16px; 
+            border: 1px solid #dee2e6; 
+            color: #495057; 
         }
-        
-        tr:hover {
-            background-color: #f8f9fa;
+        tbody tr:nth-child(even) { 
+            background-color: #f8f9fa; 
         }
-        
-        tr:last-child td {
-            border-bottom: none;
+        tbody tr:hover { 
+            background-color: #e9ecef; 
         }
-        
+        .table-wrapper {
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .action-box { 
+            background-color: #d1ecf1; 
+            border: 1px solid #bee5eb; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 25px 0; 
+            text-align: center;
+        }
+        .action-box h4 {
+            margin: 0 0 15px 0;
+            color: #0c5460;
+            font-size: 18px;
+        }
+        .action-button { 
+            display: inline-block; 
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white; 
+            padding: 14px 30px; 
+            text-decoration: none; 
+            border-radius: 25px; 
+            margin: 15px 0; 
+            font-weight: bold; 
+            font-size: 16px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
+        }
+        .action-button:hover { 
+            background: linear-gradient(135deg, #0056b3 0%, #003d82 100%);
+        }
         .empty-state {
             text-align: center;
             padding: 60px 30px;
-            color: #6c757d;
         }
-        
         .empty-state-icon {
-            font-size: 64px;
+            font-size: 72px;
             margin-bottom: 20px;
-            opacity: 0.5;
         }
-        
         .empty-state h2 {
-            font-size: 24px;
             color: #28a745;
+            font-size: 28px;
             margin-bottom: 10px;
         }
-        
         .empty-state p {
-            font-size: 15px;
             color: #6c757d;
-        }
-        
-        .footer {
-            background-color: #f8f9fa;
-            padding: 25px 30px;
-            text-align: center;
-            border-top: 1px solid #dee2e6;
-        }
-        
-        .footer-content {
-            font-size: 13px;
-            color: #6c757d;
-            line-height: 1.8;
-        }
-        
-        .footer-logo {
-            font-weight: 700;
-            color: #667eea;
             font-size: 16px;
+        }
+        .footer { 
+            background-color: #f8f9fa; 
+            padding: 25px; 
+            text-align: center; 
+            font-size: 13px; 
+            color: #6c757d; 
+            border-top: 1px solid #dee2e6; 
+        }
+        .footer-logo {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 18px;
             margin-bottom: 10px;
         }
-        
-        .footer-divider {
-            height: 1px;
-            background: linear-gradient(to right, transparent, #dee2e6, transparent);
-            margin: 15px 0;
-        }
-        
         @media only screen and (max-width: 600px) {
-            .summary-cards {
-                flex-direction: column;
-            }
-            
-            .summary-card {
-                min-width: 100%;
-            }
-            
-            table {
-                font-size: 12px;
-            }
-            
-            th, td {
-                padding: 8px 10px;
-            }
+            .summary-cards { flex-direction: column; }
+            .summary-card { min-width: 100%; }
+            table { font-size: 12px; }
+            th, td { padding: 10px; }
         }
     </style>
     """
     
-    # Calcula estatísticas gerais
+    # Calcula estatísticas
     total_critical = 0
     total_warning = 0
     total_info = 0
@@ -530,71 +496,74 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
     
     has_content = (total_critical + total_warning + total_info) > 0
     
-    # Define título e subtítulo baseado no tipo de relatório
+    # Define título baseado no tipo
     if is_global:
-        title = "📊 Relatório Global Consolidado - SEGMA-SIS"
-        subtitle = f"Visão Consolidada de Todas as Unidades • {date.today().strftime('%d/%m/%Y')}"
+        title = "📊 Relatório Global Consolidado"
+        subtitle = f"Visão de Todas as Unidades • {date.today().strftime('%d/%m/%Y')}"
         header_class = "header global"
     elif unit_name:
-        title = f"🔔 Relatório de Vencimentos - {unit_name}"
-        subtitle = f"Relatório Específico da Unidade • {date.today().strftime('%d/%m/%Y')}"
+        title = f"⏰ Alerta de Vencimentos - {unit_name}"
+        subtitle = f"Ações necessárias nos próximos dias"
         header_class = "header"
     else:
-        title = "🔔 Relatório de Vencimentos - SEGMA-SIS"
-        subtitle = f"Relatório Consolidado • {date.today().strftime('%d/%m/%Y')}"
+        title = "📋 Relatório de Conformidade"
+        subtitle = f"Relatório do Sistema • {date.today().strftime('%d/%m/%Y')}"
         header_class = "header"
     
-    # Início do HTML
+    # Monta HTML
     html_body = f"""
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        {html_style}
-    </head>
-    <body>
-        <div class="email-container">
-            <div class="{header_class}">
-                <h1>{title}</h1>
-                <div class="subtitle">{subtitle}</div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    {html_style}
+</head>
+<body>
+    <div class="container">
+        <div class="{header_class}">
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
     """
     
     if not is_global and unit_name:
         html_body += f'<div class="unit-badge">📍 {unit_name}</div>'
     
     html_body += """
-            </div>
+        </div>
+        
+        <div class="content">
     """
     
-    # Cards de Resumo
     if has_content:
         html_body += f"""
-            <div class="summary-section">
-                <div class="summary-cards">
-                    <div class="summary-card critical">
-                        <div class="number">{total_critical}</div>
-                        <div class="label">🔴 Vencidos</div>
-                    </div>
-                    <div class="summary-card warning">
-                        <div class="number">{total_warning}</div>
-                        <div class="label">⚠️ Vencendo em Breve</div>
-                    </div>
-                    <div class="summary-card info">
-                        <div class="number">{total_info}</div>
-                        <div class="label">📋 Para Monitorar</div>
-                    </div>
+            <div class="alert-box">
+                <h3>📋 Resumo do Alerta</h3>
+                <p><strong>{total_critical + total_warning + total_info} item(ns)</strong> necessitam de atenção.</p>
+            </div>
+
+            <div class="summary-cards">
+                <div class="summary-card critical">
+                    <div class="number">{total_critical}</div>
+                    <div class="label">🔴 Vencidos</div>
+                </div>
+                <div class="summary-card warning">
+                    <div class="number">{total_warning}</div>
+                    <div class="label">⚠️ Vencendo em Breve</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">{total_info}</div>
+                    <div class="label">📋 Para Monitorar</div>
                 </div>
             </div>
-            
-            <div class="content-section">
         """
     
-    # ✅ CORREÇÃO: Configuração dinâmica das colunas baseada em is_global
+    # Configuração de colunas
     base_cols_docs_empresa = ['empresa', 'tipo_documento', 'vencimento']
     base_cols_aso = ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']
     base_cols_treinamento = ['empresa', 'nome_funcionario', 'norma', 'vencimento']
     
-    # ✅ Adiciona coluna 'unidade' no início se for relatório global
     if is_global:
         base_cols_docs_empresa = ['unidade'] + base_cols_docs_empresa
         base_cols_aso = ['unidade'] + base_cols_aso
@@ -604,76 +573,83 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         "Documentos da Empresa Vencidos": {
             "cols": base_cols_docs_empresa,
             "priority": "critical",
-            "icon": "🔴"
+            "icon": "🔴",
+            "title": "Documentos da Empresa Vencidos"
         },
         "ASOs Vencidos": {
             "cols": base_cols_aso,
             "priority": "critical",
-            "icon": "🔴"
+            "icon": "🔴",
+            "title": "ASOs Vencidos"
         },
         "Treinamentos Vencidos": {
             "cols": base_cols_treinamento,
             "priority": "critical",
-            "icon": "🔴"
+            "icon": "🔴",
+            "title": "Treinamentos Vencidos"
         },
         "Documentos da Empresa que vencem nos próximos 30 dias": {
             "cols": base_cols_docs_empresa,
             "priority": "warning",
-            "icon": "⚠️"
+            "icon": "⚠️",
+            "title": "Docs. Empresa - Próximos 30 dias"
         },
         "ASOs que vencem em até 15 dias": {
             "cols": base_cols_aso,
             "priority": "warning",
-            "icon": "⚠️"
+            "icon": "⚠️",
+            "title": "ASOs - Próximos 15 dias"
         },
         "Treinamentos que vencem em até 15 dias": {
             "cols": base_cols_treinamento,
             "priority": "warning",
-            "icon": "⚠️"
+            "icon": "⚠️",
+            "title": "Treinamentos - Próximos 15 dias"
         },
         "ASOs que vencem entre 16 e 45 dias": {
             "cols": base_cols_aso,
             "priority": "info",
-            "icon": "📋"
+            "icon": "📋",
+            "title": "ASOs - 16 a 45 dias"
         },
         "Treinamentos que vencem entre 16 e 45 dias": {
             "cols": base_cols_treinamento,
             "priority": "info",
-            "icon": "📋"
+            "icon": "📋",
+            "title": "Treinamentos - 16 a 45 dias"
         },
     }
     
-    # Renderiza cada categoria
+    # Renderiza categorias
     for category_name, config in report_configs.items():
         if category_name in categorized_data and not categorized_data[category_name].empty:
             data_df = categorized_data[category_name]
             count = len(data_df)
             priority = config['priority']
             icon = config['icon']
+            display_title = config['title']
             
             html_body += f"""
-                <div class="category-block">
-                    <div class="category-header {priority}">
-                        <span>{icon} {category_name}</span>
-                        <span class="badge">{count} item{'ns' if count != 1 else ''}</span>
-                    </div>
+            <div class="category-section">
+                <div class="category-header {priority}">
+                    <span>{icon} {display_title}</span>
+                    <span class="badge">{count} item{'ns' if count != 1 else ''}</span>
+                </div>
+                <div class="table-wrapper">
             """
             
             try:
                 df_display = data_df.copy()
                 
-                # Formatação de datas
                 if 'vencimento' in df_display.columns:
                     df_display['vencimento'] = pd.to_datetime(
                         df_display['vencimento'], errors='coerce', dayfirst=True
                     ).dt.strftime('%d/%m/%Y')
                     df_display = df_display.dropna(subset=['vencimento'])
                 
-                # Seleciona colunas para exibir
                 cols_to_show = [col for col in config['cols'] if col in df_display.columns]
                 
                 if cols_to_show:
-                    # ✅ CORREÇÃO: Adiciona 'unidade' no mapeamento de colunas
                     column_names = {
                         'unidade': 'Unidade',
                         'empresa': 'Empresa',
@@ -686,7 +662,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
                     
                     df_display = df_display[cols_to_show].rename(columns=column_names)
                     
-                    # Converte para HTML com estilo
                     html_table = df_display.to_html(
                         index=False, 
                         border=0, 
@@ -697,45 +672,53 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
                     
                     html_body += html_table
                 else:
-                    html_body += "<p style='padding: 20px; text-align: center; color: #6c757d;'>Estrutura de dados incompatível</p>"
+                    html_body += "<p style='padding: 20px; text-align: center; color: #6c757d;'>Dados incompatíveis</p>"
                     
             except Exception as e:
-                logger.error(f"Erro ao processar categoria '{category_name}': {e}")
-                html_body += f"<p style='padding: 20px; text-align: center; color: #dc3545;'>Erro ao processar dados: {str(e)}</p>"
+                logger.error(f"Erro ao processar '{category_name}': {e}")
+                html_body += f"<p style='padding: 20px; text-align: center; color: #dc3545;'>Erro: {str(e)}</p>"
             
-            html_body += "</div>"
+            html_body += """
+                </div>
+            </div>
+            """
     
-    # Se não há conteúdo
+    # Empty state ou action box
     if not has_content:
         html_body += """
             <div class="empty-state">
                 <div class="empty-state-icon">✅</div>
                 <h2>Tudo em Ordem!</h2>
-                <p>Não há pendências de vencimentos nesta unidade.</p>
-                <p style="margin-top: 10px; font-size: 13px;">Todos os documentos estão em dia. Continue o bom trabalho! 🎉</p>
+                <p>Não há pendências de vencimentos.</p>
+                <p style="margin-top: 10px;">Continue o excelente trabalho mantendo a conformidade! 🎉</p>
             </div>
         """
     else:
-        html_body += "</div>"
-    
-    # Footer
-    html_body += """
-            <div class="footer">
-                <div class="footer-logo">SEGMA-SIS</div>
-                <div class="footer-divider"></div>
-                <div class="footer-content">
-                    Este é um e-mail automático gerado pelo sistema SEGMA-SIS.<br>
-                    Por favor, não responda esta mensagem.<br><br>
-                    <strong>Dúvidas?</strong> Entre em contato com o administrador do sistema.
-                </div>
+        html_body += """
+            <div class="action-box">
+                <h4>🎯 Ação Necessária</h4>
+                <p>Acesse o sistema para regularizar as pendências e manter a conformidade:</p>
+                <a href="https://segma-sis.streamlit.app" class="action-button">🚀 Acessar SEGMA-SIS</a>
             </div>
+        """
+    
+    html_body += """
+            <p style="margin-top: 30px;">Atenciosamente,<br>
+            <strong>Sistema SEGMA-SIS</strong></p>
         </div>
-    </body>
-    </html>
+        
+        <div class="footer">
+            <div class="footer-logo">SEGMA-SIS</div>
+            <p>Esta é uma notificação automática do sistema de gestão.<br>
+            Para alterar a frequência dos alertas, acesse as configurações do sistema.</p>
+        </div>
+    </div>
+</body>
+</html>
     """
     
     return html_body
-
+    
 def send_smtp_email(html_body: str, config: dict, receiver_email: str, subject_suffix: str = ""):
     """
     ✅ MODIFICADO: Envia e-mail com destinatário configurável
