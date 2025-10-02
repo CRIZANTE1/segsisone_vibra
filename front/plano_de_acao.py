@@ -71,10 +71,10 @@ def show_plano_acao_page():
                         employee_id = row.get('id_funcionario')
                         if employee_id and str(employee_id).strip():
                             employee_name = employee_manager.get_employee_name(employee_id)
-                            # ✅ Verificar se é um nome real ou apenas um ID
-                            if not employee_name.startswith("ID "):
+                            # ✅ Verifica se employee_name existe E não é um fallback de ID
+                            if employee_name and not employee_name.startswith("ID "):
                                 st.caption(f"👤 Funcionário: {employee_name}")
-                        
+                                                
                         # Referência normativa
                         st.caption(f"**Referência:** {row.get('referencia_normativa', 'N/A')}")
                         
