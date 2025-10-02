@@ -755,7 +755,7 @@ def send_smtp_email(html_body: str, config: dict, receiver_email: str, subject_s
 
 def main():
     """
-    ✅ CORRIGIDO: Função principal com envio segmentado de e-mails
+    ✅ CORRIGIDO: Função principal com validação rigorosa de dados
     """
     logger.info("🚀 Iniciando script de notificação de vencimentos...")
     
@@ -769,7 +769,6 @@ def main():
             logger.warning("⚠️ Nenhuma unidade encontrada na matriz. Encerrando.")
             return
         
-        # ✅ Dicionário para armazenar dados de cada unidade
         all_units_categorized_data = {}
         units_with_pendencies = {}
         successful_units = 0
@@ -798,61 +797,91 @@ def main():
                     folder_id=folder_id_safe
                 )
                 
-                # ✅ CORREÇÃO CRÍTICA: Verifica se há DADOS antes de processar
+                # ✅ VALIDAÇÃO 1: Dados carregados
                 if not employee_manager.data_loaded_successfully:
-                    logger.warning(f"⚠️ Dados de funcionários não carregados para '{unit_name}'. Pulando.")
+                    logger.warning(f"⚠️ Dados de funcionários não carregados para '{unit_name}'.")
+                    successful_units += 1
                     continue
                     
                 if not docs_manager.data_loaded_successfully:
-                    logger.warning(f"⚠️ Dados de documentos não carregados para '{unit_name}'. Pulando.")
+                    logger.warning(f"⚠️ Dados de documentos não carregados para '{unit_name}'.")
+                    successful_units += 1
                     continue
                 
-                # ✅ CORREÇÃO CRÍTICA: Verifica se há empresas ANTES de categorizar
+                # ✅ VALIDAÇÃO 2: Empresas existem
                 if employee_manager.companies_df.empty:
-                    logger.info(f"ℹ️ Unidade '{unit_name}' não possui empresas cadastradas. Pulando.")
-                    successful_units += 1  # Conta como processada, mas sem dados
+                    logger.info(f"ℹ️ Unidade '{unit_name}' sem empresas cadastradas.")
+                    successful_units += 1
                     continue
                 
-                # ✅ CORREÇÃO CRÍTICA: Verifica se há empresas ATIVAS
+                # ✅ VALIDAÇÃO 3: Empresas ativas existem
                 active_companies = employee_manager.companies_df[
                     employee_manager.companies_df['status'].str.lower() == 'ativo'
-                ]
+                ].copy()
                 
                 if active_companies.empty:
-                    logger.info(f"ℹ️ Unidade '{unit_name}' não possui empresas ativas. Pulando.")
-                    successful_units += 1  # Conta como processada, mas sem dados
+                    logger.info(f"ℹ️ Unidade '{unit_name}' sem empresas ativas.")
+                    successful_units += 1
+                    continue
+                
+                # ✅ VALIDAÇÃO 4: Funcionários ativos existem
+                if not employee_manager.employees_df.empty:
+                    active_employees = employee_manager.employees_df[
+                        (employee_manager.employees_df['status'].str.lower() == 'ativo') &
+                        (employee_manager.employees_df['empresa_id'].isin(active_companies['id']))
+                    ].copy()
+                else:
+                    active_employees = pd.DataFrame()
+                
+                # ✅ VALIDAÇÃO 5: Há algo para verificar
+                has_employees = not active_employees.empty
+                has_docs = not docs_manager.docs_df.empty
+                
+                if not has_employees and not has_docs:
+                    logger.info(f"ℹ️ Unidade '{unit_name}' sem funcionários ativos nem documentos.")
+                    successful_units += 1
                     continue
                 
                 # Categoriza os dados
                 categorized_data = categorize_expirations_for_unit(employee_manager, docs_manager)
                 
-                # ✅ CORREÇÃO CRÍTICA: Verifica se realmente há pendências
-                has_pendencies = False
+                # ✅ VALIDAÇÃO 6: Contagem rigorosa de pendências
+                total_items = 0
                 for category_name, category_df in categorized_data.items():
                     if not category_df.empty:
-                        has_pendencies = True
-                        break
+                        # ✅ CRÍTICO: Valida que os dados são REALMENTE desta unidade
+                        # Remove qualquer linha que não seja desta unidade (por segurança)
+                        if 'unidade' in category_df.columns:
+                            category_df_clean = category_df[category_df['unidade'] == unit_name].copy()
+                            total_items += len(category_df_clean)
+                        else:
+                            total_items += len(category_df)
                 
-                if has_pendencies:
-                    # Adiciona nome da unidade a todos os DataFrames
-                    for category_name, category_df in categorized_data.items():
-                        if not category_df.empty:
-                            try:
-                                category_df['unidade'] = unit_name
-                            except Exception as e:
-                                logger.error(f"❌ Erro ao adicionar nome da unidade '{unit_name}': {e}")
-                    
-                    # ✅ SOMENTE adiciona se tiver pendências
-                    all_units_categorized_data[unit_name] = categorized_data
-                    units_with_pendencies[unit_name] = {
-                        'data': categorized_data,
-                        'email': unit_email
-                    }
-                    
-                    logger.info(f"✅ Unidade '{unit_name}' tem {sum(len(df) for df in categorized_data.values() if not df.empty)} pendência(s).")
-                else:
+                if total_items == 0:
                     logger.info(f"ℹ️ Unidade '{unit_name}' processada - nenhuma pendência encontrada.")
+                    successful_units += 1
+                    continue
                 
+                # ✅ Adiciona nome da unidade ANTES de armazenar
+                for category_name, category_df in categorized_data.items():
+                    if not category_df.empty:
+                        try:
+                            # Remove coluna 'unidade' se existir (para evitar duplicação)
+                            if 'unidade' in category_df.columns:
+                                category_df.drop(columns=['unidade'], inplace=True)
+                            # Adiciona novamente
+                            category_df['unidade'] = unit_name
+                        except Exception as e:
+                            logger.error(f"❌ Erro ao processar unidade '{unit_name}': {e}")
+                
+                # ✅ Armazena apenas se tiver pendências
+                all_units_categorized_data[unit_name] = categorized_data
+                units_with_pendencies[unit_name] = {
+                    'data': categorized_data,
+                    'email': unit_email
+                }
+                
+                logger.info(f"✅ Unidade '{unit_name}' tem {total_items} pendência(s).")
                 successful_units += 1
                 
             except Exception as e:
@@ -860,7 +889,7 @@ def main():
                 continue
 
         if successful_units == 0:
-            logger.error("❌ Nenhuma unidade foi processada com sucesso. Encerrando.")
+            logger.error("❌ Nenhuma unidade processada com sucesso.")
             return
 
         logger.info(f"✅ Total de {successful_units} unidades processadas.")
@@ -872,18 +901,18 @@ def main():
         emails_sent_to_units = 0
         
         if units_with_pendencies:
-            logger.info(f"📧 Iniciando envio de e-mails para {len(units_with_pendencies)} unidade(s) com pendências...")
+            logger.info(f"📧 Iniciando envio para {len(units_with_pendencies)} unidade(s)...")
             
             for unit_name, unit_info in units_with_pendencies.items():
                 unit_email = unit_info.get('email')
                 unit_data = unit_info.get('data')
                 
                 if not unit_email or pd.isna(unit_email):
-                    logger.warning(f"⚠️ Unidade '{unit_name}' não possui e-mail configurado. Pulando envio individual.")
+                    logger.warning(f"⚠️ Unidade '{unit_name}' sem e-mail configurado.")
                     continue
                 
                 try:
-                    logger.info(f"📧 Gerando e-mail para unidade: {unit_name}")
+                    logger.info(f"📧 Gerando e-mail para: {unit_name}")
                     
                     email_body = format_email_body(
                         categorized_data=unit_data,
@@ -899,27 +928,26 @@ def main():
                     )
                     
                     emails_sent_to_units += 1
-                    logger.info(f"✅ E-mail enviado com sucesso para '{unit_name}' ({unit_email})")
+                    logger.info(f"✅ E-mail enviado para '{unit_name}'")
                     
                 except Exception as e:
-                    logger.error(f"❌ Falha ao enviar e-mail para unidade '{unit_name}': {e}")
+                    logger.error(f"❌ Falha no envio para '{unit_name}': {e}")
                     continue
             
-            logger.info(f"✅ {emails_sent_to_units} e-mail(s) enviado(s) para unidades específicas.")
+            logger.info(f"✅ {emails_sent_to_units} e-mail(s) enviado(s).")
         else:
-            logger.info("ℹ️ Nenhuma unidade possui pendências. E-mails individuais não serão enviados.")
+            logger.info("ℹ️ Nenhuma unidade com pendências.")
 
         # ========================================
-        # PARTE 2: ENVIO DO E-MAIL GLOBAL CONSOLIDADO
+        # PARTE 2: E-MAIL GLOBAL
         # ========================================
         
-        # ✅ CORREÇÃO CRÍTICA: Só consolida se houver pendências
         if not all_units_categorized_data:
-            logger.info("ℹ️ Nenhuma unidade possui pendências. E-mail global não será enviado.")
-            logger.info("🎉 Script finalizado com sucesso.")
+            logger.info("ℹ️ Nenhuma pendência global. E-mail não será enviado.")
+            logger.info("🎉 Script finalizado.")
             return
         
-        logger.info("📧 Gerando relatório global consolidado...")
+        logger.info("📧 Gerando relatório global...")
         
         consolidated_data = {}
         for unit_name, unit_data in all_units_categorized_data.items():
@@ -934,14 +962,13 @@ def main():
             for name, dfs in consolidated_data.items()
         }
 
-        # ✅ Verifica se há pendências para o relatório global
         has_global_pendencies = any(not df.empty for df in final_report_data.values())
         
         if not has_global_pendencies:
-            logger.info("ℹ️ Nenhuma pendência encontrada globalmente após consolidação. E-mail global não será enviado.")
+            logger.info("ℹ️ Consolidação resultou em zero pendências.")
         else:
             try:
-                logger.info("📧 Gerando e-mail global consolidado...")
+                logger.info("📧 Gerando e-mail global...")
                 
                 global_email_body = format_email_body(
                     categorized_data=final_report_data,
@@ -956,10 +983,10 @@ def main():
                     subject_suffix="Relatório Global Consolidado"
                 )
                 
-                logger.info(f"✅ E-mail global enviado com sucesso para {config['global_receiver_email']}!")
+                logger.info(f"✅ E-mail global enviado!")
                 
             except Exception as e:
-                logger.error(f"❌ Falha ao enviar e-mail global: {e}")
+                logger.error(f"❌ Falha no e-mail global: {e}")
         
         # ========================================
         # RESUMO FINAL
@@ -968,13 +995,13 @@ def main():
         logger.info("📊 RESUMO DA EXECUÇÃO:")
         logger.info(f"   • Unidades processadas: {successful_units}")
         logger.info(f"   • Unidades com pendências: {len(units_with_pendencies)}")
-        logger.info(f"   • E-mails enviados para unidades: {emails_sent_to_units}")
-        logger.info(f"   • E-mail global enviado: {'Sim' if has_global_pendencies else 'Não (sem pendências)'}")
+        logger.info(f"   • E-mails enviados: {emails_sent_to_units}")
+        logger.info(f"   • E-mail global: {'Sim' if has_global_pendencies else 'Não'}")
         logger.info("=" * 60)
-        logger.info("🎉 Script finalizado com sucesso.")
+        logger.info("🎉 Script finalizado.")
 
     except Exception as e:
-        logger.error(f"💥 Erro fatal no script: {e}", exc_info=True)
+        logger.error(f"💥 Erro fatal: {e}", exc_info=True)
         sys.exit(1)
 
 if __name__ == "__main__":
