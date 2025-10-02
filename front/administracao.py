@@ -335,6 +335,59 @@ def show_admin_page():
             st.header("Gerenciamento Global do Sistema")
             matrix_manager_global = GlobalMatrixManager()
 
+            # ✅ ADICIONAR ESTE BLOCO
+            with st.expander("🔄 Migração: Adicionar Coluna id_funcionario no Plano de Ação"):
+                st.markdown("""
+                ### Adicionar Rastreamento de Funcionários no Plano de Ação
+                
+                Esta migração adiciona a coluna `id_funcionario` na aba `plano_acao` de todas as unidades,
+                permitindo rastreabilidade completa de não conformidades por funcionário.
+                
+                **O que faz:**
+                - Adiciona a coluna `id_funcionario` após `id_documento_original`
+                - Popula automaticamente valores existentes quando possível (ASOs e Treinamentos)
+                - Mantém compatibilidade com registros antigos
+                
+                **Seguro:** Esta operação não altera dados existentes, apenas adiciona uma nova coluna.
+                """)
+                
+                if st.button("🚀 Executar Migração em Todas as Unidades", type="primary", key="migrate_id_funcionario"):
+                    from operations.migrations.add_id_funcionario_to_plano_acao import executar_migracao_em_todas_unidades
+                    
+                    with st.spinner("Executando migração..."):
+                        resultados = executar_migracao_em_todas_unidades()
+                    
+                    # Exibe resultados
+                    st.markdown("### Resultados da Migração")
+                    
+                    sucessos = sum(1 for r in resultados.values() if r.get("sucesso"))
+                    falhas = len(resultados) - sucessos
+                    
+                    col1, col2 = st.columns(2)
+                    col1.metric("✅ Sucessos", sucessos)
+                    col2.metric("❌ Falhas", falhas)
+                    
+                    # Tabela detalhada
+                    df_resultados = pd.DataFrame([
+                        {
+                            "Unidade": unit_name,
+                            "Status": "✅ Sucesso" if r.get("sucesso") else "❌ Falha",
+                            "Detalhes": r.get("mensagem"),
+                            "Registros Populados": r.get("registros_populados", 0)
+                        }
+                        for unit_name, r in resultados.items()
+                    ])
+                    
+                    st.dataframe(df_resultados, use_container_width=True, hide_index=True)
+                    
+                    if sucessos == len(resultados):
+                        st.balloons()
+                        st.success(f"🎉 Migração concluída com sucesso em todas as {len(resultados)} unidades!")
+                    elif sucessos > 0:
+                        st.warning(f"⚠️ Migração concluída parcialmente: {sucessos} sucessos e {falhas} falhas.")
+                    else:
+                        st.error("❌ A migração falhou em todas as unidades. Verifique os logs.")
+
             with st.expander("🔧 Migração: Adicionar Sistema de Hash Anti-Duplicatas"):
                 st.markdown("""
                 ### Sistema de Detecção de Arquivos Duplicados
