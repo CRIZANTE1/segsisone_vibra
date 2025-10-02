@@ -51,6 +51,7 @@ def _get_empty_categories():
 def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_manager: CompanyDocsManager):
     """
     ✅ CORRIGIDO: Categoriza os vencimentos com tratamento robusto de erros
+    e eliminação de SettingWithCopyWarning
     """
     try:
         today = date.today()
@@ -70,7 +71,7 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             
         active_companies = employee_manager.companies_df[
             employee_manager.companies_df['status'].str.lower() == 'ativo'
-        ]
+        ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
         
         if active_companies.empty:
             logger.info("Nenhuma empresa ativa encontrada")
@@ -82,14 +83,15 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             active_employees = employee_manager.employees_df[
                 (employee_manager.employees_df['status'].str.lower() == 'ativo') &
                 (employee_manager.employees_df['empresa_id'].isin(active_companies['id']))
-            ]
+            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
 
         # --- Processamento de Treinamentos ---
         latest_trainings = pd.DataFrame()
         if not employee_manager.training_df.empty and not active_employees.empty:
             trainings_actives = employee_manager.training_df[
                 employee_manager.training_df['funcionario_id'].isin(active_employees['id'])
-            ]
+            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            
             if not trainings_actives.empty and 'vencimento' in trainings_actives.columns:
                 trainings_actives['vencimento_dt'] = pd.to_datetime(
                     trainings_actives['vencimento'], errors='coerce'
@@ -99,18 +101,19 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                 if not trainings_actives.empty:
                     latest_trainings = trainings_actives.sort_values(
                         'data', ascending=False
-                    ).groupby(['funcionario_id', 'norma']).head(1).copy()
+                    ).groupby(['funcionario_id', 'norma']).head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
         
         # --- Processamento de ASOs ---
         latest_asos = pd.DataFrame()
         if not employee_manager.aso_df.empty and not active_employees.empty:
             asos_actives = employee_manager.aso_df[
                 employee_manager.aso_df['funcionario_id'].isin(active_employees['id'])
-            ]
+            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            
             if not asos_actives.empty and 'vencimento' in asos_actives.columns:
                 aptitude_asos = asos_actives[
                     ~asos_actives['tipo_aso'].str.lower().isin(['demissional'])
-                ].copy()
+                ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
                 
                 if not aptitude_asos.empty:
                     aptitude_asos['vencimento_dt'] = pd.to_datetime(
@@ -121,14 +124,15 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                     if not aptitude_asos.empty:
                         latest_asos = aptitude_asos.sort_values(
                             'data_aso', ascending=False
-                        ).groupby('funcionario_id').head(1).copy()
+                        ).groupby('funcionario_id').head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
 
         # --- Processamento de Documentos da Empresa ---
         latest_company_docs = pd.DataFrame()
         if not docs_manager.docs_df.empty:
             docs_actives = docs_manager.docs_df[
                 docs_manager.docs_df['empresa_id'].isin(active_companies['id'])
-            ]
+            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            
             if not docs_actives.empty and 'vencimento' in docs_actives.columns:
                 docs_actives['vencimento_dt'] = pd.to_datetime(
                     docs_actives['vencimento'], errors='coerce'
@@ -138,45 +142,45 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                 if not docs_actives.empty:
                     latest_company_docs = docs_actives.sort_values(
                         'data_emissao', ascending=False
-                    ).groupby(['empresa_id', 'tipo_documento']).head(1).copy()
+                    ).groupby(['empresa_id', 'tipo_documento']).head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
 
         # --- Filtros de Vencimento ---
         vencidos_tr = latest_trainings[
             latest_trainings['vencimento_dt'] < today
-        ] if not latest_trainings.empty else pd.DataFrame()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vence_15_tr = latest_trainings[
             (latest_trainings['vencimento_dt'] >= today) & 
             (latest_trainings['vencimento_dt'] <= today + timedelta(days=15))
-        ] if not latest_trainings.empty else pd.DataFrame()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vence_45_tr = latest_trainings[
             (latest_trainings['vencimento_dt'] > today + timedelta(days=15)) & 
             (latest_trainings['vencimento_dt'] <= today + timedelta(days=45))
-        ] if not latest_trainings.empty else pd.DataFrame()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vencidos_aso = latest_asos[
             latest_asos['vencimento_dt'] < today
-        ] if not latest_asos.empty else pd.DataFrame()
+        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vence_15_aso = latest_asos[
             (latest_asos['vencimento_dt'] >= today) & 
             (latest_asos['vencimento_dt'] <= today + timedelta(days=15))
-        ] if not latest_asos.empty else pd.DataFrame()
+        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vence_45_aso = latest_asos[
             (latest_asos['vencimento_dt'] > today + timedelta(days=15)) & 
             (latest_asos['vencimento_dt'] <= today + timedelta(days=45))
-        ] if not latest_asos.empty else pd.DataFrame()
+        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
 
         vencidos_docs = latest_company_docs[
             latest_company_docs['vencimento_dt'] < today
-        ] if not latest_company_docs.empty else pd.DataFrame()
+        ].copy() if not latest_company_docs.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
         
         vence_30_docs = latest_company_docs[
             (latest_company_docs['vencimento_dt'] >= today) & 
             (latest_company_docs['vencimento_dt'] <= today + timedelta(days=30))
-        ] if not latest_company_docs.empty else pd.DataFrame()
+        ].copy() if not latest_company_docs.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
 
         # --- Adiciona informações de nome/empresa ---
         if not active_employees.empty:
@@ -188,8 +192,9 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             for df in [vencidos_tr, vence_15_tr, vence_45_tr, vencidos_aso, vence_15_aso, vence_45_aso]:
                 if not df.empty and 'funcionario_id' in df.columns:
                     try:
-                        df.loc[:, 'nome_funcionario'] = df['funcionario_id'].map(employee_id_to_name)
-                        df.loc[:, 'empresa'] = df['funcionario_id'].map(employee_id_to_company_name)
+                        # ✅ CORREÇÃO: Remove .loc[:, ...] e usa atribuição direta
+                        df['nome_funcionario'] = df['funcionario_id'].map(employee_id_to_name)
+                        df['empresa'] = df['funcionario_id'].map(employee_id_to_company_name)
                     except Exception as e:
                         logger.error(f"Erro ao adicionar informações de funcionário: {e}")
 
@@ -198,7 +203,8 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             for df in [vencidos_docs, vence_30_docs]:
                 if not df.empty and 'empresa_id' in df.columns:
                     try:
-                        df.loc[:, 'empresa'] = df['empresa_id'].map(company_id_to_name)
+                        # ✅ CORREÇÃO: Remove .loc[:, ...] e usa atribuição direta
+                        df['empresa'] = df['empresa_id'].map(company_id_to_name)
                     except Exception as e:
                         logger.error(f"Erro ao adicionar informações de empresa: {e}")
 
