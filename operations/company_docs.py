@@ -8,7 +8,6 @@ from AI.api_Operation import PDFQA
 import tempfile
 import os
 from operations.audit_logger import log_action
-from gdrive.google_api_manager import GoogleApiManager
 from operations.cached_loaders import load_company_docs_df, load_audits_df
 from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 
@@ -17,7 +16,7 @@ logger = logging.getLogger('segsisone_app.company_docs_manager')
 class CompanyDocsManager:
     def __init__(self, spreadsheet_id: str, folder_id: str):
         self.sheet_ops = SheetOperations(spreadsheet_id)
-        self.spreadsheet_id = spreadsheet_id # Armazena o ID
+        self.spreadsheet_id = spreadsheet_id 
         self.folder_id = folder_id
         self.api_manager = GoogleApiManager()
         self.data_loaded_successfully = False
