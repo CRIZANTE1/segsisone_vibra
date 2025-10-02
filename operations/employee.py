@@ -341,20 +341,30 @@ class EmployeeManager:
         return aso_docs.sort_values('data_aso', ascending=False).groupby('tipo_aso').head(1)
 
     def get_all_trainings_by_employee(self, employee_id):
-        if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: return pd.DataFrame()
+        """
+        Retorna o treinamento mais recente para cada norma de um funcionário.
+        """
+        if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: 
+            return pd.DataFrame()
+        
         training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
-        if training_docs.empty: return pd.DataFrame()
+        
+        if training_docs.empty: 
+            return pd.DataFrame()
         
         training_docs.dropna(subset=['data'], inplace=True)
-        if training_docs.empty: return pd.DataFrame()
-
+        
+        if training_docs.empty: 
+            return pd.DataFrame()
+    
+        # Garante que as colunas essenciais existam
         for col in ['norma', 'modulo', 'tipo_treinamento']:
-            if col not in training_docs.columns: training_docs[col] = 'N/A'
+            if col not in training_docs.columns: 
+                training_docs[col] = 'N/A'
             training_docs[col] = training_docs[col].fillna('N/A')
         
+        # ✅ Retorna apenas o mais recente por norma (remove código morto)
         return training_docs.sort_values('data', ascending=False).groupby('norma').head(1)
-        
-        return latest_trainings
 
     def get_company_name(self, company_id):
         if self.companies_df.empty: return f"ID {company_id}"
