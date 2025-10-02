@@ -143,13 +143,12 @@ def show_dashboard_page():
                 employees = employee_manager.get_employees_by_company(selected_company)
                 
                 if not employees.empty:
-                    
                     for index, employee in employees.iterrows():
                         employee_id = employee.get('id')
                         employee_name = employee.get('nome', 'N/A')
                         employee_cargo = employee.get('cargo', 'N/A')
                         today = date.today()
-                    
+
                         aso_status, aso_vencimento = 'Não encontrado', None
                         latest_asos = employee_manager.get_latest_aso_by_employee(employee_id)
                         if isinstance(latest_asos, pd.DataFrame) and not latest_asos.empty:
@@ -164,155 +163,62 @@ def show_dashboard_page():
                                     aso_status = 'Venc. Inválido'
                             else:
                                 aso_status = 'Apenas Demissional'
-                    
+
                         all_trainings = employee_manager.get_all_trainings_by_employee(employee_id)
                         trainings_total, trainings_expired_count = 0, 0
                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                             trainings_total = len(all_trainings)
                             trainings_expired_count = (all_trainings['vencimento'].dt.date < today).sum()
-                    
+
                         overall_status = 'Em Dia' if aso_status != 'Vencido' and trainings_expired_count == 0 else 'Pendente'
                         status_icon = "✅" if overall_status == 'Em Dia' else "⚠️"
                         
-                        # 🎨 NOVO DESIGN DE CARD
-                        # Define cores baseadas no status
-                        if overall_status == 'Em Dia':
-                            gradient_start = "#e8f5e9"
-                            gradient_end = "#c8e6c9"
-                            border_color = "#4caf50"
-                            status_bg = "#4caf50"
-                        else:
-                            gradient_start = "#ffebee"
-                            gradient_end = "#ffcdd2"
-                            border_color = "#f44336"
-                            status_bg = "#f44336"
-                        
-                        num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
-                        
-                        # Card principal do funcionário
-                        st.markdown(f"""
-                        <div style="
-                            background: linear-gradient(135deg, {gradient_start} 0%, {gradient_end} 100%);
-                            border-radius: 12px;
-                            padding: 1.5rem;
-                            margin-bottom: 1.5rem;
-                            border-left: 5px solid {border_color};
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                            transition: transform 0.2s ease, box-shadow 0.2s ease;
-                        ">
-                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
-                                <div style="flex: 1;">
-                                    <h3 style="margin: 0 0 0.5rem 0; color: #333; font-size: 1.4rem;">
-                                        {status_icon} {employee_name}
-                                    </h3>
-                                    <p style="margin: 0; color: #666; font-size: 1rem; font-weight: 500;">
-                                        💼 {employee_cargo}
-                                    </p>
-                                </div>
-                                <div style="
-                                    background: {status_bg};
-                                    color: white;
-                                    padding: 0.5rem 1rem;
-                                    border-radius: 20px;
-                                    font-size: 0.9rem;
-                                    font-weight: 600;
-                                    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-                                ">
-                                    {overall_status}
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Expander com detalhes (mantém a funcionalidade original)
-                        with st.expander("📊 Ver Detalhes Completos", expanded=False):
-                            # Métricas em colunas
+                        with st.expander(f"{status_icon} **{employee_name}** - *{employee_cargo}*"):
+                            num_pendencias = trainings_expired_count + (1 if aso_status == 'Vencido' else 0)
                             col1, col2, col3 = st.columns(3)
-                            
-                            delta_color_status = "inverse" if overall_status != 'Em Dia' else "off"
-                            col1.metric(
-                                "Status Geral", 
-                                overall_status, 
-                                f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma", 
-                                delta_color=delta_color_status
-                            )
-                            
-                            col2.metric(
-                                "Status do ASO", 
-                                aso_status, 
-                                help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}"
-                            )
-                            
-                            col3.metric(
-                                "Treinamentos Vencidos", 
-                                f"{trainings_expired_count} de {trainings_total}"
-                            )
+                            col1.metric("Status Geral", overall_status, f"{num_pendencias} pendência(s)" if num_pendencias > 0 else "Nenhuma", delta_color="inverse" if overall_status != 'Em Dia' else "off")
+                            col2.metric("Status do ASO", aso_status, help=f"Vencimento: {aso_vencimento.strftime('%d/%m/%Y') if aso_vencimento else 'N/A'}")
+                            col3.metric("Treinamentos Vencidos", f"{trainings_expired_count} de {trainings_total}")
                             
                             st.markdown("---")
-                            
-                            # ASOs
-                            st.markdown("##### 🩺 ASO (Mais Recente por Tipo)")
+                            st.markdown("##### ASO (Mais Recente por Tipo)")
                             if isinstance(latest_asos, pd.DataFrame) and not latest_asos.empty:
                                 latest_asos['vencimento_dt'] = pd.to_datetime(latest_asos['vencimento'], errors='coerce').dt.date
                                 st.dataframe(
                                     latest_asos.style.apply(highlight_expired, axis=1),
-                                    column_config={
-                                        "tipo_aso": "Tipo", 
-                                        "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), 
-                                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                                        "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="📄 PDF"), 
-                                        "vencimento_dt": None
-                                    },
+                                    column_config={"tipo_aso": "Tipo", "data_aso": st.column_config.DateColumn("Data", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Anexo", display_text="PDF"), "vencimento_dt": None},
                                     column_order=["tipo_aso", "data_aso", "vencimento", "arquivo_id"],
-                                    hide_index=True, 
-                                    use_container_width=True
+                                    hide_index=True, use_container_width=True
                                 )
                             else:
                                 st.info(f"Nenhum ASO encontrado para {employee_name}.")
-                    
-                            # Treinamentos
-                            st.markdown("##### 🎓 Treinamentos (Mais Recente por Norma)")
+
+                            st.markdown("##### Treinamentos (Mais Recente por Norma)")
                             if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                                 all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date
                                 st.dataframe(
                                     all_trainings.style.apply(highlight_expired, axis=1),
-                                    column_config={
-                                        "norma": "Norma", 
-                                        "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
-                                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                                        "anexo": st.column_config.LinkColumn("Anexo", display_text="📄 PDF"), 
-                                        "vencimento_dt": None
-                                    },
+                                    column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), "vencimento_dt": None},
                                     column_order=["norma", "data", "vencimento", "anexo"],
-                                    hide_index=True, 
-                                    use_container_width=True
+                                    hide_index=True, use_container_width=True
                                 )
                             else:
                                 st.info(f"Nenhum treinamento encontrado para {employee_name}.")
-                    
-                            # EPIs
-                            st.markdown("##### 🦺 Equipamentos de Proteção Individual (EPIs)")
+
+                            st.markdown("##### Equipamentos de Proteção Individual (EPIs)")
                             all_epis = epi_manager.get_epi_by_employee(employee_id)
                             if isinstance(all_epis, pd.DataFrame) and not all_epis.empty:
                                 st.dataframe(
                                     all_epis,
-                                    column_config={
-                                        "descricao_epi": "Equipamento", 
-                                        "ca_epi": "C.A.", 
-                                        "data_entrega": st.column_config.DateColumn("Data de Entrega", format="DD/MM/YYYY"), 
-                                        "arquivo_id": st.column_config.LinkColumn("Ficha", display_text="📄 PDF")
-                                    },
+                                    column_config={"descricao_epi": "Equipamento", "ca_epi": "C.A.", "data_entrega": st.column_config.DateColumn("Data de Entrega", format="DD/MM/YYYY"), "arquivo_id": st.column_config.LinkColumn("Ficha", display_text="PDF")},
                                     column_order=["descricao_epi", "ca_epi", "data_entrega", "arquivo_id"],
-                                    hide_index=True, 
-                                    use_container_width=True
+                                    hide_index=True, use_container_width=True
                                 )
                             else:
                                 st.info(f"Nenhuma Ficha de EPI encontrada para {employee_name}.")
-                    
+
                             st.markdown("---")
-                            
-                            # Matriz de Conformidade
-                            st.markdown("##### ✅ Matriz de Conformidade de Treinamentos")
+                            st.markdown("##### Matriz de Conformidade de Treinamentos")
                             if not employee_cargo or employee_cargo == 'N/A':
                                 st.info("Cargo não definido, impossibilitando análise de matriz.")
                             else:
