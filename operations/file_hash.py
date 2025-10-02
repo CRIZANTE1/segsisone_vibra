@@ -53,6 +53,6 @@ def verificar_hash_seguro(df: 'pd.DataFrame', coluna_hash: str = 'arquivo_hash')
     tem_hash = df[coluna_hash].notna().any() and (df[coluna_hash] != '').any()
     
     if not tem_hash:
-        logger.info(f"Coluna '{colun_hash}' existe mas está vazia. Sistema em modo de compatibilidade.")
+        logger.info(f"Coluna '{coluna_hash}' existe mas está vazia. Sistema em modo de compatibilidade.")
     
     return tem_hash
