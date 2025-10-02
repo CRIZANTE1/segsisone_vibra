@@ -1,5 +1,3 @@
-# email_notifier.py
-
 import os
 import sys
 import smtplib
