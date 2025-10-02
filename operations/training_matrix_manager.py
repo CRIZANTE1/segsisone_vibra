@@ -40,15 +40,29 @@ class MatrixManager:
         return self._matrix_df
 
     def _initialize_sheets(self):
-        """Garante que as abas 'funcoes' e 'matriz_treinamentos' existam na planilha da unidade."""
-        # Nomes das abas são definidos aqui, pois são parte do template da unidade
+        """
+        Verifica se as abas 'funcoes' e 'matriz_treinamentos' existem na planilha da unidade.
+        Nota: A criação das abas deve ser feita durante o provisionamento da unidade.
+        """
         funcoes_sheet_name = "funcoes"
         matrix_sheet_name = "matriz_treinamentos"
-
-        if not self.sheet_ops.carregar_dados_aba(funcoes_sheet_name):
-            self.sheet_ops.criar_aba(funcoes_sheet_name, self.columns_functions)
-        if not self.sheet_ops.carregar_dados_aba(matrix_sheet_name):
-            self.sheet_ops.criar_aba(matrix_sheet_name, self.columns_matrix)
+        
+        # Verifica se as abas existem carregando os dados
+        funcoes_data = self.sheet_ops.carregar_dados_aba(funcoes_sheet_name)
+        matrix_data = self.sheet_ops.carregar_dados_aba(matrix_sheet_name)
+        
+        # Loga avisos se as abas não forem encontradas
+        if not funcoes_data:
+            logger.warning(
+                f"Aba '{funcoes_sheet_name}' não foi encontrada ou está vazia. "
+                f"Certifique-se de que o template da unidade foi criado corretamente."
+            )
+        
+        if not matrix_data:
+            logger.warning(
+                f"Aba '{matrix_sheet_name}' não foi encontrada ou está vazia. "
+                f"Certifique-se de que o template da unidade foi criado corretamente."
+            )
 
     def _load_functions_data(self):
         """Carrega os dados da aba 'funcoes' da planilha da unidade."""
