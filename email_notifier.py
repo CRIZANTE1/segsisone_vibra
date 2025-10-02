@@ -28,9 +28,9 @@ def get_smtp_config_from_env():
         "smtp_port": 465, 
         "sender_email": os.getenv("SENDER_EMAIL"),
         "sender_password": os.getenv("SENDER_PASSWORD"),
-        "receiver_email": os.getenv("RECEIVER_EMAIL")
+        "global_receiver_email": os.getenv("RECEIVER_EMAIL")  # ✅ RENOMEADO
     }
-    if not all([config["sender_email"], config["sender_password"], config["receiver_email"]]):
+    if not all([config["sender_email"], config["sender_password"], config["global_receiver_email"]]):
         missing = [key for key, value in config.items() if not value and ("email" in key or "password" in key)]
         raise ValueError(f"Variáveis de ambiente ausentes: {', '.join(missing)}. Verifique os Secrets.")
     return config
@@ -51,7 +51,6 @@ def _get_empty_categories():
 def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_manager: CompanyDocsManager):
     """
     ✅ CORRIGIDO: Categoriza os vencimentos com tratamento robusto de erros
-    e eliminação de SettingWithCopyWarning
     """
     try:
         today = date.today()
@@ -71,7 +70,7 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             
         active_companies = employee_manager.companies_df[
             employee_manager.companies_df['status'].str.lower() == 'ativo'
-        ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+        ].copy()
         
         if active_companies.empty:
             logger.info("Nenhuma empresa ativa encontrada")
@@ -83,14 +82,14 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             active_employees = employee_manager.employees_df[
                 (employee_manager.employees_df['status'].str.lower() == 'ativo') &
                 (employee_manager.employees_df['empresa_id'].isin(active_companies['id']))
-            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            ].copy()
 
         # --- Processamento de Treinamentos ---
         latest_trainings = pd.DataFrame()
         if not employee_manager.training_df.empty and not active_employees.empty:
             trainings_actives = employee_manager.training_df[
                 employee_manager.training_df['funcionario_id'].isin(active_employees['id'])
-            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            ].copy()
             
             if not trainings_actives.empty and 'vencimento' in trainings_actives.columns:
                 trainings_actives['vencimento_dt'] = pd.to_datetime(
@@ -101,19 +100,19 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                 if not trainings_actives.empty:
                     latest_trainings = trainings_actives.sort_values(
                         'data', ascending=False
-                    ).groupby(['funcionario_id', 'norma']).head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+                    ).groupby(['funcionario_id', 'norma']).head(1).copy()
         
         # --- Processamento de ASOs ---
         latest_asos = pd.DataFrame()
         if not employee_manager.aso_df.empty and not active_employees.empty:
             asos_actives = employee_manager.aso_df[
                 employee_manager.aso_df['funcionario_id'].isin(active_employees['id'])
-            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            ].copy()
             
             if not asos_actives.empty and 'vencimento' in asos_actives.columns:
                 aptitude_asos = asos_actives[
                     ~asos_actives['tipo_aso'].str.lower().isin(['demissional'])
-                ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+                ].copy()
                 
                 if not aptitude_asos.empty:
                     aptitude_asos['vencimento_dt'] = pd.to_datetime(
@@ -124,14 +123,14 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                     if not aptitude_asos.empty:
                         latest_asos = aptitude_asos.sort_values(
                             'data_aso', ascending=False
-                        ).groupby('funcionario_id').head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+                        ).groupby('funcionario_id').head(1).copy()
 
         # --- Processamento de Documentos da Empresa ---
         latest_company_docs = pd.DataFrame()
         if not docs_manager.docs_df.empty:
             docs_actives = docs_manager.docs_df[
                 docs_manager.docs_df['empresa_id'].isin(active_companies['id'])
-            ].copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+            ].copy()
             
             if not docs_actives.empty and 'vencimento' in docs_actives.columns:
                 docs_actives['vencimento_dt'] = pd.to_datetime(
@@ -142,45 +141,45 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
                 if not docs_actives.empty:
                     latest_company_docs = docs_actives.sort_values(
                         'data_emissao', ascending=False
-                    ).groupby(['empresa_id', 'tipo_documento']).head(1).copy()  # ✅ CORREÇÃO: Adiciona .copy() aqui
+                    ).groupby(['empresa_id', 'tipo_documento']).head(1).copy()
 
         # --- Filtros de Vencimento ---
         vencidos_tr = latest_trainings[
             latest_trainings['vencimento_dt'] < today
-        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()
         
         vence_15_tr = latest_trainings[
             (latest_trainings['vencimento_dt'] >= today) & 
             (latest_trainings['vencimento_dt'] <= today + timedelta(days=15))
-        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()
         
         vence_45_tr = latest_trainings[
             (latest_trainings['vencimento_dt'] > today + timedelta(days=15)) & 
             (latest_trainings['vencimento_dt'] <= today + timedelta(days=45))
-        ].copy() if not latest_trainings.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_trainings.empty else pd.DataFrame()
         
         vencidos_aso = latest_asos[
             latest_asos['vencimento_dt'] < today
-        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_asos.empty else pd.DataFrame()
         
         vence_15_aso = latest_asos[
             (latest_asos['vencimento_dt'] >= today) & 
             (latest_asos['vencimento_dt'] <= today + timedelta(days=15))
-        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_asos.empty else pd.DataFrame()
         
         vence_45_aso = latest_asos[
             (latest_asos['vencimento_dt'] > today + timedelta(days=15)) & 
             (latest_asos['vencimento_dt'] <= today + timedelta(days=45))
-        ].copy() if not latest_asos.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_asos.empty else pd.DataFrame()
 
         vencidos_docs = latest_company_docs[
             latest_company_docs['vencimento_dt'] < today
-        ].copy() if not latest_company_docs.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_company_docs.empty else pd.DataFrame()
         
         vence_30_docs = latest_company_docs[
             (latest_company_docs['vencimento_dt'] >= today) & 
             (latest_company_docs['vencimento_dt'] <= today + timedelta(days=30))
-        ].copy() if not latest_company_docs.empty else pd.DataFrame()  # ✅ CORREÇÃO: Adiciona .copy()
+        ].copy() if not latest_company_docs.empty else pd.DataFrame()
 
         # --- Adiciona informações de nome/empresa ---
         if not active_employees.empty:
@@ -192,7 +191,6 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             for df in [vencidos_tr, vence_15_tr, vence_45_tr, vencidos_aso, vence_15_aso, vence_45_aso]:
                 if not df.empty and 'funcionario_id' in df.columns:
                     try:
-                        # ✅ CORREÇÃO: Remove .loc[:, ...] e usa atribuição direta
                         df['nome_funcionario'] = df['funcionario_id'].map(employee_id_to_name)
                         df['empresa'] = df['funcionario_id'].map(employee_id_to_company_name)
                     except Exception as e:
@@ -203,7 +201,6 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
             for df in [vencidos_docs, vence_30_docs]:
                 if not df.empty and 'empresa_id' in df.columns:
                     try:
-                        # ✅ CORREÇÃO: Remove .loc[:, ...] e usa atribuição direta
                         df['empresa'] = df['empresa_id'].map(company_id_to_name)
                     except Exception as e:
                         logger.error(f"Erro ao adicionar informações de empresa: {e}")
@@ -222,12 +219,17 @@ def categorize_expirations_for_unit(employee_manager: EmployeeManager, docs_mana
         logger.error(f"Erro crítico ao categorizar vencimentos: {e}", exc_info=True)
         return _get_empty_categories()
 
-def format_email_body(categorized_data: dict) -> str:
+def format_email_body(categorized_data: dict, unit_name: str = None, is_global: bool = False) -> str:
     """
-    ✅ MELHORADO: Layout moderno e profissional com design responsivo
+    ✅ MODIFICADO: Formata o corpo do e-mail com indicador de unidade ou global
+    
+    Args:
+        categorized_data: Dicionário com as pendências categorizadas
+        unit_name: Nome da unidade (None para global)
+        is_global: Se True, indica que é o relatório consolidado
     """
     
-    # ✅ CSS Moderno e Profissional
+    # ✅ CSS Moderno e Profissional (mantém o mesmo)
     html_style = """
     <style>
         * {
@@ -259,6 +261,10 @@ def format_email_body(categorized_data: dict) -> str:
             text-align: center;
         }
         
+        .header.global {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
         .header h1 {
             font-size: 28px;
             font-weight: 600;
@@ -270,6 +276,15 @@ def format_email_body(categorized_data: dict) -> str:
             font-size: 14px;
             opacity: 0.95;
             font-weight: 300;
+        }
+        
+        .header .unit-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-weight: 500;
         }
         
         /* Summary Cards */
@@ -406,27 +421,6 @@ def format_email_body(categorized_data: dict) -> str:
             border-bottom: none;
         }
         
-        /* Status badges na tabela */
-        .status-vencido {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            background-color: #fee;
-            color: #c00;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .status-proximo {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 4px;
-            background-color: #fff3cd;
-            color: #856404;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -516,6 +510,20 @@ def format_email_body(categorized_data: dict) -> str:
     
     has_content = (total_critical + total_warning + total_info) > 0
     
+    # ✅ Define título e subtítulo baseado no tipo de relatório
+    if is_global:
+        title = "📊 Relatório Global Consolidado - SEGMA-SIS"
+        subtitle = f"Visão Consolidada de Todas as Unidades • {date.today().strftime('%d/%m/%Y')}"
+        header_class = "header global"
+    elif unit_name:
+        title = f"🔔 Relatório de Vencimentos - {unit_name}"
+        subtitle = f"Relatório Específico da Unidade • {date.today().strftime('%d/%m/%Y')}"
+        header_class = "header"
+    else:
+        title = "🔔 Relatório de Vencimentos - SEGMA-SIS"
+        subtitle = f"Relatório Consolidado • {date.today().strftime('%d/%m/%Y')}"
+        header_class = "header"
+    
     # ✅ Início do HTML
     html_body = f"""
     <html>
@@ -527,9 +535,16 @@ def format_email_body(categorized_data: dict) -> str:
     <body>
         <div class="email-container">
             <!-- Header -->
-            <div class="header">
-                <h1>🔔 Relatório de Vencimentos - SEGMA-SIS</h1>
-                <div class="subtitle">Relatório Consolidado • {date.today().strftime('%d/%m/%Y')}</div>
+            <div class="{header_class}">
+                <h1>{title}</h1>
+                <div class="subtitle">{subtitle}</div>
+    """
+    
+    # ✅ Adiciona badge de unidade se não for global
+    if not is_global and unit_name:
+        html_body += f'<div class="unit-badge">📍 {unit_name}</div>'
+    
+    html_body += """
             </div>
     """
     
@@ -559,42 +574,42 @@ def format_email_body(categorized_data: dict) -> str:
     # ✅ Configuração das categorias com cores
     report_configs = {
         "Documentos da Empresa Vencidos": {
-            "cols": ['unidade', 'empresa', 'tipo_documento', 'vencimento'],
+            "cols": ['empresa', 'tipo_documento', 'vencimento'],
             "priority": "critical",
             "icon": "🔴"
         },
         "ASOs Vencidos": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
             "priority": "critical",
             "icon": "🔴"
         },
         "Treinamentos Vencidos": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
             "priority": "critical",
             "icon": "🔴"
         },
         "Documentos da Empresa que vencem nos próximos 30 dias": {
-            "cols": ['unidade', 'empresa', 'tipo_documento', 'vencimento'],
+            "cols": ['empresa', 'tipo_documento', 'vencimento'],
             "priority": "warning",
             "icon": "⚠️"
         },
         "ASOs que vencem em até 15 dias": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
             "priority": "warning",
             "icon": "⚠️"
         },
         "Treinamentos que vencem em até 15 dias": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
             "priority": "warning",
             "icon": "⚠️"
         },
         "ASOs que vencem entre 16 e 45 dias": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
             "priority": "info",
             "icon": "📋"
         },
         "Treinamentos que vencem entre 16 e 45 dias": {
-            "cols": ['unidade', 'empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
             "priority": "info",
             "icon": "📋"
         },
@@ -632,7 +647,6 @@ def format_email_body(categorized_data: dict) -> str:
                 if cols_to_show:
                     # Renomeia colunas para português
                     column_names = {
-                        'unidade': 'Unidade',
                         'empresa': 'Empresa',
                         'tipo_documento': 'Documento',
                         'nome_funcionario': 'Funcionário',
@@ -648,7 +662,7 @@ def format_email_body(categorized_data: dict) -> str:
                         index=False, 
                         border=0, 
                         na_rep='N/A',
-                        escape=False,
+                        escape=True,  # ✅ Ativado para segurança
                         classes='data-table'
                     )
                     
@@ -668,7 +682,7 @@ def format_email_body(categorized_data: dict) -> str:
             <div class="empty-state">
                 <div class="empty-state-icon">✅</div>
                 <h2>Tudo em Ordem!</h2>
-                <p>Não há pendências de vencimentos em nenhuma unidade operacional.</p>
+                <p>Não há pendências de vencimentos nesta unidade.</p>
                 <p style="margin-top: 10px; font-size: 13px;">Todos os documentos estão em dia. Continue o bom trabalho! 🎉</p>
             </div>
         """
@@ -693,12 +707,23 @@ def format_email_body(categorized_data: dict) -> str:
     
     return html_body
 
-def send_smtp_email(html_body: str, config: dict):
-    """✅ Envia o email via SMTP"""
+def send_smtp_email(html_body: str, config: dict, receiver_email: str, subject_suffix: str = ""):
+    """
+    ✅ MODIFICADO: Envia e-mail com destinatário configurável
+    
+    Args:
+        html_body: Corpo HTML do e-mail
+        config: Dicionário de configuração SMTP
+        receiver_email: E-mail do destinatário
+        subject_suffix: Sufixo adicional para o assunto (ex: nome da unidade)
+    """
+    base_subject = f"📊 Relatório SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
+    subject = f"{base_subject} - {subject_suffix}" if subject_suffix else base_subject
+    
     message = MIMEMultipart("alternative")
-    message["Subject"] = f"📊 Relatório SEGMA-SIS - {date.today().strftime('%d/%m/%Y')}"
+    message["Subject"] = subject
     message["From"] = f"SEGMA-SIS Sistema <{config['sender_email']}>"
-    message["To"] = config["receiver_email"]
+    message["To"] = receiver_email
     message["Reply-To"] = "noreply@segma-sis.com"
     
     message.attach(MIMEText(html_body, "html", "utf-8"))
@@ -709,15 +734,17 @@ def send_smtp_email(html_body: str, config: dict):
         with smtplib.SMTP_SSL(config["smtp_server"], config["smtp_port"], context=context) as server:
             logger.info("Fazendo login...")
             server.login(config["sender_email"], config["sender_password"])
-            logger.info(f"Enviando e-mail para {config['receiver_email']}...")
-            server.sendmail(config["sender_email"], config["receiver_email"].split(','), message.as_string())
-            logger.info("✅ E-mail enviado com sucesso!")
+            logger.info(f"Enviando e-mail para {receiver_email}...")
+            server.sendmail(config["sender_email"], receiver_email.split(','), message.as_string())
+            logger.info(f"✅ E-mail enviado com sucesso para {receiver_email}!")
     except Exception as e:
-        logger.error(f"❌ Falha ao enviar e-mail via SMTP: {e}")
+        logger.error(f"❌ Falha ao enviar e-mail para {receiver_email}: {e}")
         raise
 
 def main():
-    """✅ CORRIGIDO: Função principal com tratamento robusto de erros"""
+    """
+    ✅ MODIFICADO: Função principal com envio segmentado de e-mails
+    """
     logger.info("🚀 Iniciando script de notificação de vencimentos...")
     
     try:
@@ -730,13 +757,16 @@ def main():
             logger.warning("⚠️ Nenhuma unidade encontrada na matriz. Encerrando.")
             return
         
+        # ✅ Dicionário para armazenar dados de cada unidade
         all_units_categorized_data = {}
+        units_with_pendencies = {}  # ✅ NOVO: Rastreia unidades com pendências
         successful_units = 0
         
         for unit in all_units:
             unit_name = unit.get('nome_unidade')
             spreadsheet_id = unit.get('spreadsheet_id')
             folder_id = unit.get('folder_id')
+            unit_email = unit.get('email_contato')  # ✅ NOVO: E-mail da unidade
             
             if not spreadsheet_id:
                 logger.warning(f"⚠️ Unidade '{unit_name}' sem spreadsheet_id. Pulando.")
@@ -745,7 +775,7 @@ def main():
             logger.info(f"📊 Processando unidade: {unit_name}")
             
             try:
-                # ✅ CORREÇÃO: Garante que folder_id seja string
+                # ✅ Garante que folder_id seja string
                 folder_id_safe = str(folder_id) if folder_id else ""
                 
                 # ✅ Cria managers com parâmetros explícitos
@@ -770,17 +800,29 @@ def main():
                 # Categoriza os dados
                 categorized_data = categorize_expirations_for_unit(employee_manager, docs_manager)
                 
-                # Adiciona nome da unidade a todos os DataFrames
-                for category_name, category_df in categorized_data.items():
-                    if not category_df.empty:
-                        try:
-                            category_df['unidade'] = unit_name
-                        except Exception as e:
-                            logger.error(f"❌ Erro ao adicionar nome da unidade '{unit_name}': {e}")
+                # ✅ Verifica se a unidade tem pendências
+                has_pendencies = any(not df.empty for df in categorized_data.values())
                 
-                all_units_categorized_data[unit_name] = categorized_data
+                if has_pendencies:
+                    # Adiciona nome da unidade a todos os DataFrames
+                    for category_name, category_df in categorized_data.items():
+                        if not category_df.empty:
+                            try:
+                                category_df['unidade'] = unit_name
+                            except Exception as e:
+                                logger.error(f"❌ Erro ao adicionar nome da unidade '{unit_name}': {e}")
+                    
+                    all_units_categorized_data[unit_name] = categorized_data
+                    units_with_pendencies[unit_name] = {
+                        'data': categorized_data,
+                        'email': unit_email
+                    }
+                    
+                    logger.info(f"✅ Unidade '{unit_name}' tem pendências e será notificada.")
+                else:
+                    logger.info(f"ℹ️ Unidade '{unit_name}' não possui pendências.")
+                
                 successful_units += 1
-                logger.info(f"✅ Unidade '{unit_name}' processada com sucesso.")
                 
             except Exception as e:
                 logger.error(f"❌ Erro ao processar unidade '{unit_name}': {e}", exc_info=True)
@@ -792,7 +834,58 @@ def main():
 
         logger.info(f"✅ Total de {successful_units} unidades processadas com sucesso.")
 
-        # ✅ Consolida dados de todas as unidades
+        # ========================================
+        # ✅ PARTE 1: ENVIO DE E-MAILS POR UNIDADE
+        # ========================================
+        emails_sent_to_units = 0
+        
+        if units_with_pendencies:
+            logger.info(f"📧 Iniciando envio de e-mails para {len(units_with_pendencies)} unidade(s) com pendências...")
+            
+            for unit_name, unit_info in units_with_pendencies.items():
+                unit_email = unit_info.get('email')
+                unit_data = unit_info.get('data')
+                
+                # ✅ Verifica se a unidade tem e-mail configurado
+                if not unit_email or pd.isna(unit_email):
+                    logger.warning(f"⚠️ Unidade '{unit_name}' não possui e-mail configurado. Pulando envio individual.")
+                    continue
+                
+                try:
+                    logger.info(f"📧 Gerando e-mail para unidade: {unit_name}")
+                    
+                    # Gera o corpo do e-mail específico da unidade
+                    email_body = format_email_body(
+                        categorized_data=unit_data,
+                        unit_name=unit_name,
+                        is_global=False
+                    )
+                    
+                    # Envia o e-mail
+                    send_smtp_email(
+                        html_body=email_body,
+                        config=config,
+                        receiver_email=unit_email,
+                        subject_suffix=f"Unidade {unit_name}"
+                    )
+                    
+                    emails_sent_to_units += 1
+                    logger.info(f"✅ E-mail enviado com sucesso para '{unit_name}' ({unit_email})")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Falha ao enviar e-mail para unidade '{unit_name}': {e}")
+                    continue
+            
+            logger.info(f"✅ {emails_sent_to_units} e-mail(s) enviado(s) para unidades específicas.")
+        else:
+            logger.info("ℹ️ Nenhuma unidade possui pendências. E-mails individuais não serão enviados.")
+
+        # ========================================
+        # ✅ PARTE 2: ENVIO DO E-MAIL GLOBAL CONSOLIDADO
+        # ========================================
+        logger.info("📧 Gerando relatório global consolidado...")
+        
+        # ✅ Consolida dados de todas as unidades (incluindo as sem pendências para o contexto)
         consolidated_data = {}
         for unit_name, unit_data in all_units_categorized_data.items():
             for category_name, df in unit_data.items():
@@ -806,17 +899,45 @@ def main():
             for name, dfs in consolidated_data.items()
         }
 
-        # ✅ Verifica se há pendências
-        has_pendencies = any(not df.empty for df in final_report_data.values())
+        # ✅ Verifica se há pendências para o relatório global
+        has_global_pendencies = any(not df.empty for df in final_report_data.values())
         
-        if not has_pendencies:
-            logger.info("ℹ️ Nenhuma pendência encontrada. E-mail não será enviado.")
+        if not has_global_pendencies:
+            logger.info("ℹ️ Nenhuma pendência encontrada globalmente. E-mail global não será enviado.")
         else:
-            logger.info("📧 Pendências encontradas. Gerando e enviando e-mail...")
-            email_body = format_email_body(final_report_data)
-            send_smtp_email(email_body, config)
-            logger.info("✅ E-mail enviado com sucesso!")
+            try:
+                logger.info("📧 Gerando e-mail global consolidado...")
+                
+                # Gera o corpo do e-mail global
+                global_email_body = format_email_body(
+                    categorized_data=final_report_data,
+                    unit_name=None,
+                    is_global=True
+                )
+                
+                # Envia o e-mail global
+                send_smtp_email(
+                    html_body=global_email_body,
+                    config=config,
+                    receiver_email=config['global_receiver_email'],
+                    subject_suffix="Relatório Global Consolidado"
+                )
+                
+                logger.info(f"✅ E-mail global enviado com sucesso para {config['global_receiver_email']}!")
+                
+            except Exception as e:
+                logger.error(f"❌ Falha ao enviar e-mail global: {e}")
         
+        # ========================================
+        # ✅ RESUMO FINAL
+        # ========================================
+        logger.info("=" * 60)
+        logger.info("📊 RESUMO DA EXECUÇÃO:")
+        logger.info(f"   • Unidades processadas: {successful_units}")
+        logger.info(f"   • Unidades com pendências: {len(units_with_pendencies)}")
+        logger.info(f"   • E-mails enviados para unidades: {emails_sent_to_units}")
+        logger.info(f"   • E-mail global enviado: {'Sim' if has_global_pendencies else 'Não (sem pendências)'}")
+        logger.info("=" * 60)
         logger.info("🎉 Script finalizado com sucesso.")
 
     except Exception as e:
