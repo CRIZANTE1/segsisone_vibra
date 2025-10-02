@@ -62,6 +62,7 @@ plano_acao:
   - audit_run_id
   - id_empresa
   - id_documento_original
+  - id_funcionario         
   - item_nao_conforme
   - referencia_normativa
   - plano_de_acao
