@@ -9,6 +9,7 @@ import tempfile
 import os
 from operations.audit_logger import log_action
 from operations.cached_loaders import load_company_docs_df, load_audits_df
+from gdrive.google_api_manager import GoogleApiManager
 from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 
 logger = logging.getLogger('segsisone_app.company_docs_manager')
