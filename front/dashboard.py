@@ -124,7 +124,6 @@ def show_dashboard_page():
                 expected_doc_cols = ["tipo_documento", "data_emissao", "vencimento", "arquivo_id"]
                 
                 if isinstance(company_docs, pd.DataFrame) and not company_docs.empty:
-                    # A coluna de data já vem tratada, mas criamos a 'vencimento_dt' para o highlight
                     company_docs['vencimento_dt'] = company_docs['vencimento'].dt.date
                     st.dataframe(
                         company_docs.style.apply(highlight_expired, axis=1),
@@ -159,7 +158,6 @@ def show_dashboard_page():
                                 vencimento_obj = current_aso.get('vencimento')
                                 if pd.notna(vencimento_obj):
                                     aso_vencimento = vencimento_obj
-                                    # A comparação agora é segura, pois 'vencimento' é datetime
                                     aso_status = 'Válido' if aso_vencimento.date() >= today else 'Vencido'
                                 else:
                                     aso_status = 'Venc. Inválido'
@@ -170,7 +168,6 @@ def show_dashboard_page():
                         trainings_total, trainings_expired_count = 0, 0
                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                             trainings_total = len(all_trainings)
-                            # A comparação agora é segura, pois 'vencimento' é datetime
                             trainings_expired_count = (all_trainings['vencimento'].dt.date < today).sum()
 
                         overall_status = 'Em Dia' if aso_status != 'Vencido' and trainings_expired_count == 0 else 'Pendente'
@@ -254,8 +251,6 @@ def show_dashboard_page():
         else:
             st.info("Selecione uma empresa para visualizar os detalhes.")
 
-
-
     with tab_add_doc_empresa:
         if not selected_company:
             st.info("Selecione uma empresa na aba 'Situação Geral' primeiro.")
@@ -269,7 +264,7 @@ def show_dashboard_page():
                 "Anexar Documento (PDF)",
                 type=['pdf'],
                 key="doc_uploader_tab",
-                on_change=process_company_doc_pdf # Função de ui_helpers.py
+                on_change=process_company_doc_pdf
             )
             
             # Etapa 2: Confirmação e Salvamento
@@ -300,33 +295,34 @@ def show_dashboard_page():
                                     if doc_id:
                                         st.success("Documento da empresa salvo com sucesso!")
                                         
-                                        # --- INÍCIO DA CORREÇÃO ---
-                                        # Após salvar o doc, verifica se há não conformidades para criar o plano de ação
+                                        # ✅ CORREÇÃO: Criar plano de ação APÓS salvamento bem-sucedido
                                         audit_result = doc_info.get('audit_result', {})
-                                        if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                        if audit_result and 'não conforme' in audit_result.get('summary', '').lower():
                                             action_plan_manager = st.session_state.action_plan_manager
                                             non_conformities = [
                                                 item for item in audit_result.get('details', []) 
                                                 if item.get('status', '').lower() == 'não conforme'
+                                                and 'resumo executivo' not in item.get('item_verificacao', '').lower()
                                             ]
                                             
                                             if non_conformities:
-                                                st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
-                                                audit_run_id = audit_result.get('audit_run_id', f"doc_{doc_id}")
+                                                st.info(f"Registrando {len(non_conformities)} não conformidade(s) no Plano de Ação...")
+                                                audit_run_id = f"audit_doc_{doc_id}"
                                                 
                                                 for item_details in non_conformities:
                                                     action_plan_manager.add_action_item(
                                                         audit_run_id=audit_run_id,
                                                         company_id=selected_company,
                                                         doc_id=doc_id,
-                                                        item_details=item_details
+                                                        item_details=item_details,
+                                                        employee_id=None
                                                     )
-                                                st.success("Itens de ação criados com sucesso!")
-                                        # --- FIM DA CORREÇÃO ---
+                                                st.success("Itens adicionados ao Plano de Ação!")
 
-                                        # Limpa o estado para a próxima submissão
-                                        for key in ['Doc. Empresa_info_para_salvar', 'Doc. Empresa_anexo_para_salvar']:
-                                            if key in st.session_state: del st.session_state[key]
+                                        # Limpa o estado
+                                        for key in ['Doc. Empresa_info_para_salvar', 'Doc. Empresa_anexo_para_salvar', 'Doc. Empresa_hash_para_salvar']:
+                                            if key in st.session_state: 
+                                                del st.session_state[key]
                                         
                                         st.rerun()
                                     else:
@@ -377,18 +373,19 @@ def show_dashboard_page():
                                         if aso_id:
                                             st.success("ASO salvo com sucesso!")
 
-                                            # --- INÍCIO DA CORREÇÃO ---
+                                            # ✅ CORREÇÃO: Criar plano de ação APÓS salvamento bem-sucedido
                                             audit_result = aso_info.get('audit_result', {})
-                                            if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                            if audit_result and 'não conforme' in audit_result.get('summary', '').lower():
                                                 action_plan_manager = st.session_state.action_plan_manager
                                                 non_conformities = [
                                                     item for item in audit_result.get('details', [])
                                                     if item.get('status', '').lower() == 'não conforme'
+                                                    and 'resumo executivo' not in item.get('item_verificacao', '').lower()
                                                 ]
 
                                                 if non_conformities:
-                                                    st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
-                                                    audit_run_id = audit_result.get('audit_run_id', f"aso_{aso_id}")
+                                                    st.info(f"Registrando {len(non_conformities)} não conformidade(s) no Plano de Ação...")
+                                                    audit_run_id = f"audit_aso_{aso_id}"
                                                     
                                                     for item_details in non_conformities:
                                                         action_plan_manager.add_action_item(
@@ -398,11 +395,12 @@ def show_dashboard_page():
                                                             item_details=item_details,
                                                             employee_id=emp_id
                                                         )
-                                                    st.success("Itens de ação criados com sucesso!")
-                                            # --- FIM DA CORREÇÃO ---
+                                                    st.success("Itens adicionados ao Plano de Ação!")
 
-                                            for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar']:
-                                                if key in st.session_state: del st.session_state[key]
+                                            # Limpa o estado
+                                            for key in ['ASO_info_para_salvar', 'ASO_anexo_para_salvar', 'ASO_funcionario_para_salvar', 'ASO_hash_para_salvar']:
+                                                if key in st.session_state: 
+                                                    del st.session_state[key]
                                             st.rerun()
             else:
                 st.warning("Cadastre funcionários nesta empresa primeiro.")
@@ -454,18 +452,19 @@ def show_dashboard_page():
                                         if training_id:
                                             st.success("Treinamento salvo com sucesso!")
 
-                                            # --- INÍCIO DA CORREÇÃO ---
+                                            # ✅ CORREÇÃO: Criar plano de ação APÓS salvamento bem-sucedido
                                             audit_result = training_info.get('audit_result', {})
-                                            if audit_result and audit_result.get('summary', '').lower() == 'não conforme':
+                                            if audit_result and 'não conforme' in audit_result.get('summary', '').lower():
                                                 action_plan_manager = st.session_state.action_plan_manager
                                                 non_conformities = [
                                                     item for item in audit_result.get('details', [])
                                                     if item.get('status', '').lower() == 'não conforme'
+                                                    and 'resumo executivo' not in item.get('item_verificacao', '').lower()
                                                 ]
 
                                                 if non_conformities:
-                                                    st.info(f"Encontradas {len(non_conformities)} não conformidades. Registrando no Plano de Ação...")
-                                                    audit_run_id = audit_result.get('audit_run_id', f"trn_{training_id}")
+                                                    st.info(f"Registrando {len(non_conformities)} não conformidade(s) no Plano de Ação...")
+                                                    audit_run_id = f"audit_trn_{training_id}"
 
                                                     for item_details in non_conformities:
                                                         action_plan_manager.add_action_item(
@@ -475,11 +474,12 @@ def show_dashboard_page():
                                                             item_details=item_details,
                                                             employee_id=emp_id
                                                         )
-                                                    st.success("Itens de ação criados com sucesso!")
-                                            # --- FIM DA CORREÇÃO ---
+                                                    st.success("Itens adicionados ao Plano de Ação!")
 
-                                            for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar']:
-                                                if key in st.session_state: del st.session_state[key]
+                                            # Limpa o estado
+                                            for key in ['Treinamento_info_para_salvar', 'Treinamento_anexo_para_salvar', 'Treinamento_funcionario_para_salvar', 'Treinamento_hash_para_salvar']:
+                                                if key in st.session_state: 
+                                                    del st.session_state[key]
                                             st.rerun()
             else:
                 st.warning("Cadastre funcionários nesta empresa primeiro.")
@@ -526,8 +526,11 @@ def show_dashboard_page():
                                         saved_ids = epi_manager.add_epi_records(emp_id, arquivo_id, epi_info['itens_epi'], arquivo_hash)
                                         if saved_ids:
                                             st.success(f"{len(saved_ids)} item(ns) de EPI salvos com sucesso!")
-                                            for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar']:
-                                                if key in st.session_state: del st.session_state[key]
+                                            
+                                            # Limpa o estado
+                                            for key in ['epi_info_para_salvar', 'epi_anexo_para_salvar', 'epi_funcionario_para_salvar', 'epi_hash_para_salvar']:
+                                                if key in st.session_state: 
+                                                    del st.session_state[key]
                                             st.rerun()
             else:
                 st.warning("Cadastre funcionários nesta empresa primeiro.")
@@ -554,17 +557,19 @@ def show_dashboard_page():
                     )
                     if st.button("Adicionar à Lista de Exclusão", key="delete_doc_btn"):
                         if docs_to_delete:
-                            # --- CORREÇÃO APLICADA ---
+                            # ✅ Inicializa a lista se não existir
                             if 'items_to_delete' not in st.session_state:
                                 st.session_state.items_to_delete = []
                             
                             for doc_id in docs_to_delete:
                                 row = company_docs[company_docs['id'] == doc_id].iloc[0]
                                 item_data = {
-                                    "type": "doc_empresa", "id": doc_id, "file_url": row.get('arquivo_id'),
+                                    "type": "doc_empresa", 
+                                    "id": doc_id, 
+                                    "file_url": row.get('arquivo_id'),
                                     "name": f"Documento {row.get('tipo_documento')}"
                                 }
-                                # Evita adicionar duplicatas
+                                # ✅ Evita duplicatas
                                 if item_data not in st.session_state.items_to_delete:
                                     st.session_state.items_to_delete.append(item_data)
                             st.success(f"{len(docs_to_delete)} documento(s) adicionado(s) à lista de exclusão.")
@@ -597,16 +602,19 @@ def show_dashboard_page():
                             )
                             if st.button("Adicionar à Lista de Exclusão", key=f"delete_aso_btn_{selected_employee_id}"):
                                 if asos_to_delete:
-                                    # --- CORREÇÃO APLICADA ---
+                                    # ✅ Inicializa a lista se não existir
                                     if 'items_to_delete' not in st.session_state:
                                         st.session_state.items_to_delete = []
                                     
                                     for aso_id in asos_to_delete:
                                         row = latest_asos[latest_asos['id'] == aso_id].iloc[0]
                                         item_data = {
-                                            "type": "aso", "id": aso_id, "file_url": row.get('arquivo_id'),
+                                            "type": "aso", 
+                                            "id": aso_id, 
+                                            "file_url": row.get('arquivo_id'),
                                             "name": f"ASO {row.get('tipo_aso')} de {employee_name}"
                                         }
+                                        # ✅ Evita duplicatas
                                         if item_data not in st.session_state.items_to_delete:
                                             st.session_state.items_to_delete.append(item_data)
                                     st.success(f"{len(asos_to_delete)} ASO(s) adicionado(s) à lista de exclusão.")
@@ -625,16 +633,19 @@ def show_dashboard_page():
                             )
                             if st.button("Adicionar à Lista de Exclusão", key=f"delete_tr_btn_{selected_employee_id}"):
                                 if trainings_to_delete:
-                                    # --- CORREÇÃO APLICADA ---
+                                    # ✅ Inicializa a lista se não existir
                                     if 'items_to_delete' not in st.session_state:
                                         st.session_state.items_to_delete = []
 
                                     for tr_id in trainings_to_delete:
                                         row = all_trainings[all_trainings['id'] == tr_id].iloc[0]
                                         item_data = {
-                                            "type": "treinamento", "id": tr_id, "file_url": row.get('anexo'),
+                                            "type": "treinamento", 
+                                            "id": tr_id, 
+                                            "file_url": row.get('anexo'),
                                             "name": f"Treinamento de {row.get('norma')} de {employee_name}"
                                         }
+                                        # ✅ Evita duplicatas
                                         if item_data not in st.session_state.items_to_delete:
                                             st.session_state.items_to_delete.append(item_data)
                                     st.success(f"{len(trainings_to_delete)} treinamento(s) adicionado(s) à lista de exclusão.")
@@ -653,6 +664,7 @@ def show_dashboard_page():
                 
                 if st.button("Confirmar Exclusão de Todos os Itens da Lista", type="primary", use_container_width=True):
                     # O diálogo de confirmação será acionado pelo 'items_to_delete' na sessão
-                    st.rerun() # Força o rerun para abrir o diálogo
-
-
+                    st.rerun()
+    
+    # ✅ Chama o handler de diálogo no final da renderização
+    handle_delete_confirmation(docs_manager, employee_manager)
