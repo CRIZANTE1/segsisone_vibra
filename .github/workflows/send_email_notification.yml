@@ -1,12 +1,8 @@
-# Nome do workflow que aparecerá na aba "Actions" do seu repositório
 name: Envio Diário do Relatório de Vencimentos
 
 on:
   schedule:
-    # Executa todos os dias às 11:00 UTC (08:00 no Horário de Brasília).
     - cron: '0 09 * * *'
-  
-  # Permite a execução manual pela interface do GitHub
   workflow_dispatch:
 
 jobs:
@@ -14,32 +10,27 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # 1. Baixa o código do seu repositório
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Configura o ambiente Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 3. Instala as dependências do projeto
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Executa o script de notificação
       - name: Run email notifier script
-        # Define as variáveis de ambiente que o script Python vai ler
         env:
-          # Credenciais para o Google Sheets (ainda necessárias)
+          # ✅ Credenciais do Google Sheets (para acessar a planilha)
           GCP_SERVICE_ACCOUNT_CREDENTIALS: ${{ secrets.GCP_SERVICE_ACCOUNT_CREDENTIALS }}
           
-          # Credenciais para o envio de e-mail via SMTP
+          # ✅ Credenciais de E-mail SMTP
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
           
         run: python email_notifier.py
