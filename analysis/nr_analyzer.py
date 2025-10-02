@@ -294,7 +294,7 @@ class NRAnalyzer:
 
     def create_action_plan_from_audit(self, audit_result: dict, company_id: str, doc_id: str, employee_id: str | None = None):
         """
-        CORRIGIDO: Método mantido na classe onde deve estar
+        O employee_id ainda pode ser passado para o LOG, mas NÃO será inserido na planilha.
         """
         if "não conforme" not in audit_result.get("summary", "").lower():
             return 0
@@ -308,7 +308,6 @@ class NRAnalyzer:
         if not actionable_items: 
             return 0
         
-        # Import local para evitar circular import
         from operations.action_plan import ActionPlanManager
         action_plan_manager = ActionPlanManager(self.sheet_ops.spreadsheet_id)
         
@@ -316,6 +315,7 @@ class NRAnalyzer:
         created_count = 0
         
         for item in actionable_items:
+            # ✅ Passa employee_id apenas para o LOG interno
             if action_plan_manager.add_action_item(
                 audit_run_id, company_id, doc_id, item, employee_id=employee_id
             ):

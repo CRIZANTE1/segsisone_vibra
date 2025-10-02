@@ -59,7 +59,7 @@ class ActionPlanManager:
             str(audit_run_id),                                  # audit_run_id
             str(company_id),                                    # id_empresa
             str(doc_id),                                        # id_documento_original
-            str(employee_id) if employee_id else "",            # ✅ id_funcionario
+            str(employee_id) if employee_id else "",            # id_funcionario
             full_description,                                   # item_nao_conforme
             item_details.get('referencia_normativa', ''),       # referencia_normativa
             "",                                                 # plano_de_acao
