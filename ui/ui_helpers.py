@@ -96,8 +96,7 @@ def _run_analysis_and_audit(manager, analysis_method_name, uploader_key, doc_typ
 
     info['type'] = doc_type_str
     info['arquivo_hash'] = arquivo_hash
-    if employee_id:
-        info['employee_id'] = employee_id
+    # Não adiciona employee_id ao info, pois já está armazenado separadamente
 
     with st.spinner(f"Executando auditoria de conformidade..."):
         audit_result = nr_analyzer.perform_initial_audit(info, anexo.getvalue())
