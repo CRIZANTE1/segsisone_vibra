@@ -256,7 +256,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         is_global: Se True, indica que é o relatório consolidado
     """
     
-    # ✅ CSS Moderno e Profissional (mantém o mesmo)
     html_style = """
     <style>
         * {
@@ -280,7 +279,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
-        /* Header */
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -314,7 +312,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             font-weight: 500;
         }
         
-        /* Summary Cards */
         .summary-section {
             padding: 30px;
             background-color: #f8f9fa;
@@ -373,7 +370,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             letter-spacing: 0.5px;
         }
         
-        /* Content Section */
         .content-section {
             padding: 30px;
         }
@@ -448,7 +444,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             border-bottom: none;
         }
         
-        /* Empty State */
         .empty-state {
             text-align: center;
             padding: 60px 30px;
@@ -472,7 +467,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             color: #6c757d;
         }
         
-        /* Footer */
         .footer {
             background-color: #f8f9fa;
             padding: 25px 30px;
@@ -499,7 +493,6 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             margin: 15px 0;
         }
         
-        /* Responsive */
         @media only screen and (max-width: 600px) {
             .summary-cards {
                 flex-direction: column;
@@ -520,7 +513,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
     </style>
     """
     
-    # ✅ Calcula estatísticas gerais
+    # Calcula estatísticas gerais
     total_critical = 0
     total_warning = 0
     total_info = 0
@@ -537,7 +530,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
     
     has_content = (total_critical + total_warning + total_info) > 0
     
-    # ✅ Define título e subtítulo baseado no tipo de relatório
+    # Define título e subtítulo baseado no tipo de relatório
     if is_global:
         title = "📊 Relatório Global Consolidado - SEGMA-SIS"
         subtitle = f"Visão Consolidada de Todas as Unidades • {date.today().strftime('%d/%m/%Y')}"
@@ -551,7 +544,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
         subtitle = f"Relatório Consolidado • {date.today().strftime('%d/%m/%Y')}"
         header_class = "header"
     
-    # ✅ Início do HTML
+    # Início do HTML
     html_body = f"""
     <html>
     <head>
@@ -561,13 +554,11 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
     </head>
     <body>
         <div class="email-container">
-            <!-- Header -->
             <div class="{header_class}">
                 <h1>{title}</h1>
                 <div class="subtitle">{subtitle}</div>
     """
     
-    # ✅ Adiciona badge de unidade se não for global
     if not is_global and unit_name:
         html_body += f'<div class="unit-badge">📍 {unit_name}</div>'
     
@@ -575,7 +566,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             </div>
     """
     
-    # ✅ Cards de Resumo
+    # Cards de Resumo
     if has_content:
         html_body += f"""
             <div class="summary-section">
@@ -598,51 +589,61 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             <div class="content-section">
         """
     
-    # ✅ Configuração das categorias com cores
+    # ✅ CORREÇÃO: Configuração dinâmica das colunas baseada em is_global
+    base_cols_docs_empresa = ['empresa', 'tipo_documento', 'vencimento']
+    base_cols_aso = ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento']
+    base_cols_treinamento = ['empresa', 'nome_funcionario', 'norma', 'vencimento']
+    
+    # ✅ Adiciona coluna 'unidade' no início se for relatório global
+    if is_global:
+        base_cols_docs_empresa = ['unidade'] + base_cols_docs_empresa
+        base_cols_aso = ['unidade'] + base_cols_aso
+        base_cols_treinamento = ['unidade'] + base_cols_treinamento
+    
     report_configs = {
         "Documentos da Empresa Vencidos": {
-            "cols": ['empresa', 'tipo_documento', 'vencimento'],
+            "cols": base_cols_docs_empresa,
             "priority": "critical",
             "icon": "🔴"
         },
         "ASOs Vencidos": {
-            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": base_cols_aso,
             "priority": "critical",
             "icon": "🔴"
         },
         "Treinamentos Vencidos": {
-            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": base_cols_treinamento,
             "priority": "critical",
             "icon": "🔴"
         },
         "Documentos da Empresa que vencem nos próximos 30 dias": {
-            "cols": ['empresa', 'tipo_documento', 'vencimento'],
+            "cols": base_cols_docs_empresa,
             "priority": "warning",
             "icon": "⚠️"
         },
         "ASOs que vencem em até 15 dias": {
-            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": base_cols_aso,
             "priority": "warning",
             "icon": "⚠️"
         },
         "Treinamentos que vencem em até 15 dias": {
-            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": base_cols_treinamento,
             "priority": "warning",
             "icon": "⚠️"
         },
         "ASOs que vencem entre 16 e 45 dias": {
-            "cols": ['empresa', 'nome_funcionario', 'tipo_aso', 'vencimento'],
+            "cols": base_cols_aso,
             "priority": "info",
             "icon": "📋"
         },
         "Treinamentos que vencem entre 16 e 45 dias": {
-            "cols": ['empresa', 'nome_funcionario', 'norma', 'vencimento'],
+            "cols": base_cols_treinamento,
             "priority": "info",
             "icon": "📋"
         },
     }
     
-    # ✅ Renderiza cada categoria
+    # Renderiza cada categoria
     for category_name, config in report_configs.items():
         if category_name in categorized_data and not categorized_data[category_name].empty:
             data_df = categorized_data[category_name]
@@ -672,8 +673,9 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
                 cols_to_show = [col for col in config['cols'] if col in df_display.columns]
                 
                 if cols_to_show:
-                    # Renomeia colunas para português
+                    # ✅ CORREÇÃO: Adiciona 'unidade' no mapeamento de colunas
                     column_names = {
+                        'unidade': 'Unidade',
                         'empresa': 'Empresa',
                         'tipo_documento': 'Documento',
                         'nome_funcionario': 'Funcionário',
@@ -689,7 +691,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
                         index=False, 
                         border=0, 
                         na_rep='N/A',
-                        escape=True,  # ✅ Ativado para segurança
+                        escape=True,
                         classes='data-table'
                     )
                     
@@ -703,7 +705,7 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             
             html_body += "</div>"
     
-    # ✅ Se não há conteúdo
+    # Se não há conteúdo
     if not has_content:
         html_body += """
             <div class="empty-state">
@@ -714,9 +716,9 @@ def format_email_body(categorized_data: dict, unit_name: str = None, is_global: 
             </div>
         """
     else:
-        html_body += "</div>"  # Fecha content-section
+        html_body += "</div>"
     
-    # ✅ Footer
+    # Footer
     html_body += """
             <div class="footer">
                 <div class="footer-logo">SEGMA-SIS</div>
