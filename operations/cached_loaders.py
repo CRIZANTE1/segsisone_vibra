@@ -35,9 +35,14 @@ def load_epis_df(spreadsheet_id: str) -> pd.DataFrame:
     sheet_ops = SheetOperations(spreadsheet_id)
     return sheet_ops.get_df_from_worksheet("fichas_epi")
 
-@st.cache_data(ttl=600, show_spinner="Carregando dados do plano de ação...")
 def load_action_plan_df(spreadsheet_id: str) -> pd.DataFrame:
-    if not spreadsheet_id: return pd.DataFrame(columns=['id', 'origem', 'item_id', 'descricao', 'responsavel', 'data_limite', 'status'])
+    if not spreadsheet_id: 
+        return pd.DataFrame(columns=[
+            'id', 'audit_run_id', 'id_empresa', 'id_documento_original', 
+            'id_funcionario', 'item_nao_conforme', 'referencia_normativa', 
+            'plano_de_acao', 'responsavel', 'prazo', 'status', 
+            'data_criacao', 'data_conclusao'
+        ])
     sheet_ops = SheetOperations(spreadsheet_id)
     return sheet_ops.get_df_from_worksheet("plano_acao")
 

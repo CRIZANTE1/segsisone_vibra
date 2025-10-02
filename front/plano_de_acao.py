@@ -68,11 +68,12 @@ def show_plano_acao_page():
                     with st.container(border=True):
                         st.markdown(f"**Item:** {row['item_nao_conforme']}")
                         
-                        # Informações do funcionário (se houver)
                         employee_id = row.get('id_funcionario')
                         if employee_id and str(employee_id).strip():
                             employee_name = employee_manager.get_employee_name(employee_id)
-                            st.caption(f"👤 Funcionário: {employee_name}")
+                            # ✅ Verificar se é um nome real ou apenas um ID
+                            if not employee_name.startswith("ID "):
+                                st.caption(f"👤 Funcionário: {employee_name}")
                         
                         # Referência normativa
                         st.caption(f"**Referência:** {row.get('referencia_normativa', 'N/A')}")

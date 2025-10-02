@@ -54,7 +54,8 @@ class ActionPlanManager:
         item_observation = item_details.get('observacao', 'Sem detalhes fornecidos.')
         full_description = f"{item_title.strip()}: {item_observation.strip()}"
         
-        # ✅ ORDEM CORRETA COM id_funcionario
+        # A ordem dos dados corresponde à ordem das colunas na planilha, exceto pelo 'id',
+        # que é gerado automaticamente pelo método adc_dados_aba.
         new_data = [
             str(audit_run_id),                                  # audit_run_id
             str(company_id),                                    # id_empresa
