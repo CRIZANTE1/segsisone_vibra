@@ -21,6 +21,7 @@ asos:
   - data_aso
   - vencimento
   - arquivo_id
+  - arquivo_hash
   - riscos
   - cargo
   - tipo_aso
@@ -34,6 +35,7 @@ treinamentos:
   - modulo
   - status
   - anexo
+  - arquivo_hash
   - tipo_treinamento
   - carga_horaria
 
@@ -44,6 +46,7 @@ documentos_empresa:
   - data_emissao
   - vencimento
   - arquivo_id
+  - arquivo_hash
 
 fichas_epi:
   - id
@@ -53,6 +56,7 @@ fichas_epi:
   - ca_epi
   - data_entrega
   - arquivo_id
+  - arquivo_hash
 
 plano_acao:
   - id
