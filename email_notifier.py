@@ -21,18 +21,45 @@ from operations.employee import EmployeeManager
 from operations.company_docs import CompanyDocsManager
 from gdrive.matrix_manager import MatrixManager
 
-def get_smtp_config_from_env():
-    """Lê a configuração SMTP a partir de variáveis de ambiente."""
+def get_smtp_config():
+    """
+    Lê a configuração SMTP tanto de variáveis de ambiente (GitHub Actions)
+    quanto de arquivo local para desenvolvimento.
+    """
+    # Tenta ler de variáveis de ambiente (modo GitHub Actions)
+    sender_email = os.getenv("SENDER_EMAIL")
+    sender_password = os.getenv("SENDER_PASSWORD")
+    global_receiver_email = os.getenv("RECEIVER_EMAIL")
+    
+    # Se não encontrar, tenta carregar de um arquivo local (para testes)
+    if not all([sender_email, sender_password, global_receiver_email]):
+        try:
+            # Tenta carregar de um arquivo .env local
+            from dotenv import load_dotenv
+            load_dotenv()
+            
+            sender_email = os.getenv("SENDER_EMAIL")
+            sender_password = os.getenv("SENDER_PASSWORD")
+            global_receiver_email = os.getenv("RECEIVER_EMAIL")
+        except ImportError:
+            pass
+    
+    # Validação final
+    if not all([sender_email, sender_password, global_receiver_email]):
+        raise ValueError(
+            "Configurações de e-mail não encontradas. "
+            "Configure as variáveis de ambiente: SENDER_EMAIL, SENDER_PASSWORD, RECEIVER_EMAIL"
+        )
+    
     config = {
         "smtp_server": "smtp.gmail.com", 
         "smtp_port": 465, 
-        "sender_email": os.getenv("SENDER_EMAIL"),
-        "sender_password": os.getenv("SENDER_PASSWORD"),
-        "global_receiver_email": os.getenv("RECEIVER_EMAIL")  # ✅ RENOMEADO
+        "sender_email": sender_email,
+        "sender_password": sender_password,
+        "global_receiver_email": global_receiver_email
     }
-    if not all([config["sender_email"], config["sender_password"], config["global_receiver_email"]]):
-        missing = [key for key, value in config.items() if not value and ("email" in key or "password" in key)]
-        raise ValueError(f"Variáveis de ambiente ausentes: {', '.join(missing)}. Verifique os Secrets.")
+    
+    logger.info(f"✅ Configuração SMTP carregada. Remetente: {sender_email}")
     return config
 
 def _get_empty_categories():
@@ -743,15 +770,17 @@ def send_smtp_email(html_body: str, config: dict, receiver_email: str, subject_s
 
 def main():
     """
-    ✅ MODIFICADO: Função principal com envio segmentado de e-mails
+    ✅ CORRIGIDO: Função principal com envio segmentado de e-mails
     """
     logger.info("🚀 Iniciando script de notificação de vencimentos...")
     
     try:
-        config = get_smtp_config_from_env()
+        # ✅ Usa a função corrigida
+        config = get_smtp_config()
         
         matrix_manager = MatrixManager()
         all_units = matrix_manager.get_all_units()
+        
         
         if not all_units:
             logger.warning("⚠️ Nenhuma unidade encontrada na matriz. Encerrando.")
