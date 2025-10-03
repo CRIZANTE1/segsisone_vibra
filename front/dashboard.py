@@ -193,14 +193,44 @@ def show_dashboard_page():
                             else:
                                 st.info(f"Nenhum ASO encontrado para {employee_name}.")
 
-                            st.markdown("##### Treinamentos (Mais Recente por Norma)")
+                            st.markdown("##### Treinamentos (Mais Recente por Norma/Módulo)")
                             if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                                 all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date
+                                
+                                # ✅ Cria coluna de exibição clara
+                                def format_norma_display(row):
+                                    norma = str(row.get('norma', 'N/A'))
+                                    modulo = str(row.get('modulo', 'N/A'))
+                                    
+                                    # Se for NR-10 SEP, destaca claramente
+                                    if 'SEP' in norma:
+                                        return f"⚡ {norma}"
+                                    
+                                    # Se tiver módulo relevante, mostra
+                                    if modulo and modulo != 'N/A':
+                                        return f"{norma} - {modulo}"
+                                    
+                                    return norma
+                                
+                                all_trainings['norma_completa'] = all_trainings.apply(format_norma_display, axis=1)
+                                
                                 st.dataframe(
                                     all_trainings.style.apply(highlight_expired, axis=1),
-                                    column_config={"norma": "Norma", "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), "vencimento_dt": None},
-                                    column_order=["norma", "data", "vencimento", "anexo"],
-                                    hide_index=True, use_container_width=True
+                                    column_config={
+                                        "norma_completa": st.column_config.TextColumn(
+                                            "Treinamento",
+                                            help="Norma e módulo do treinamento"
+                                        ),
+                                        "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
+                                        "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
+                                        "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), 
+                                        "vencimento_dt": None,
+                                        "norma": None,  # Oculta a coluna original
+                                        "modulo": None  # Oculta a coluna original
+                                    },
+                                    column_order=["norma_completa", "data", "vencimento", "anexo"],
+                                    hide_index=True, 
+                                    use_container_width=True
                                 )
                             else:
                                 st.info(f"Nenhum treinamento encontrado para {employee_name}.")
@@ -233,13 +263,50 @@ def show_dashboard_page():
                                     if not required_trainings:
                                         st.success(f"Nenhum treinamento obrigatório mapeado para a função '{matched_function}'.")
                                     else:
-                                        current_norms = all_trainings['norma'].dropna().tolist() if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty else []
-                                        missing = [req for req in required_trainings if not any(fuzz.partial_ratio(req.lower(), cur.lower()) > 85 for cur in current_norms)]
+                                        # ✅ CRIA lista de identificadores dos treinamentos realizados
+                                        current_training_identifiers = []
+                                        if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
+                                            for _, row in all_trainings.iterrows():
+                                                norma = str(row.get('norma', '')).strip()
+                                                modulo = str(row.get('modulo', 'N/A')).strip()
+                                                
+                                                # Adiciona o identificador completo
+                                                if 'SEP' in norma:
+                                                    current_training_identifiers.append(norma)
+                                                    current_training_identifiers.append(norma.lower())
+                                                elif modulo and modulo != 'N/A':
+                                                    current_training_identifiers.append(f"{norma} - {modulo}")
+                                                    current_training_identifiers.append(f"{norma} {modulo}")
+                                                    current_training_identifiers.append(norma)
+                                                else:
+                                                    current_training_identifiers.append(norma)
+                                        
+                                        # ✅ Verifica treinamentos faltantes com lógica melhorada
+                                        missing = []
+                                        for req in required_trainings:
+                                            req_lower = req.lower()
+                                            
+                                            # Verifica match exato ou fuzzy
+                                            has_match = any(
+                                                req_lower in cur.lower() or 
+                                                fuzz.partial_ratio(req_lower, cur.lower()) > 85 
+                                                for cur in current_training_identifiers
+                                            )
+                                            
+                                            if not has_match:
+                                                missing.append(req)
                                         
                                         if not missing:
                                             st.success("✅ Todos os treinamentos obrigatórios foram realizados.")
                                         else:
-                                            st.error(f"⚠️ **Treinamentos Faltantes:** {', '.join(sorted(missing))}")
+                                            st.error(f"⚠️ **{len(missing)} Treinamento(s) Faltante(s):**")
+                                            
+                                            # ✅ Agrupa e exibe de forma organizada
+                                            for treinamento in sorted(missing):
+                                                if 'SEP' in treinamento:
+                                                    st.markdown(f"- ⚡ **{treinamento}** *(Sistema Elétrico de Potência)*")
+                                                else:
+                                                    st.markdown(f"- {treinamento}")
                 else:
                     st.error(f"Nenhum funcionário encontrado para esta empresa (ID: {selected_company}).")
                     st.info(f"**Ação necessária:** Verifique na aba `funcionarios` da sua planilha se existem registros com `empresa_id` igual a `{selected_company}`.")

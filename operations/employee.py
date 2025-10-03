@@ -218,15 +218,27 @@ class EmployeeManager:
             carga_horaria = int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
             modulo = data.get('modulo', "N/A")
             tipo_treinamento = str(data.get('tipo_treinamento', 'formação')).lower()
-            
+
+            # ✅ GARANTIR que NR-10 SEP seja identificado corretamente
+            if 'SEP' in str(data.get('norma', '')).upper() or 'SISTEMA ELÉTRICO' in str(data.get('norma', '')).upper():
+                norma_padronizada = "NR-10 SEP"
+                modulo = "SEP"  # ✅ Define módulo como SEP para clareza
+
+            # Para NR-20, tenta inferir o módulo pela carga horária se não foi identificado
             if norma_padronizada == "NR-20" and (not modulo or modulo.lower() == 'n/a'):
                 key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
                 for mod, config in self.nr20_config.items():
                     if carga_horaria == config.get(key_ch):
                         modulo = mod
                         break
-            
-            return {'data': data_realizacao, 'norma': norma_padronizada, 'modulo': modulo, 'tipo_treinamento': tipo_treinamento, 'carga_horaria': carga_horaria}
+
+            return {
+                'data': data_realizacao, 
+                'norma': norma_padronizada, 
+                'modulo': modulo,  # ✅ Sempre retorna o módulo
+                'tipo_treinamento': tipo_treinamento, 
+                'carga_horaria': carga_horaria
+            }
         except Exception as e:
             st.error(f"Erro ao analisar PDF do Treinamento: {e}")
             return None
@@ -342,7 +354,8 @@ class EmployeeManager:
 
     def get_all_trainings_by_employee(self, employee_id):
         """
-        Retorna o treinamento mais recente para cada norma de um funcionário.
+        Retorna o treinamento mais recente para cada COMBINAÇÃO de norma + módulo.
+        Isso permite diferenciar NR-10 Básico de NR-10 SEP.
         """
         if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: 
             return pd.DataFrame()
@@ -356,15 +369,47 @@ class EmployeeManager:
         
         if training_docs.empty: 
             return pd.DataFrame()
-    
+
         # Garante que as colunas essenciais existam
         for col in ['norma', 'modulo', 'tipo_treinamento']:
             if col not in training_docs.columns: 
                 training_docs[col] = 'N/A'
             training_docs[col] = training_docs[col].fillna('N/A')
         
-        # ✅ Retorna apenas o mais recente por norma (remove código morto)
-        return training_docs.sort_values('data', ascending=False).groupby('norma').head(1)
+        # ✅ CORREÇÃO CRÍTICA: Criar identificador único por norma + módulo
+        def criar_identificador_unico(row):
+            norma = str(row['norma']).strip()
+            modulo = str(row['modulo']).strip()
+            
+            # Para NR-10 SEP, o identificador já é único
+            if 'SEP' in norma:
+                return norma
+            
+            # Para NR-20 e outras com módulos relevantes, combina norma + módulo
+            if norma in ['NR-20', 'NR-33', 'PERMISSÃO DE TRABALHO (PT)', 'NBR-16710 RESGATE TÉCNICO']:
+                if modulo and modulo != 'N/A':
+                    return f"{norma}_{modulo}"
+            
+            # Para outras normas, só a norma basta
+            return norma
+        
+        training_docs['identificador_unico'] = training_docs.apply(criar_identificador_unico, axis=1)
+
+        # ✅ DEBUG: Mostra os identificadores criados
+        if not training_docs.empty:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Identificadores únicos criados para funcionário {employee_id}:")
+            for idx, row in training_docs.iterrows():
+                logger.info(f"  - {row['norma']} | Módulo: {row['modulo']} | ID: {row['identificador_unico']}")
+        
+        # ✅ Agrupa por identificador único ao invés de só 'norma'
+        latest_trainings = training_docs.sort_values('data', ascending=False).groupby('identificador_unico').head(1)
+        
+        # Remove a coluna auxiliar antes de retornar
+        latest_trainings = latest_trainings.drop(columns=['identificador_unico'])
+        
+        return latest_trainings
 
     def get_company_name(self, company_id):
         if self.companies_df.empty: return f"ID {company_id}"
