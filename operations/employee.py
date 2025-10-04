@@ -15,9 +15,7 @@ from operations.audit_logger import log_action
 from auth.auth_utils import get_user_email
 from fuzzywuzzy import process
 import logging
-from operations.cached_loaders import (
-    load_companies_df, load_employees_df, load_asos_df, load_trainings_df
-)
+from operations.cached_loaders import load_all_unit_data
 
 try:
     locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
@@ -80,40 +78,38 @@ class EmployeeManager:
 
 
     def load_data(self):
-        """
-        Carrega todos os DataFrames da planilha da unidade usando os loaders cacheados e robustos.
-        """
-        logger.info(f"Carregando dados via cached_loaders para spreadsheet_id: ...{self.spreadsheet_id[-6:]}")
+        """Carrega dados E cria índices"""
         try:
-            # Usa as funções cacheadas, passando o ID da planilha
-            self.companies_df = load_companies_df(self.spreadsheet_id)
-            self.employees_df = load_employees_df(self.spreadsheet_id)
-            self.aso_df = load_asos_df(self.spreadsheet_id)
-            self.training_df = load_trainings_df(self.spreadsheet_id)
+            data = load_all_unit_data(self.spreadsheet_id)
             
-            # --- TRATAMENTO CENTRALIZADO DE DATAS (continua o mesmo) ---
-            if not self.aso_df.empty and 'data_aso' in self.aso_df.columns:
-                self.aso_df['data_aso'] = pd.to_datetime(self.aso_df['data_aso'], format='%d/%m/%Y', errors='coerce')
-                self.aso_df['vencimento'] = pd.to_datetime(self.aso_df['vencimento'], format='%d/%m/%Y', errors='coerce')
-
-            if not self.training_df.empty and 'data' in self.training_df.columns:
-                self.training_df['data'] = pd.to_datetime(self.training_df['data'], format='%d/%m/%Y', errors='coerce')
-                self.training_df['vencimento'] = pd.to_datetime(self.training_df['vencimento'], format='%d/%m/%Y', errors='coerce')
+            self.companies_df = data['companies']
+            self.employees_df = data['employees']
+            self.aso_df = data['asos']
+            self.training_df = data['trainings']
             
-            if not self.employees_df.empty and 'data_admissao' in self.employees_df.columns:
-                self.employees_df['data_admissao'] = pd.to_datetime(self.employees_df['data_admissao'], format='%d/%m/%Y', errors='coerce')
-
+            # ✅ CRIA ÍNDICES (acontece UMA VEZ no carregamento)
+            if not self.companies_df.empty:
+                # Índice por ID (busca O(1) em vez de O(n))
+                self.companies_df.set_index('id', inplace=True, drop=False)
+            
+            if not self.employees_df.empty:
+                self.employees_df.set_index('id', inplace=True, drop=False)
+                
+                # ✅ Pré-agrupa por empresa (busca instantânea depois)
+                self._employees_by_company = self.employees_df.groupby('empresa_id')
+            
+            if not self.aso_df.empty:
+                # ✅ Pré-agrupa ASOs por funcionário
+                self._asos_by_employee = self.aso_df.groupby('funcionario_id')
+            
+            if not self.training_df.empty:
+                # ✅ Pré-agrupa treinamentos por funcionário
+                self._trainings_by_employee = self.training_df.groupby('funcionario_id')
+            
             self.data_loaded_successfully = True
-            logger.info("DataFrames da unidade carregados (via cache) e datas tratadas com sucesso.")
             
         except Exception as e:
-            logger.error(f"FALHA CRÍTICA ao carregar dados da unidade via cached_loaders: {e}", exc_info=True)
-            st.error(f"Erro crítico ao carregar dados da unidade: {e}")
-            # Garante que os DFs sejam zerados em caso de erro
-            self.companies_df = pd.DataFrame()
-            self.employees_df = pd.DataFrame()
-            self.aso_df = pd.DataFrame()
-            self.training_df = pd.DataFrame()
+            logger.error(f"Erro: {e}", exc_info=True)
             self.data_loaded_successfully = False
 
     def _parse_flexible_date(self, date_string: str) -> date | None:
@@ -300,46 +296,74 @@ class EmployeeManager:
         return aso_id
 
     def add_training(self, training_data: dict):
-        funcionario_id = str(training_data.get('funcionario_id'))
-        arquivo_hash = training_data.get('arquivo_hash')
-        norma = self._padronizar_norma(training_data.get('norma'))
-        modulo = str(training_data.get('modulo', 'N/A')).strip()  # ✅ Garante que o módulo seja string
-        
-        # ✅ Validação extra para NR-10
-        if norma == 'NR-10 SEP' and modulo in ['N/A', '', 'nan']:
-            modulo = 'SEP'
-        elif norma == 'NR-10' and modulo in ['N/A', '', 'nan']:
-            modulo = 'Básico'
-        
-        # Verifica duplicata por hash
-        if arquivo_hash and verificar_hash_seguro(self.training_df, 'arquivo_hash'):
-            duplicata = self.training_df[
-                (self.training_df['funcionario_id'] == funcionario_id) &
-                (self.training_df['arquivo_hash'] == arquivo_hash)
+        """Com tratamento de erro completo"""
+        try:
+            # 1. VALIDA (já explicado acima)
+            is_valid, validation_msg = self.validate_training_data(training_data)
+            
+            if not is_valid:
+                st.error(f"❌ Validação falhou: {validation_msg}")
+                logger.warning(f"Treinamento rejeitado: {validation_msg}")
+                return None
+            
+            # 2. PREPARA os dados
+            funcionario_id = str(training_data.get('funcionario_id'))
+            norma = self._padronizar_norma(training_data.get('norma'))
+            modulo = str(training_data.get('modulo', 'N/A')).strip()
+            
+            # Normalização de módulo
+            if norma == 'NR-10 SEP' and modulo in ['N/A', '', 'nan']:
+                modulo = 'SEP'
+            elif norma == 'NR-10' and modulo in ['N/A', '', 'nan']:
+                modulo = 'Básico'
+            
+            new_data = [
+                funcionario_id,
+                training_data.get('data').strftime("%d/%m/%Y"),
+                training_data.get('vencimento').strftime("%d/%m/%Y"),
+                norma,
+                modulo,
+                "Válido",
+                str(training_data.get('anexo')),
+                training_data.get('arquivo_hash', ''),
+                str(training_data.get('tipo_treinamento', 'formação')),
+                str(training_data.get('carga_horaria', '0'))
             ]
             
-            if not duplicata.empty:
-                st.warning(f"⚠️ Este arquivo PDF já foi cadastrado anteriormente para este funcionário (Treinamento de '{duplicata.iloc[0]['norma']}').")
+            # 3. TENTA SALVAR
+            logger.info(f"Salvando treinamento: {norma} - {modulo} para funcionário {funcionario_id}")
+            training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
+            
+            # 4. VERIFICA SE DEU CERTO
+            if training_id:
+                # ✅ SUCESSO - registra no log de auditoria
+                log_action("ADD_TRAINING", {
+                    "training_id": training_id,
+                    "employee_id": funcionario_id,
+                    "norma": norma,
+                    "modulo": modulo,
+                    "tipo": training_data.get('tipo_treinamento'),
+                    "carga_horaria": training_data.get('carga_horaria')
+                })
+                
+                # Limpa cache e recarrega
+                st.cache_data.clear()
+                self.load_data()
+                
+                logger.info(f"✅ Treinamento {training_id} salvo com sucesso")
+                return training_id
+            else:
+                # ❌ FALHOU - informa o usuário
+                st.error("❌ Falha ao salvar na planilha Google Sheets")
+                logger.error(f"Sheet ops retornou None para treinamento {norma}")
                 return None
-        
-        new_data = [
-            funcionario_id,
-            training_data.get('data').strftime("%d/%m/%Y"),
-            training_data.get('vencimento').strftime("%d/%m/%Y"),
-            norma,
-            modulo,  # ✅ Salva o módulo corretamente
-            "Válido",
-            str(training_data.get('anexo')),
-            arquivo_hash or '',
-            str(training_data.get('tipo_treinamento', 'N/A')),
-            str(training_data.get('carga_horaria', '0'))
-        ]
-        
-        training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
-        if training_id:
-            st.cache_data.clear()
-            self.load_data()
-        return training_id
+                
+        except Exception as e:
+            # ❌ ERRO INESPERADO - captura tudo
+            logger.error(f"Erro crítico ao adicionar treinamento: {e}", exc_info=True)
+            st.error(f"❌ Erro inesperado: {str(e)}")
+            st.info(" Tente novamente ou contate o suporte se o erro persistir")
+            return None
 
     def _set_status(self, sheet_name: str, item_id: str, status: str):
         if self.sheet_ops.update_row_by_id(sheet_name, item_id, {'status': status}):
@@ -353,100 +377,102 @@ class EmployeeManager:
     def unarchive_employee(self, employee_id: str): return self._set_status("funcionarios", employee_id, "Ativo")
 
     def get_latest_aso_by_employee(self, employee_id):
-        if self.aso_df.empty or 'funcionario_id' not in self.aso_df.columns: return pd.DataFrame()
-        aso_docs = self.aso_df[self.aso_df['funcionario_id'] == str(employee_id)].copy()
-        if aso_docs.empty: return pd.DataFrame()
-        
-        aso_docs['data_aso'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
-        aso_docs['vencimento'] = pd.to_datetime(aso_docs['vencimento'], format='%d/%m/%Y', errors='coerce')
-        aso_docs.dropna(subset=['data_aso'], inplace=True)
-        if aso_docs.empty: return pd.DataFrame()
+        try:
+            aso_docs = self._asos_by_employee.get_group(str(employee_id)).copy()
+            if aso_docs.empty: return pd.DataFrame()
+            
+            aso_docs['data_aso'] = pd.to_datetime(aso_docs['data_aso'], format='%d/%m/%Y', errors='coerce')
+            aso_docs['vencimento'] = pd.to_datetime(aso_docs['vencimento'], format='%d/%m/%Y', errors='coerce')
+            aso_docs.dropna(subset=['data_aso'], inplace=True)
+            if aso_docs.empty: return pd.DataFrame()
 
-        aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('N/A')
-        return aso_docs.sort_values('data_aso', ascending=False).groupby('tipo_aso').head(1)
+            aso_docs['tipo_aso'] = aso_docs['tipo_aso'].fillna('N/A')
+            return aso_docs.sort_values('data_aso', ascending=False).groupby('tipo_aso').head(1)
+        except KeyError:
+            return pd.DataFrame()
 
     def get_all_trainings_by_employee(self, employee_id):
         """
         Retorna o treinamento mais recente para cada COMBINAÇÃO única de norma + módulo normalizado.
         Reciclagens ocultam formações vencidas, pois são consideradas atualizações válidas.
         """
-        if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: 
-            return pd.DataFrame()
-        
-        training_docs = self.training_df[self.training_df['funcionario_id'] == str(employee_id)].copy()
-        
-        if training_docs.empty: 
-            return pd.DataFrame()
-        
-        training_docs.dropna(subset=['data'], inplace=True)
-        
-        if training_docs.empty: 
-            return pd.DataFrame()
+        try:
+            training_docs = self._trainings_by_employee.get_group(str(employee_id)).copy()
+            
+            if training_docs.empty: 
+                return pd.DataFrame()
+            
+            training_docs.dropna(subset=['data'], inplace=True)
+            
+            if training_docs.empty: 
+                return pd.DataFrame()
 
-        # Garante que as colunas essenciais existam
-        for col in ['norma', 'modulo', 'tipo_treinamento']:
-            if col not in training_docs.columns: 
-                training_docs[col] = 'N/A'
-            training_docs[col] = training_docs[col].fillna('N/A')
-        
-        # ✅ NORMALIZAÇÃO: Norma e módulo para evitar duplicatas por case
-        training_docs['norma_normalizada'] = training_docs['norma'].str.strip().str.upper()
-        training_docs['modulo_normalizado'] = training_docs['modulo'].str.strip().str.title()
-        
-        # ✅ Tratamento especial para casos específicos
-        def normalizar_modulo_especial(row):
-            norma = row['norma_normalizada']
-            modulo = row['modulo_normalizado']
+            # Garante que as colunas essenciais existam
+            for col in ['norma', 'modulo', 'tipo_treinamento']:
+                if col not in training_docs.columns: 
+                    training_docs[col] = 'N/A'
+                training_docs[col] = training_docs[col].fillna('N/A')
             
-            # NR-10: SEP é diferente de Básico
-            if 'NR-10' in norma:
-                if 'SEP' in norma or 'SEP' in modulo.upper():
-                    return 'SEP'
-                elif modulo in ['N/A', 'Nan', '']:
-                    return 'Básico'
+            # ✅ NORMALIZAÇÃO: Norma e módulo para evitar duplicatas por case
+            training_docs['norma_normalizada'] = training_docs['norma'].str.strip().str.upper()
+            training_docs['modulo_normalizado'] = training_docs['modulo'].str.strip().str.title()
+            
+            # ✅ Tratamento especial para casos específicos
+            def normalizar_modulo_especial(row):
+                norma = row['norma_normalizada']
+                modulo = row['modulo_normalizado']
+                
+                # NR-10: SEP é diferente de Básico
+                if 'NR-10' in norma:
+                    if 'SEP' in norma or 'SEP' in modulo.upper():
+                        return 'SEP'
+                    elif modulo in ['N/A', 'Nan', '']:
+                        return 'Básico'
+                    return modulo
+                
+                # NR-33: Normaliza variações
+                if 'NR-33' in norma:
+                    if 'SUPERVISOR' in modulo.upper():
+                        return 'Supervisor'
+                    elif 'TRABALHADOR' in modulo.upper() or 'AUTORIZADO' in modulo.upper():
+                        return 'Trabalhador Autorizado'
+                    return modulo
+                
+                # NR-20: Normaliza módulos
+                if 'NR-20' in norma:
+                    modulos_validos = ['Básico', 'Intermediário', 'Avançado I', 'Avançado II']
+                    for valido in modulos_validos:
+                        if valido.upper() in modulo.upper():
+                            return valido
+                    return modulo
+                
+                # Permissão de Trabalho: Normaliza Emitente/Requisitante
+                if 'PERMISSÃO' in norma or 'PT' in norma:
+                    if 'EMITENTE' in modulo.upper():
+                        return 'Emitente'
+                    elif 'REQUISITANTE' in modulo.upper():
+                        return 'Requisitante'
+                    return modulo
+                
                 return modulo
             
-            # NR-33: Normaliza variações
-            if 'NR-33' in norma:
-                if 'SUPERVISOR' in modulo.upper():
-                    return 'Supervisor'
-                elif 'TRABALHADOR' in modulo.upper() or 'AUTORIZADO' in modulo.upper():
-                    return 'Trabalhador Autorizado'
-                return modulo
+            training_docs['modulo_final'] = training_docs.apply(normalizar_modulo_especial, axis=1)
             
-            # NR-20: Normaliza módulos
-            if 'NR-20' in norma:
-                modulos_validos = ['Básico', 'Intermediário', 'Avançado I', 'Avançado II']
-                for valido in modulos_validos:
-                    if valido.upper() in modulo.upper():
-                        return valido
-                return modulo
+            # ✅ CRÍTICO: Converte 'data' para datetime se ainda não for
+            training_docs['data_dt'] = pd.to_datetime(training_docs['data'], errors='coerce')
             
-            # Permissão de Trabalho: Normaliza Emitente/Requisitante
-            if 'PERMISSÃO' in norma or 'PT' in norma:
-                if 'EMITENTE' in modulo.upper():
-                    return 'Emitente'
-                elif 'REQUISITANTE' in modulo.upper():
-                    return 'Requisitante'
-                return modulo
+            # ✅ LÓGICA PRINCIPAL: Agrupa por (norma, módulo) e pega o MAIS RECENTE
+            # Isso significa que uma RECICLAGEM de 2024 vai ocultar uma FORMAÇÃO de 2020
+            latest_trainings = training_docs.sort_values(
+                'data_dt', ascending=False  # ✅ Ordena pela data mais recente primeiro
+            ).groupby(['norma_normalizada', 'modulo_final'], dropna=False).head(1)
             
-            return modulo
-        
-        training_docs['modulo_final'] = training_docs.apply(normalizar_modulo_especial, axis=1)
-        
-        # ✅ CRÍTICO: Converte 'data' para datetime se ainda não for
-        training_docs['data_dt'] = pd.to_datetime(training_docs['data'], errors='coerce')
-        
-        # ✅ LÓGICA PRINCIPAL: Agrupa por (norma, módulo) e pega o MAIS RECENTE
-        # Isso significa que uma RECICLAGEM de 2024 vai ocultar uma FORMAÇÃO de 2020
-        latest_trainings = training_docs.sort_values(
-            'data_dt', ascending=False  # ✅ Ordena pela data mais recente primeiro
-        ).groupby(['norma_normalizada', 'modulo_final'], dropna=False).head(1)
-        
-        # Remove colunas auxiliares antes de retornar
-        latest_trainings = latest_trainings.drop(columns=['norma_normalizada', 'modulo_normalizado', 'modulo_final', 'data_dt'])
-        
-        return latest_trainings
+            # Remove colunas auxiliares antes de retornar
+            latest_trainings = latest_trainings.drop(columns=['norma_normalizada', 'modulo_normalizado', 'modulo_final', 'data_dt'])
+            
+            return latest_trainings
+        except KeyError:
+            return pd.DataFrame()
 
     def get_company_name(self, company_id):
         if self.companies_df.empty: return f"ID {company_id}"
@@ -459,10 +485,60 @@ class EmployeeManager:
         return employee.iloc[0]['nome'] if not employee.empty else f"ID {employee_id}"
 
     def get_employees_by_company(self, company_id: str, include_archived: bool = False):
-        if self.employees_df.empty or 'empresa_id' not in self.employees_df.columns: return pd.DataFrame()
-        company_employees = self.employees_df[self.employees_df['empresa_id'] == str(company_id)]
-        if include_archived or 'status' not in company_employees.columns: return company_employees
-        return company_employees[company_employees['status'].str.lower() == 'ativo']
+        try:
+            # Busca no índice pré-criado (MUITO mais rápido)
+            company_employees = self._employees_by_company.get_group(str(company_id))
+            if include_archived or 'status' not in company_employees.columns:
+                return company_employees
+            return company_employees[company_employees['status'].str.lower() == 'ativo']
+        except KeyError:
+            # Empresa não tem funcionários
+            return pd.DataFrame()
+
+    def validate_training_data(self, training_data: dict) -> tuple[bool, str]:
+        """
+        Valida TUDO antes de salvar
+        Retorna: (True, "OK") ou (False, "mensagem de erro")
+        """
+        # 1. Extrai os dados
+        norma = training_data.get('norma')
+        modulo = training_data.get('modulo', 'N/A')
+        tipo = training_data.get('tipo_treinamento', 'formação')
+        carga_horaria = training_data.get('carga_horaria', 0)
+        data = training_data.get('data')
+        vencimento = training_data.get('vencimento')
+        
+        # 2. VALIDAÇÃO 1: Campos obrigatórios
+        if not all([norma, data, vencimento]):
+            return False, "❌ Faltam campos obrigatórios"
+        
+        # 3. VALIDAÇÃO 2: Data não pode ser futura
+        if data > date.today():
+            return False, f"❌ Data de realização ({data.strftime('%d/%m/%Y')}) não pode ser futura"
+        
+        # 4. VALIDAÇÃO 3: Vencimento após realização
+        if vencimento <= data:
+            return False, f"❌ Vencimento deve ser após a data de realização"
+        
+        # 5. VALIDAÇÃO 4: Carga horária (usa função existente)
+        is_valid, msg = self.validar_treinamento(norma, modulo, tipo, carga_horaria)
+        if not is_valid:
+            return False, msg
+        
+        # 6. VALIDAÇÃO 5: Duplicata por hash
+        arquivo_hash = training_data.get('arquivo_hash')
+        funcionario_id = str(training_data.get('funcionario_id'))
+        
+        if arquivo_hash and verificar_hash_seguro(self.training_df, 'arquivo_hash'):
+            duplicata = self.training_df[
+                (self.training_df['funcionario_id'] == funcionario_id) &
+                (self.training_df['arquivo_hash'] == arquivo_hash)
+            ]
+            if not duplicata.empty:
+                return False, "❌ Este PDF já foi cadastrado anteriormente"
+        
+        # 7. TUDO OK!
+        return True, "✅ Validação aprovada"
 
     def _padronizar_norma(self, norma):
         if not norma: return "N/A"

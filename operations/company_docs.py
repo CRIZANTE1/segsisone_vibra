@@ -8,7 +8,7 @@ from AI.api_Operation import PDFQA
 import tempfile
 import os
 from operations.audit_logger import log_action
-from operations.cached_loaders import load_company_docs_df, load_audits_df
+from operations.cached_loaders import load_all_unit_data
 from gdrive.google_api_manager import GoogleApiManager
 from operations.file_hash import calcular_hash_arquivo, verificar_hash_seguro
 
@@ -43,27 +43,20 @@ class CompanyDocsManager:
 
 
     def load_company_data(self):
-        logger.info("Iniciando o carregamento dos dados de documentos (via cache).")
+        logger.info("Carregando dados de documentos...")
         try:
-            # Carregar usando os loaders cacheados
-            self.docs_df = load_company_docs_df(self.spreadsheet_id)
-            self.audit_df = load_audits_df(self.spreadsheet_id)
-
-            if not self.docs_df.empty and 'data_emissao' in self.docs_df.columns:
-                self.docs_df['data_emissao'] = pd.to_datetime(self.docs_df['data_emissao'], format='%d/%m/%Y', errors='coerce')
-                self.docs_df['vencimento'] = pd.to_datetime(self.docs_df['vencimento'], format='%d/%m/%Y', errors='coerce')
-                logger.info(f"Sucesso. {len(self.docs_df)} registros carregados de 'documentos_empresa'.")
-
-            if not self.audit_df.empty:
-                 logger.info(f"Sucesso. {len(self.audit_df)} registros carregados de 'auditorias'.")
-
+            # ✅ Usa o loader unificado
+            data = load_all_unit_data(self.spreadsheet_id)
+            
+            self.docs_df = data['company_docs']
+            # Se precisar de auditorias, carregue separadamente
+            # self.audit_df = ... (ou adicione ao load_all_unit_data)
+            
             self.data_loaded_successfully = True
             
         except Exception as e:
-            logger.error(f"FALHA CRÍTICA ao carregar dados da empresa via cache: {str(e)}", exc_info=True)
-            st.error(f"Erro ao carregar dados essenciais da empresa: {str(e)}")
+            logger.error(f"Erro: {e}", exc_info=True)
             self.docs_df = pd.DataFrame()
-            self.audit_df = pd.DataFrame()
             self.data_loaded_successfully = False
 
     
