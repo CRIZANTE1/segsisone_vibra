@@ -1,1 +1,0 @@
-Fix: Refatora agupamento de módulos e detecção de SEP
