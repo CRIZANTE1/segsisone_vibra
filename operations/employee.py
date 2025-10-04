@@ -367,8 +367,8 @@ class EmployeeManager:
 
     def get_all_trainings_by_employee(self, employee_id):
         """
-        Retorna o treinamento mais recente para cada COMBINAÇÃO única de norma + módulo.
-        Isso permite mostrar NR-10 Básico E NR-10 SEP separadamente.
+        Retorna o treinamento mais recente para cada COMBINAÇÃO única de norma + módulo normalizado.
+        Reciclagens ocultam formações vencidas, pois são consideradas atualizações válidas.
         """
         if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: 
             return pd.DataFrame()
@@ -389,11 +389,62 @@ class EmployeeManager:
                 training_docs[col] = 'N/A'
             training_docs[col] = training_docs[col].fillna('N/A')
         
-        # ✅ CHAVE: Agrupa por (norma, modulo) - TUPLA DE DUAS COLUNAS
-        # Ordena por data decrescente e pega o primeiro (mais recente) de cada grupo
+        # ✅ NORMALIZAÇÃO: Norma e módulo para evitar duplicatas por case
+        training_docs['norma_normalizada'] = training_docs['norma'].str.strip().str.upper()
+        training_docs['modulo_normalizado'] = training_docs['modulo'].str.strip().str.title()
+        
+        # ✅ Tratamento especial para casos específicos
+        def normalizar_modulo_especial(row):
+            norma = row['norma_normalizada']
+            modulo = row['modulo_normalizado']
+            
+            # NR-10: SEP é diferente de Básico
+            if 'NR-10' in norma:
+                if 'SEP' in norma or 'SEP' in modulo.upper():
+                    return 'SEP'
+                elif modulo in ['N/A', 'Nan', '']:
+                    return 'Básico'
+                return modulo
+            
+            # NR-33: Normaliza variações
+            if 'NR-33' in norma:
+                if 'SUPERVISOR' in modulo.upper():
+                    return 'Supervisor'
+                elif 'TRABALHADOR' in modulo.upper() or 'AUTORIZADO' in modulo.upper():
+                    return 'Trabalhador Autorizado'
+                return modulo
+            
+            # NR-20: Normaliza módulos
+            if 'NR-20' in norma:
+                modulos_validos = ['Básico', 'Intermediário', 'Avançado I', 'Avançado II']
+                for valido in modulos_validos:
+                    if valido.upper() in modulo.upper():
+                        return valido
+                return modulo
+            
+            # Permissão de Trabalho: Normaliza Emitente/Requisitante
+            if 'PERMISSÃO' in norma or 'PT' in norma:
+                if 'EMITENTE' in modulo.upper():
+                    return 'Emitente'
+                elif 'REQUISITANTE' in modulo.upper():
+                    return 'Requisitante'
+                return modulo
+            
+            return modulo
+        
+        training_docs['modulo_final'] = training_docs.apply(normalizar_modulo_especial, axis=1)
+        
+        # ✅ CRÍTICO: Converte 'data' para datetime se ainda não for
+        training_docs['data_dt'] = pd.to_datetime(training_docs['data'], errors='coerce')
+        
+        # ✅ LÓGICA PRINCIPAL: Agrupa por (norma, módulo) e pega o MAIS RECENTE
+        # Isso significa que uma RECICLAGEM de 2024 vai ocultar uma FORMAÇÃO de 2020
         latest_trainings = training_docs.sort_values(
-            'data', ascending=False
-        ).groupby(['norma', 'modulo'], dropna=False).head(1)
+            'data_dt', ascending=False  # ✅ Ordena pela data mais recente primeiro
+        ).groupby(['norma_normalizada', 'modulo_final'], dropna=False).head(1)
+        
+        # Remove colunas auxiliares antes de retornar
+        latest_trainings = latest_trainings.drop(columns=['norma_normalizada', 'modulo_normalizado', 'modulo_final', 'data_dt'])
         
         return latest_trainings
 

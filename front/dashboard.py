@@ -199,23 +199,25 @@ def show_dashboard_page():
                                 
                                 # ✅ Cria coluna combinada para exibição clara
                                 def format_training_display(row):
-                                    norma = str(row.get('norma', 'N/A'))
-                                    modulo = str(row.get('modulo', 'N/A'))
-                                    tipo = str(row.get('tipo_treinamento', 'N/A')).title()
+                                    norma = str(row.get('norma', 'N/A')).strip()
+                                    modulo = str(row.get('modulo', 'N/A')).strip()
+                                    tipo = str(row.get('tipo_treinamento', 'N/A')).strip().title()
                                     
-                                    # Se for NR-10 SEP, já vem identificado na norma
-                                    if 'SEP' in norma:
-                                        return f"⚡ {norma} ({tipo})"
+                                    # Se for NR-10 SEP, destaca
+                                    if 'SEP' in norma.upper() or 'SEP' in modulo.upper():
+                                        return f"⚡ NR-10 SEP ({tipo})"
                                     
-                                    # Para normas com módulos relevantes, exibe o módulo
-                                    if modulo and modulo not in ['N/A', 'nan', '']:
-                                        return f"{norma} - {modulo} ({tipo})"
+                                    # Para normas com módulos relevantes
+                                    if modulo and modulo not in ['N/A', 'nan', '', 'Nan']:
+                                        # Normaliza o módulo para exibição
+                                        modulo_exibicao = modulo.title()
+                                        return f"{norma} - {modulo_exibicao} ({tipo})"
                                     
-                                    # Para normas simples, só mostra a norma
+                                    # Para normas simples
                                     return f"{norma} ({tipo})"
                                 
                                 all_trainings['treinamento_completo'] = all_trainings.apply(format_training_display, axis=1)
-                                
+
                                 st.dataframe(
                                     all_trainings.style.apply(highlight_expired, axis=1),
                                     column_config={
@@ -269,27 +271,51 @@ def show_dashboard_page():
                                     if not required_trainings:
                                         st.success(f"Nenhum treinamento obrigatório mapeado para a função '{matched_function}'.")
                                     else:
-                                        # ✅ Cria lista de treinamentos realizados (norma + módulo)
+                                        # ✅ Cria lista de treinamentos realizados (norma + módulo normalizados)
                                         completed_trainings = []
-                                        
+
                                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                                             for _, row in all_trainings.iterrows():
-                                                norma = str(row.get('norma', '')).strip()
-                                                modulo = str(row.get('modulo', 'N/A')).strip()
+                                                norma = str(row.get('norma', '')).strip().upper()
+                                                modulo = str(row.get('modulo', 'N/A')).strip().title()
                                                 
-                                                # Adiciona variações para facilitar a comparação
-                                                completed_trainings.append(norma.lower())
+                                                # Normalização especial
+                                                if 'NR-10' in norma:
+                                                    if 'SEP' in norma or 'SEP' in modulo.upper():
+                                                        completed_trainings.append('nr-10 sep')
+                                                        completed_trainings.append('nr-10-sep')
+                                                    else:
+                                                        completed_trainings.append('nr-10')
+                                                        completed_trainings.append('nr-10 básico')
                                                 
-                                                if modulo and modulo not in ['N/A', 'nan', '']:
-                                                    # Adiciona com hífen, espaço e junto
-                                                    completed_trainings.append(f"{norma} - {modulo}".lower())
-                                                    completed_trainings.append(f"{norma} {modulo}".lower())
-                                                    completed_trainings.append(f"{norma}-{modulo}".lower())
-                                        
+                                                elif 'NR-33' in norma:
+                                                    if 'SUPERVISOR' in modulo.upper():
+                                                        completed_trainings.append('nr-33 supervisor')
+                                                    elif 'TRABALHADOR' in modulo.upper() or 'AUTORIZADO' in modulo.upper():
+                                                        completed_trainings.append('nr-33 trabalhador autorizado')
+                                                    completed_trainings.append('nr-33')
+                                                
+                                                else:
+                                                    # Adiciona variações normalizadas
+                                                    completed_trainings.append(norma.lower())
+                                                    
+                                                    if modulo and modulo not in ['N/A', 'nan', '']:
+                                                        completed_trainings.append(f"{norma} - {modulo}".lower())
+                                                        completed_trainings.append(f"{norma} {modulo}".lower())
+                                                        completed_trainings.append(f"{norma}-{modulo}".lower())
+
                                         # ✅ Verifica treinamentos faltantes
                                         missing = []
                                         for req in required_trainings:
                                             req_lower = req.lower().strip()
+                                            
+                                            # ✅ CORREÇÃO CRÍTICA: NR-10 Básico NÃO cobre NR-10 SEP
+                                            if 'nr-10 sep' in req_lower or 'nr-10-sep' in req_lower:
+                                                # Verifica especificamente por SEP
+                                                has_sep = any('sep' in comp for comp in completed_trainings if 'nr-10' in comp)
+                                                if not has_sep:
+                                                    missing.append(req)
+                                                continue
                                             
                                             # Verifica match exato ou fuzzy (score > 85)
                                             has_match = any(
@@ -302,8 +328,7 @@ def show_dashboard_page():
                                             
                                             if not has_match:
                                                 missing.append(req)
-                                        
-                                        # ✅ Exibe resultado
+
                                         if not missing:
                                             st.success("✅ Todos os treinamentos obrigatórios foram realizados.")
                                         else:
