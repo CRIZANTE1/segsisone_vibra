@@ -182,28 +182,30 @@ class EmployeeManager:
                 temp_path = temp_file.name
             
             structured_prompt = """
-            Você é um especialista em análise de documentos de Saúde e Segurança do Trabalho. Sua tarefa é analisar o certificado de treinamento em PDF e extrair as informações abaixo.
+            Você é um especialista em análise de documentos de Saúde e Segurança do Trabalho.
 
-            **REGRAS OBRIGATÓRIAS:**
-            1.  Responda **APENAS com um bloco de código JSON válido**. Não inclua a palavra "json" ou qualquer outro texto antes ou depois do bloco JSON.
-            2.  Para a chave de data, use ESTRITAMENTE o formato **DD/MM/AAAA**.
-            3.  Se uma informação não for encontrada de forma clara, o valor da chave correspondente no JSON deve ser **null** (sem aspas).
-            4.  Para a chave "norma", retorne o nome padronizado (ex: 'NR-10', 'NR-35').
-            5.  Para a chave "carga_horaria", retorne apenas o número inteiro de horas.
-            6.  **IMPORTANTE:** Os valores das chaves no JSON **NÃO DEVEM** conter o nome da chave.
-                -   **ERRADO:** `"norma": "Norma: NR-35"`
-                -   **CORRETO:** `"norma": "NR-35"`
+            **REGRAS CRÍTICAS:**
+            1.  Responda **APENAS com JSON válido**.
+            2.  Datas no formato **DD/MM/AAAA**.
+            3.  Para a chave "norma":
+                - Se mencionar "SEP", "Sistema Elétrico de Potência", "Alta Tensão" ou "Subestação", retorne **"NR-10 SEP"**
+                - Se for NR-10 sem menção a SEP, retorne **"NR-10"**
+            4.  Para a chave "modulo":
+                - Se for NR-10 SEP, retorne **"SEP"**
+                - Se for NR-10 comum, retorne **"Básico"** ou **"N/A"**
+                - Para NR-20, identifique: **"Básico"**, **"Intermediário"**, **"Avançado I"** ou **"Avançado II"**
+                - Para NR-33, identifique: **"Trabalhador Autorizado"** ou **"Supervisor"**
+                - Para outros, extraia o módulo ou retorne **"N/A"**
 
-            **JSON a ser preenchido:**
+            **JSON:**
             ```json
             {
-            "norma": "A norma regulamentadora do treinamento (ex: 'NR-20', 'NBR 16710' 'Brigada de Incêndio', 'IT-17','NR-11', 'NR-35', Permissão de Trabalho).",
-            "modulo": "O módulo específico do treinamento (ex: 'Emitente', 'Requisitante', 'Resgate Técnico Industrial', 'Operador de Empilhadeira', 'Munck', 'Guindauto','Básico', 'Avançado', 'Supervisor'). Se não for aplicável, use 'N/A', Não considere 'Nivel' apenas o módulo ex se vier 'Intermediário Nível III' considere apenas 'Intermediário'.",
-            "data_realizacao": "A data de conclusão ou emissão do certificado. Formato: DD/MM/AAAA.",
-            "tipo_treinamento": "Identifique se é 'formação' (inicial) ou 'reciclagem' se não estiver descrito será 'formação'.",
-            "carga_horaria": "A carga horária total do treinamento, apenas o número."
+              "norma": "Nome da norma (ex: 'NR-10 SEP' se for SEP, 'NR-10' se for básico)",
+              "modulo": "Módulo específico (ex: 'SEP', 'Básico', 'Intermediário')",
+              "data_realizacao": "DD/MM/AAAA",
+              "tipo_treinamento": "'formação' ou 'reciclagem'",
+              "carga_horaria": "Número inteiro de horas"
             }
-
             """
             answer, _ = self.pdf_analyzer.answer_question([temp_path], structured_prompt)
             os.unlink(temp_path)
@@ -215,28 +217,32 @@ class EmployeeManager:
             if not data_realizacao: return None
                 
             norma_padronizada = self._padronizar_norma(data.get('norma'))
-            carga_horaria = int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
-            modulo = data.get('modulo', "N/A")
+            modulo = str(data.get('modulo', 'N/A')).strip()
             tipo_treinamento = str(data.get('tipo_treinamento', 'formação')).lower()
-
-            # ✅ GARANTIR que NR-10 SEP seja identificado corretamente
-            if 'SEP' in str(data.get('norma', '')).upper() or 'SISTEMA ELÉTRICO' in str(data.get('norma', '')).upper():
-                norma_padronizada = "NR-10 SEP"
-                modulo = "SEP"  # ✅ Define módulo como SEP para clareza
-
-            # Para NR-20, tenta inferir o módulo pela carga horária se não foi identificado
-            if norma_padronizada == "NR-20" and (not modulo or modulo.lower() == 'n/a'):
-                key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
-                for mod, config in self.nr20_config.items():
-                    if carga_horaria == config.get(key_ch):
-                        modulo = mod
-                        break
-
+            carga_horaria = int(data.get('carga_horaria', 0)) if data.get('carga_horaria') is not None else 0
+            
+            # Garante que SEP seja identificado
+            if 'SEP' in norma_padronizada:
+                modulo = 'SEP'
+            elif norma_padronizada == 'NR-10' and modulo in ['N/A', '', 'nan']:
+                modulo = 'Básico'
+            
+            # Para NR-20, valida se o módulo está correto
+            if norma_padronizada == "NR-20":
+                modulos_validos = ['Básico', 'Intermediário', 'Avançado I', 'Avançado II']
+                if modulo not in modulos_validos:
+                    # Tenta inferir pela carga horária
+                    key_ch = 'inicial_horas' if tipo_treinamento == 'formação' else 'reciclagem_horas'
+                    for mod, config in self.nr20_config.items():
+                        if carga_horaria == config.get(key_ch):
+                            modulo = mod
+                            break
+            
             return {
-                'data': data_realizacao, 
-                'norma': norma_padronizada, 
-                'modulo': modulo,  # ✅ Sempre retorna o módulo
-                'tipo_treinamento': tipo_treinamento, 
+                'data': data_realizacao,
+                'norma': norma_padronizada,
+                'modulo': modulo,
+                'tipo_treinamento': tipo_treinamento,
                 'carga_horaria': carga_horaria
             }
         except Exception as e:
@@ -297,9 +303,15 @@ class EmployeeManager:
         funcionario_id = str(training_data.get('funcionario_id'))
         arquivo_hash = training_data.get('arquivo_hash')
         norma = self._padronizar_norma(training_data.get('norma'))
+        modulo = str(training_data.get('modulo', 'N/A')).strip()  # ✅ Garante que o módulo seja string
         
-        # Verifica duplicata por hash APENAS se a coluna existir e tiver dados
+        # ✅ Validação extra para NR-10
+        if norma == 'NR-10 SEP' and modulo in ['N/A', '', 'nan']:
+            modulo = 'SEP'
+        elif norma == 'NR-10' and modulo in ['N/A', '', 'nan']:
+            modulo = 'Básico'
         
+        # Verifica duplicata por hash
         if arquivo_hash and verificar_hash_seguro(self.training_df, 'arquivo_hash'):
             duplicata = self.training_df[
                 (self.training_df['funcionario_id'] == funcionario_id) &
@@ -315,13 +327,14 @@ class EmployeeManager:
             training_data.get('data').strftime("%d/%m/%Y"),
             training_data.get('vencimento').strftime("%d/%m/%Y"),
             norma,
-            str(training_data.get('modulo', 'N/A')),
+            modulo,  # ✅ Salva o módulo corretamente
             "Válido",
             str(training_data.get('anexo')),
             arquivo_hash or '',
             str(training_data.get('tipo_treinamento', 'N/A')),
             str(training_data.get('carga_horaria', '0'))
         ]
+        
         training_id = self.sheet_ops.adc_dados_aba("treinamentos", new_data)
         if training_id:
             st.cache_data.clear()
@@ -354,8 +367,8 @@ class EmployeeManager:
 
     def get_all_trainings_by_employee(self, employee_id):
         """
-        Retorna o treinamento mais recente para cada COMBINAÇÃO de norma + módulo.
-        Isso permite diferenciar NR-10 Básico de NR-10 SEP.
+        Retorna o treinamento mais recente para cada COMBINAÇÃO única de norma + módulo.
+        Isso permite mostrar NR-10 Básico E NR-10 SEP separadamente.
         """
         if self.training_df.empty or 'funcionario_id' not in self.training_df.columns: 
             return pd.DataFrame()
@@ -376,38 +389,11 @@ class EmployeeManager:
                 training_docs[col] = 'N/A'
             training_docs[col] = training_docs[col].fillna('N/A')
         
-        # ✅ CORREÇÃO CRÍTICA: Criar identificador único por norma + módulo
-        def criar_identificador_unico(row):
-            norma = str(row['norma']).strip()
-            modulo = str(row['modulo']).strip()
-            
-            # Para NR-10 SEP, o identificador já é único
-            if 'SEP' in norma:
-                return norma
-            
-            # Para NR-20 e outras com módulos relevantes, combina norma + módulo
-            if norma in ['NR-20', 'NR-33', 'PERMISSÃO DE TRABALHO (PT)', 'NBR-16710 RESGATE TÉCNICO']:
-                if modulo and modulo != 'N/A':
-                    return f"{norma}_{modulo}"
-            
-            # Para outras normas, só a norma basta
-            return norma
-        
-        training_docs['identificador_unico'] = training_docs.apply(criar_identificador_unico, axis=1)
-
-        # ✅ DEBUG: Mostra os identificadores criados
-        if not training_docs.empty:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.info(f"Identificadores únicos criados para funcionário {employee_id}:")
-            for idx, row in training_docs.iterrows():
-                logger.info(f"  - {row['norma']} | Módulo: {row['modulo']} | ID: {row['identificador_unico']}")
-        
-        # ✅ Agrupa por identificador único ao invés de só 'norma'
-        latest_trainings = training_docs.sort_values('data', ascending=False).groupby('identificador_unico').head(1)
-        
-        # Remove a coluna auxiliar antes de retornar
-        latest_trainings = latest_trainings.drop(columns=['identificador_unico'])
+        # ✅ CHAVE: Agrupa por (norma, modulo) - TUPLA DE DUAS COLUNAS
+        # Ordena por data decrescente e pega o primeiro (mais recente) de cada grupo
+        latest_trainings = training_docs.sort_values(
+            'data', ascending=False
+        ).groupby(['norma', 'modulo'], dropna=False).head(1)
         
         return latest_trainings
 

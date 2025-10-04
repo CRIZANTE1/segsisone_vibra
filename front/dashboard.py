@@ -197,38 +197,43 @@ def show_dashboard_page():
                             if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                                 all_trainings['vencimento_dt'] = pd.to_datetime(all_trainings['vencimento'], errors='coerce').dt.date
                                 
-                                # ✅ Cria coluna de exibição clara
-                                def format_norma_display(row):
+                                # ✅ Cria coluna combinada para exibição clara
+                                def format_training_display(row):
                                     norma = str(row.get('norma', 'N/A'))
                                     modulo = str(row.get('modulo', 'N/A'))
+                                    tipo = str(row.get('tipo_treinamento', 'N/A')).title()
                                     
-                                    # Se for NR-10 SEP, destaca claramente
+                                    # Se for NR-10 SEP, já vem identificado na norma
                                     if 'SEP' in norma:
-                                        return f"⚡ {norma}"
+                                        return f"⚡ {norma} ({tipo})"
                                     
-                                    # Se tiver módulo relevante, mostra
-                                    if modulo and modulo != 'N/A':
-                                        return f"{norma} - {modulo}"
+                                    # Para normas com módulos relevantes, exibe o módulo
+                                    if modulo and modulo not in ['N/A', 'nan', '']:
+                                        return f"{norma} - {modulo} ({tipo})"
                                     
-                                    return norma
+                                    # Para normas simples, só mostra a norma
+                                    return f"{norma} ({tipo})"
                                 
-                                all_trainings['norma_completa'] = all_trainings.apply(format_norma_display, axis=1)
+                                all_trainings['treinamento_completo'] = all_trainings.apply(format_training_display, axis=1)
                                 
                                 st.dataframe(
                                     all_trainings.style.apply(highlight_expired, axis=1),
                                     column_config={
-                                        "norma_completa": st.column_config.TextColumn(
+                                        "treinamento_completo": st.column_config.TextColumn(
                                             "Treinamento",
-                                            help="Norma e módulo do treinamento"
+                                            help="Norma, módulo e tipo do treinamento",
+                                            width="large"
                                         ),
                                         "data": st.column_config.DateColumn("Realização", format="DD/MM/YYYY"), 
                                         "vencimento": st.column_config.DateColumn("Vencimento", format="DD/MM/YYYY"), 
-                                        "anexo": st.column_config.LinkColumn("Anexo", display_text="PDF"), 
+                                        "anexo": st.column_config.LinkColumn("Anexo", display_text=" PDF"),
+                                        # ✅ Oculta colunas redundantes
                                         "vencimento_dt": None,
-                                        "norma": None,  # Oculta a coluna original
-                                        "modulo": None  # Oculta a coluna original
+                                        "norma": None,
+                                        "modulo": None,
+                                        "tipo_treinamento": None
                                     },
-                                    column_order=["norma_completa", "data", "vencimento", "anexo"],
+                                    column_order=["treinamento_completo", "data", "vencimento", "anexo"],
                                     hide_index=True, 
                                     use_container_width=True
                                 )
@@ -260,51 +265,56 @@ def show_dashboard_page():
                                         st.caption(f"Analisando com base na função da matriz mais próxima: **'{matched_function}'**")
                                     
                                     required_trainings = matrix_manager_unidade.get_required_trainings_for_function(matched_function)
+                                    
                                     if not required_trainings:
                                         st.success(f"Nenhum treinamento obrigatório mapeado para a função '{matched_function}'.")
                                     else:
-                                        # ✅ CRIA lista de identificadores dos treinamentos realizados
-                                        current_training_identifiers = []
+                                        # ✅ Cria lista de treinamentos realizados (norma + módulo)
+                                        completed_trainings = []
+                                        
                                         if isinstance(all_trainings, pd.DataFrame) and not all_trainings.empty:
                                             for _, row in all_trainings.iterrows():
                                                 norma = str(row.get('norma', '')).strip()
                                                 modulo = str(row.get('modulo', 'N/A')).strip()
                                                 
-                                                # Adiciona o identificador completo
-                                                if 'SEP' in norma:
-                                                    current_training_identifiers.append(norma)
-                                                    current_training_identifiers.append(norma.lower())
-                                                elif modulo and modulo != 'N/A':
-                                                    current_training_identifiers.append(f"{norma} - {modulo}")
-                                                    current_training_identifiers.append(f"{norma} {modulo}")
-                                                    current_training_identifiers.append(norma)
-                                                else:
-                                                    current_training_identifiers.append(norma)
+                                                # Adiciona variações para facilitar a comparação
+                                                completed_trainings.append(norma.lower())
+                                                
+                                                if modulo and modulo not in ['N/A', 'nan', '']:
+                                                    # Adiciona com hífen, espaço e junto
+                                                    completed_trainings.append(f"{norma} - {modulo}".lower())
+                                                    completed_trainings.append(f"{norma} {modulo}".lower())
+                                                    completed_trainings.append(f"{norma}-{modulo}".lower())
                                         
-                                        # ✅ Verifica treinamentos faltantes com lógica melhorada
+                                        # ✅ Verifica treinamentos faltantes
                                         missing = []
                                         for req in required_trainings:
-                                            req_lower = req.lower()
+                                            req_lower = req.lower().strip()
                                             
-                                            # Verifica match exato ou fuzzy
+                                            # Verifica match exato ou fuzzy (score > 85)
                                             has_match = any(
-                                                req_lower in cur.lower() or 
-                                                fuzz.partial_ratio(req_lower, cur.lower()) > 85 
-                                                for cur in current_training_identifiers
+                                                req_lower == comp or 
+                                                req_lower in comp or 
+                                                comp in req_lower or
+                                                fuzz.ratio(req_lower, comp) > 85
+                                                for comp in completed_trainings
                                             )
                                             
                                             if not has_match:
                                                 missing.append(req)
                                         
+                                        # ✅ Exibe resultado
                                         if not missing:
                                             st.success("✅ Todos os treinamentos obrigatórios foram realizados.")
                                         else:
                                             st.error(f"⚠️ **{len(missing)} Treinamento(s) Faltante(s):**")
                                             
-                                            # ✅ Agrupa e exibe de forma organizada
                                             for treinamento in sorted(missing):
-                                                if 'SEP' in treinamento:
+                                                # Destaca treinamentos especiais
+                                                if 'SEP' in treinamento.upper():
                                                     st.markdown(f"- ⚡ **{treinamento}** *(Sistema Elétrico de Potência)*")
+                                                elif any(x in treinamento.upper() for x in ['BÁSICO', 'INTERMEDIÁRIO', 'AVANÇADO']):
+                                                    st.markdown(f"-  **{treinamento}**")
                                                 else:
                                                     st.markdown(f"- {treinamento}")
                 else:
