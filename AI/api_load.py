@@ -16,7 +16,7 @@ def load_models():
         extraction_key = st.secrets.get("general", {}).get("GEMINI_EXTRACTION_KEY")
         if extraction_key:
             genai.configure(api_key=extraction_key)
-            extraction_model = genai.GenerativeModel('gemini-2.5-flash-preview-05-20') 
+            extraction_model = genai.GenerativeModel('gemini-2.5-pro') 
             logging.info("Modelo de EXTRAÇÃO carregado com sucesso.")
         else:
             st.warning("Chave 'GEMINI_EXTRACTION_KEY' não encontrada nos secrets. Funções de extração de dados serão desativadas.")
@@ -24,7 +24,7 @@ def load_models():
         audit_key = st.secrets.get("general", {}).get("GEMINI_AUDIT_KEY")
         if audit_key:
             genai.configure(api_key=audit_key)
-            audit_model = genai.GenerativeModel('gemini-2.5-flash')
+            audit_model = genai.GenerativeModel('gemini-2.5-pro')
             logging.info("Modelo de AUDITORIA carregado com sucesso.")
         else:
             st.warning("Chave 'GEMINI_AUDIT_KEY' não encontrada nos secrets. Funções de auditoria serão desativadas.")
@@ -34,6 +34,7 @@ def load_models():
     except Exception as e:
         st.error(f"Erro crítico ao carregar os modelos de IA: {e}")
         return None, None
+
 
 
 
