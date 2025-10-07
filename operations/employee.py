@@ -43,14 +43,14 @@ class EmployeeManager:
         }
         self.nr_config = {
             'NR-35': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 2},
-            'NR-10': {'inicial_horas': 40, 'reciclagem_horas': 40, 'reciclagem_anos': 2},
+            'NR-10': {'inicial_horas': 20, 'reciclagem_horas': 20, 'reciclagem_anos': 2},
             'NR-18': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
             'NR-06': {'inicial_horas': 3, 'reciclagem_horas': 3, 'reciclagem_anos': 10},
             'NR-12': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 5},
             'NR-34': {'inicial_horas': 8, 'reciclagem_horas': 8, 'reciclagem_anos': 1},
             'NR-33': {'reciclagem_anos': 1},
             'BRIGADA DE INCÊNDIO': {'reciclagem_anos': 1},
-            'NR-11': {'inicial_horas': 16, 'reciclagem_anos': 3, 'reciclagem_horas': 16},  # ✅ CORRIGIDO
+            'NR-11': {'inicial_horas': 16, 'reciclagem_anos': 3, 'reciclagem_horas': 16}, 
             'NBR-16710 RESGATE TÉCNICO': {'reciclagem_anos': 2},
             'PERMISSÃO DE TRABALHO (PT)': {'reciclagem_anos': 1}
         }
